@@ -1210,6 +1210,62 @@ var KEY = 'va_catalog_v3';
 var WA_NUMBER = '573180935276';
 var activeCategory = null;
 
+/* Supabase — base de datos en la nube */
+var SB_URL = 'https://rbvqxrkzepthbbqzkbcg.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJidnF4cmt6ZXB0aGJicXprYmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTQwNTcsImV4cCI6MjEwMTc5MDA1N30.6RA6S7nxFCZdLzyhhX-siEXZrY47jpH9mcaB0wMq0hg';
+var _sbCache = [];
+
+function sbToItem(r) {
+  return {
+    id: r.id, estado: r.estado || 'publicado', categoria: r.categoria, estilo: r.estilo,
+    metal: r.metal, ley: r.ley, color: r.color, genero: r.genero,
+    piedras: r.piedras || [], descripcion: r.descripcion,
+    medida: r.medida || '', medidaU: r.medida_u || '',
+    certificado: r.certificado || 'No', certNum: r.cert_num || '',
+    precio: Number(r.precio) || 0, foto: r.foto_url || null,
+    proveedor: r.proveedor || '', costo: Number(r.costo) || 0,
+    margen: Number(r.margen) || 100, notas: r.notas || '',
+    createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+    updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+  };
+}
+function itemToSb(it) {
+  return {
+    id: it.id, estado: it.estado || 'publicado', categoria: it.categoria, estilo: it.estilo,
+    metal: it.metal, ley: it.ley, color: it.color, genero: it.genero,
+    piedras: it.piedras || [], descripcion: it.descripcion,
+    medida: it.medida || '', medida_u: it.medidaU || '',
+    certificado: it.certificado || 'No', cert_num: it.certNum || '',
+    precio: it.precio || 0, foto_url: it.foto || null,
+    proveedor: it.proveedor || '', costo: it.costo || 0,
+    margen: (it.margen === 0 || it.margen) ? it.margen : 100,
+    notas: it.notas || '', updated_at: new Date().toISOString()
+  };
+}
+function sbFetchAll(cb) {
+  fetch(SB_URL + '/rest/v1/productos?select=*&order=created_at.desc', {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  }).then(function(r) { return r.json(); })
+    .then(function(rows) { _sbCache = rows.map(sbToItem); if (cb) cb(_sbCache); })
+    .catch(function(e) { console.error('Error cargando:', e); if (cb) cb(_sbCache); });
+}
+function sbUpsert(item, cb) {
+  fetch(SB_URL + '/rest/v1/productos', {
+    method: 'POST',
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(itemToSb(item))
+  }).then(function(r) { if (!r.ok) throw new Error(r.status); if (cb) cb(true); })
+    .catch(function(e) { console.error('Error guardando:', e); toast('Error al guardar — revisa tu conexión'); if (cb) cb(false); });
+}
+function sbDeleteItem(id, cb) {
+  fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(id), {
+    method: 'DELETE',
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Prefer': 'return=minimal' }
+  }).then(function(r) { if (!r.ok) throw new Error(r.status); if (cb) cb(true); })
+    .catch(function(e) { console.error('Error eliminando:', e); toast('Error al eliminar — revisa tu conexión'); if (cb) cb(false); });
+}
+
 /* Demo catalog removed for production testing */
 var DEMO_ITEMS = [];
 
@@ -1312,10 +1368,7 @@ function showMine(key) {
   renderMine(key);
 }
 
-function load() {
-  try { var d = JSON.parse(localStorage.getItem(KEY)); return d && d.items ? d.items : []; }
-  catch(e) { return []; }
-}
+function load() { return _sbCache; }
 
 function esc(s) {
   if (!s && s !== 0) return '';
@@ -1541,7 +1594,7 @@ function toast(msg) {
 }
 
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
-window.addEventListener('storage', function(e) { if (e.key === KEY) applyFilters(); });
+/* Con Supabase, la sincronización entre pestañas ya no depende de localStorage */
 document.addEventListener('visibilitychange', function() { if (!document.hidden) applyFilters(); });
 
 function toggleTheme() {
@@ -1726,14 +1779,15 @@ function admUnlockPanel() {
   sessionStorage.setItem(ADMIN_SESSION_KEY, '1');
   document.getElementById('admin-gate').style.display = 'none';
   document.getElementById('admin-panel').style.display = 'block';
-  admLoad();
-  admInitForm();
-  admRenderGallery();
+  admLoad(function() {
+    admInitForm();
+    admRenderGallery();
+  });
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 function admClosePanel() {
   document.getElementById('admin-panel').style.display = 'none';
-  applyFilters();
+  sbFetchAll(function() { applyFilters(); });
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -1757,19 +1811,14 @@ function admSetEstado(val) {
   document.getElementById('estado-hint').textContent = ESTADO_HINTS[val] || '';
 }
 
-function admLoad() {
-  try {
-    var d = localStorage.getItem(KEY);
-    if (d) {
-      var p = JSON.parse(d);
-      admState.items = p.items || [];
-      admState.nextIdNum = p.nextIdNum || 1;
-    }
-  } catch(e) {}
+function admLoad(cb) {
+  sbFetchAll(function(items) {
+    admState.items = items;
+    if (cb) cb();
+  });
 }
 function admSave() {
-  try { localStorage.setItem(KEY, JSON.stringify(admState)); }
-  catch(e) { toast('Almacenamiento lleno — exporta y elimina productos'); }
+  _sbCache = admState.items.slice();
 }
 function admNextId() {
   var max = 0;
@@ -1928,41 +1977,33 @@ function admSaveProduct() {
       createdAt: prevCreatedAt,
       updatedAt: Date.now()
     };
-    admState.items.push(item);
 
-    var maxNum = 0;
-    admState.items.forEach(function(it) {
-      var m = it.id.match(/VA-(\d+)/);
-      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+    sbUpsert(item, function(ok) {
+      if (!ok) return;
+      admState.items = admState.items.filter(function(x) { return x.id !== finalId; });
+      admState.items.push(item);
+      admSave();
+      var wasEdit = isEdit;
+      admEditingId = null;
+      admResetForm();
+      admRenderGallery();
+      applyFilters();
+      var estadoMsg = admEstado === 'publicado' ? ' · visible en vitrina ✓'
+        : (admEstado === 'oculto' ? ' · oculto al cliente' : ' · guardado como borrador');
+      toast((wasEdit ? 'Producto ' + finalId + ' actualizado' : 'Producto ' + finalId + ' guardado') + estadoMsg);
     });
-    admState.nextIdNum = maxNum + 1;
-
-    admSave();
-    var wasEdit = isEdit;
-    admEditingId = null;
-    admResetForm();
-    admRenderGallery();
-    applyFilters();
-    var estadoMsg = admEstado === 'publicado' ? ' · visible en vitrina ✓'
-      : (admEstado === 'oculto' ? ' · oculto al cliente' : ' · guardado como borrador');
-    toast((wasEdit ? 'Producto ' + finalId + ' actualizado' : 'Producto ' + finalId + ' guardado') + estadoMsg);
   }
 
   if (isEdit) {
-    // En edición el ID no cambia: usamos el ID original, no el del input.
     var idxE = admState.items.findIndex(function(it) { return it.id === admEditingId; });
     var prevE = (idxE >= 0 && admState.items[idxE].createdAt) ? admState.items[idxE].createdAt : Date.now();
-    id = admEditingId;
-    if (idxE >= 0) admState.items.splice(idxE, 1);
-    commit(id, prevE);
+    commit(admEditingId, prevE);
   } else {
     var existing = admState.items.findIndex(function(it) { return it.id === id; });
     if (existing >= 0) {
-      // Nuevo con ID ya existente: confirmar reemplazo con modal propio.
       admConfirm('Ya existe el producto ' + id + '. ¿Reemplazarlo con estos datos?', function() {
         var idx2 = admState.items.findIndex(function(it) { return it.id === id; });
         var prev2 = (idx2 >= 0 && admState.items[idx2].createdAt) ? admState.items[idx2].createdAt : Date.now();
-        if (idx2 >= 0) admState.items.splice(idx2, 1);
         commit(id, prev2);
       }, { title: 'Reemplazar producto', yesText: 'Reemplazar', danger: false });
     } else {
@@ -2168,13 +2209,15 @@ function admRenderGallery() {
 }
 function admDeleteProduct(id) {
   admConfirm('¿Eliminar el producto ' + id + '? Esta acción no se puede deshacer.', function() {
-    admState.items = admState.items.filter(function(it) { return it.id !== id; });
-    admSave();
-    admRenderGallery();
-    applyFilters();
-    toast('Producto ' + id + ' eliminado');
-    // Si estaba editando el producto que se eliminó, resetear el formulario
-    if (admEditingId === id) admResetForm();
+    sbDeleteItem(id, function(ok) {
+      if (!ok) return;
+      admState.items = admState.items.filter(function(it) { return it.id !== id; });
+      admSave();
+      admRenderGallery();
+      applyFilters();
+      toast('Producto ' + id + ' eliminado');
+      if (admEditingId === id) admResetForm();
+    });
   }, { title: 'Eliminar producto', yesText: 'Eliminar' });
 }
 function admExportCSV() {
@@ -2220,9 +2263,10 @@ function admExportPhotos() {
   next();
 }
 
-/* Init */
+/* Init — carga desde Supabase */
 showMine('muzo');
 applyFilters();
+sbFetchAll(function() { applyFilters(); });
 admGateInit();
 admBindLogoAccess();
 var lg = document.getElementById('hero-logo');
