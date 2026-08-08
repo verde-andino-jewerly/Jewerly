@@ -1,6 +1,6 @@
 # Verde Andino Jewelry — Ecosistema Digital
 
-Marca colombiana de joyería con esmeraldas nacionales (Muzo, Chivor, Coscuez), en etapa de pre‑lanzamiento. Este repositorio contiene **todo el código y la documentación** del ecosistema digital de la marca: la vitrina pública, el panel de gestión de productos y las herramientas internas de operación.
+Marca colombiana de joyería con esmeraldas nacionales, en etapa de pre‑lanzamiento. Este repositorio contiene **todo el código y la documentación** del ecosistema digital de la marca: la vitrina pública, el panel de gestión de productos y las herramientas internas de operación.
 
 > **Propósito de este repositorio:** ser la fuente de verdad y el respaldo completo del proyecto. Está escrito con el máximo detalle posible para que cualquier persona (o la propia dueña, sin ayuda de ninguna herramienta de IA) pueda entender, mantener, desplegar y evolucionar el sistema.
 
