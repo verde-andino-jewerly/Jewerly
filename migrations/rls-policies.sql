@@ -25,12 +25,26 @@ CREATE POLICY "admin_read_all" ON productos
     current_setting('request.headers'::text)->>'x-admin-token' = 'VDA_ADMIN_SECRET'
   );
 
--- 4. Política de escritura (INSERT/UPDATE/DELETE)
+-- 4. Políticas de escritura (INSERT/UPDATE/DELETE separadas)
 -- Solo admin puede modificar (se validará con token en frontend)
 -- Nota: La key en Supabase sigue siendo "anon", pero RLS lo restringe
-DROP POLICY IF EXISTS "admin_write_all" ON productos;
-CREATE POLICY "admin_write_all" ON productos
-  FOR INSERT, UPDATE, DELETE
+DROP POLICY IF EXISTS "admin_insert" ON productos;
+CREATE POLICY "admin_insert" ON productos
+  FOR INSERT
+  WITH CHECK (
+    current_setting('request.headers'::text)->>'x-admin-token' = 'VDA_ADMIN_SECRET'
+  );
+
+DROP POLICY IF EXISTS "admin_update" ON productos;
+CREATE POLICY "admin_update" ON productos
+  FOR UPDATE
+  USING (
+    current_setting('request.headers'::text)->>'x-admin-token' = 'VDA_ADMIN_SECRET'
+  );
+
+DROP POLICY IF EXISTS "admin_delete" ON productos;
+CREATE POLICY "admin_delete" ON productos
+  FOR DELETE
   USING (
     current_setting('request.headers'::text)->>'x-admin-token' = 'VDA_ADMIN_SECRET'
   );
