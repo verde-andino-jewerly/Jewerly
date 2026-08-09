@@ -10,7 +10,7 @@ Colombian emerald jewelry brand (Verde Andino Jewelry) digital ecosystem. Single
 
 **Single-file HTML** (`index.html`, ~1.3 MB) containing two environments:
 1. **Public vitrina** — customer-facing catalog with filters, product modals, WhatsApp contact
-2. **Hidden admin panel** — product CRUD, CSV export, photo management (accessed via long-press or 5-tap on footer logo + PIN)
+2. **Hidden admin panel** — product CRUD, CSV/PDF export, photo management (access mechanism documented in `docs-privado/PANEL-ADMIN.md`, which is gitignored)
 
 All CSS, JS, and static images (logo, mine photos) are embedded inline as base64 data URIs. No external dependencies, no build step.
 

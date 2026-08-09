@@ -1,80 +1,98 @@
 # Modelo de datos
 
-Describe la estructura exacta de los datos que guarda el sistema. Útil para entender el CSV exportado, para migrar a un backend en el futuro, o para depurar.
+Estructura exacta de los datos que maneja el sistema.
 
 ---
 
 ## Almacenamiento
 
-- **Dónde:** `localStorage` del navegador.
-- **Clave:** `va_catalog_v3`
-- **Contenido:** un objeto JSON:
+- **Base de datos:** Supabase (PostgreSQL).
+- **Tabla principal:** `productos`.
+- **Tabla de auditoría:** `productos_audit` (registra todos los cambios; ver [`../migrations/audit-table.sql`](../migrations/audit-table.sql)).
+- **Bucket de storage:** `product-photos` (opcional; las fotos suelen ir embebidas en la fila como base64).
 
-```json
-{
-  "items": [ { /* producto */ }, { /* producto */ } ],
-  "nextIdNum": 5
-}
-```
+**Claves locales del navegador** (solo del dispositivo administrativo):
 
-- `items`: lista de productos (ver estructura abajo).
-- `nextIdNum`: siguiente número correlativo para autogenerar el ID (`VA-005`, etc.).
-
-Otras claves relacionadas:
-- `va_admin_pin_hash`: hash SHA‑256 del PIN de acceso al panel (no el PIN en texto).
-- `va_theme`: preferencia de tema (`light`/`dark`), si el usuario la cambió.
-- `va_admin_unlocked` (en `sessionStorage`, no `localStorage`): marca que la sesión actual ya ingresó el PIN.
+- `va_theme`: preferencia de tema (`light`/`dark`).
+- `va_admin_pin_hash`, `va_admin_unlocked`: relacionadas con el acceso privado. **No documentadas públicamente.**
 
 ---
 
-## Estructura de un producto (`item`)
+## Convención de nombres
+
+- **JavaScript** usa `camelCase` (`medidaU`, `certNum`, `createdAt`).
+- **PostgreSQL** usa `snake_case` (`medida_u`, `cert_num`, `created_at`).
+- La conversión está en `sbToItem()` / `itemToSb()` dentro de `index.html`.
+
+| JS field | DB column | Notas |
+|----------|-----------|-------|
+| `medidaU` | `medida_u` | Unidad: `talla` \| `cm` \| `mm` |
+| `certNum` | `cert_num` | Número de certificado |
+| `foto` | `foto_url` | Data URI base64 |
+| `createdAt` | `created_at` | TIMESTAMPTZ, default `NOW()` |
+| `updatedAt` | `updated_at` | TIMESTAMPTZ |
+
+---
+
+## Estructura de un producto
 
 ```js
 {
-  // ── Identificación ──────────────────────────────────────────────
-  id:          "VA-001",          // string único. NO cambia al editar.
+  // ── Identificación ─────────────────────────────────────
+  id:          "VA-001",          // string único, no cambia al editar
 
-  // ── Estado de publicación ───────────────────────────────────────
+  // ── Estado de publicación ──────────────────────────────
   estado:      "publicado",       // "publicado" | "oculto" | "borrador"
-                                  //  (si falta, se asume "publicado")
 
-  // ── Campos PÚBLICOS (los usa la vitrina) ────────────────────────
-  categoria:   "Anillo",          // Anillo, Aretes, Collar, Pulsera, Dije+cadena, Set, Ear cuff, Dije, Otra
-  estilo:      "Solitario",       // depende de la categoría
-  metal:       "Oro",             // Oro | Plata | Oro laminado
-  ley:         "18K (750)",       // depende del metal (ver abajo)
-  color:       "Amarillo",        // Amarillo | Blanco | Rosado | Bicolor
-  genero:      "Mujer",           // Mujer | Hombre | Unisex
-  piedras:     [                  // lista de piedras
-    { tipo: "Esmeralda", qty: 1, ct: 0.85 }
-  ],
+  // ── Campos PÚBLICOS (visibles en la vitrina) ───────────
+  categoria:   "Anillo",
+  estilo:      "Solitario",
+  metal:       "Oro",
+  ley:         "18K (750)",
+  color:       "Amarillo",
+  genero:      "Mujer",
+  piedras:     [ { tipo: "Esmeralda", qty: 1, ct: 0.85 } ],
   descripcion: "Anillo solitario con esmeralda ovalada",
-  medida:      "7",               // valor de la talla/medida
-  medidaU:     "talla",           // "talla" | "cm" | "mm" | ""
+  medida:      "7",
+  medidaU:     "talla",
   certificado: "No",              // "Sí" | "No"
-  precio:      4000000,           // precio de venta en COP (calculado: costo × (1 + margen/100))
-  foto:        "data:image/jpeg;base64,...",  // o null si no hay foto
+  precio:      4000000,           // COP, calculado server-side vía Edge Function
+  foto:        "data:image/jpeg;base64,...",  // o null
 
-  // ── Campos ADMINISTRATIVOS (internos; la vitrina NO los muestra) ─
-  certNum:     "",                // número de certificado
-  proveedor:   "",                // proveedor interno
-  costo:       2000000,           // costo real en COP
-  margen:      100,               // porcentaje de margen
-  notas:       "",                // notas internas
+  // ── Campos ADMINISTRATIVOS (NO expuestos en la vitrina) ─
+  certNum:     "",
+  proveedor:   "",
+  costo:       2000000,           // COP
+  margen:      100,               // porcentaje
+  notas:       "",
 
-  // ── Marcas de tiempo ────────────────────────────────────────────
-  createdAt:   1723100000000,     // Date.now() de creación (se conserva al editar)
-  updatedAt:   1723100050000      // Date.now() de la última modificación
+  // ── Marcas de tiempo ───────────────────────────────────
+  createdAt:   "2026-08-01T12:00:00Z",
+  updatedAt:   "2026-08-01T12:00:00Z"
 }
 ```
 
-### Sub‑objeto `piedras[]`
-Cada piedra tiene:
-- `tipo` (string): Esmeralda, Diamante, Tanzanita, Moisanita, Rubí, Zafiro, etc.
-- `qty` (número entero): cantidad de piedras de ese tipo.
-- `ct` (número): quilates (carats).
+### Sub-objeto `piedras[]`
 
-> Nota histórica: una versión anterior del cargador guardaba `cantidad`/`quilates` en vez de `qty`/`ct`. La vitrina acepta **ambos** formatos por retrocompatibilidad, pero el formato actual y correcto es `qty`/`ct`.
+Cada piedra: `{ tipo, qty, ct }`.
+
+- `tipo` (string): Esmeralda, Diamante, Tanzanita, Moisanita, Rubí, Zafiro, etc.
+- `qty` (int): cantidad de piedras.
+- `ct` (número): quilates.
+
+> **Nota histórica:** una versión anterior usaba `cantidad`/`quilates`. La vitrina acepta ambos formatos por retrocompatibilidad; el formato actual es `qty`/`ct`.
+
+---
+
+## Clasificación de datos (privacidad)
+
+| Nivel | Campos | Visibilidad |
+|---|---|---|
+| 🟢 **Público** | `id`, `categoria`, `estilo`, `metal`, `ley`, `color`, `genero`, `piedras`, `descripcion`, `medida`, `medidaU`, `certificado`, `precio`, `foto`, `createdAt` | Vitrina + API pública (via RLS) |
+| 🔴 **Administrativo** | `costo`, `margen`, `proveedor`, `notas`, `certNum`, `updated_at` | Solo accesible con `x-admin-token` |
+| 🔒 **Sensible** | Hash del PIN, tokens | Nunca en Supabase; solo en `localStorage` del dispositivo administrativo |
+
+RLS enforcement: ver [`../migrations/rls-policies.sql`](../migrations/rls-policies.sql).
 
 ---
 
@@ -86,7 +104,7 @@ Cada piedra tiene:
 | Plata | `925`, `950` |
 | Oro laminado | `Laminado` |
 
-En la vitrina, la ley se muestra "limpia" (ej. *Oro 18K*): el número entre paréntesis se usa internamente pero no se muestra al cliente.
+En la vitrina, la ley se muestra "limpia" (ej. *Oro 18K*): el número entre paréntesis es interno.
 
 ---
 
@@ -105,23 +123,21 @@ En la vitrina, la ley se muestra "limpia" (ej. *Oro 18K*): el número entre par�
 
 ---
 
-## Filtro que aplica la vitrina
+## Filtro de la vitrina
 
-La vitrina solo muestra un producto si:
-1. `estado === "publicado"` (o no tiene estado → se asume publicado), **y**
-2. tiene `precio > 0`, **y**
-3. tiene `descripcion`.
+Aplicado por RLS en Supabase; la vitrina no puede leer productos que no cumplan:
 
-Los productos en **oculto** o **borrador** quedan guardados pero **no** se muestran al cliente.
+1. `estado = 'publicado'`, **y**
+2. `precio > 0`, **y**
+3. `descripcion IS NOT NULL`.
+
+Los productos en **oculto** o **borrador** quedan guardados pero no son visibles al público.
 
 ---
 
-## Columnas del CSV exportado
+## Exportación
 
-Orden de columnas al exportar (una fila por producto, la foto no se incluye en el CSV):
+Desde el panel privado se exporta:
 
-`ID, Estado, Línea, Categoría, Estilo, Metal, Ley, Color, Piedra(s), Descripción, Género, Talla/Medida, Costo (COP), Margen (%), Precio venta (COP), Certificado, Núm. Certificado, Proveedor, Notas`
-
-La columna **Piedra(s)** combina las piedras en texto, ej.: `Esmeralda x2 0.3ct | Diamante 0.1ct`.
-
-El archivo lleva un BOM UTF‑8 para que Excel abra bien los acentos.
+- **CSV** — para importar a Excel/Sheets (incluye datos administrativos). BOM UTF-8 para que Excel abra bien los acentos.
+- **PDF** — catálogo visual con logo, foto, ID, descripción y precio (para clientes o impresión). Usa jsPDF (CDN, lazy-load).

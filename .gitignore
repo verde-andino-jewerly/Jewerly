@@ -11,5 +11,8 @@ Desktop.ini
 # OneDrive
 *.lnk
 
+# Documentación privada (contiene detalles de acceso admin — NO subir)
+docs-privado/
+
 # Nota: los archivos .html son grandes por las imágenes embebidas en base64;
 # se versionan a propósito para que el repositorio sea autosuficiente.
