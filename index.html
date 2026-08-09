@@ -578,6 +578,88 @@
   }
   .modal-share:hover { border-color: var(--gold); color: var(--gold); }
 
+  /* ============ CAROUSEL ============ */
+  .carousel-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: var(--bg-alt);
+  }
+  .carousel-track {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .carousel-slide {
+    min-width: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .carousel-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    color: #1A1714;
+    font-size: 1.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  .carousel-arrow:hover {
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transform: translateY(-50%) scale(1.1);
+  }
+  .carousel-prev { left: 0.8rem; }
+  .carousel-next { right: 0.8rem; }
+  .carousel-dots {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+  }
+  .carousel-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+  }
+  .carousel-dot:hover {
+    background: rgba(255, 255, 255, 0.9);
+  }
+  .carousel-dot.active {
+    background: white;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+    transform: scale(1.2);
+  }
+  @media (prefers-color-scheme: dark) {
+    .carousel-arrow {
+      background: rgba(30, 30, 30, 0.9);
+      color: #f5f0e8;
+    }
+    .carousel-arrow:hover {
+      background: rgba(30, 30, 30, 1);
+    }
+  }
+
   /* ============ FLOATING WA ============ */
   .float-wa {
     position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 80;
@@ -685,6 +767,32 @@
     flex: 1; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px;
     padding: 10px; font-size: .8rem; color: var(--text-2); cursor: pointer; text-align: center; font-family: inherit;
   }
+  #admin-panel .photos-dropzone {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 2rem 1rem; text-align: center;
+    cursor: pointer; transition: all 0.2s; background: var(--bg-alt);
+  }
+  #admin-panel .photos-dropzone:hover,
+  #admin-panel .photos-dropzone.dragover {
+    border-color: var(--gold); background: var(--gold-bg); opacity: 0.9;
+  }
+  #admin-panel .dropzone-content { color: var(--text-2); }
+  #admin-panel .photos-preview-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1rem;
+  }
+  #admin-panel .photo-thumbnail {
+    position: relative; width: 100%; aspect-ratio: 1; border-radius: 6px; overflow: hidden;
+    background: var(--bg-alt); border: 1px solid var(--border); transition: transform 0.2s;
+  }
+  #admin-panel .photo-thumbnail:hover {
+    transform: scale(1.05); border-color: var(--gold);
+  }
+  #admin-panel .photo-thumbnail-remove {
+    position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6); color: white; border: none; cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center; transition: background 0.2s;
+  }
+  #admin-panel .photo-thumbnail-remove:hover { background: rgba(0, 0, 0, 0.8); }
+  #admin-panel #photos-input-multi { display: none; }
   #admin-panel .stones-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
   #admin-panel .stone-row { display: grid; grid-template-columns: 1fr 64px 80px 32px; gap: 6px; align-items: center; }
   #admin-panel .stone-row input { min-height: 44px; font-size: .85rem; }
@@ -1033,8 +1141,9 @@
         <button onclick="admCancelEdit()" type="button" style="background:none; border:1px solid var(--gold-l); border-radius:6px; padding:5px 10px; color:var(--gold-d); font-size:.75rem; cursor:pointer; font-family:inherit; white-space:nowrap;">Cancelar</button>
       </div>
 
-      <div class="field">
-        <label>Fotografía <span>(opcional pero recomendada)</span></label>
+      <!-- PRIMARY PHOTO -->
+      <div class="field" id="primary-photo-section">
+        <label>Foto Principal <span>(obligatoria)</span></label>
         <div class="photo-area" id="photo-area" onclick="document.getElementById('photo-input').click()">
           <div class="ph-icon" id="ph-icon">📸</div>
           <div class="ph-label" id="ph-label">Toca para tomar foto o seleccionar de la galería</div>
@@ -1042,9 +1151,26 @@
         </div>
         <input type="file" id="photo-input" accept="image/*">
         <div class="photo-actions" id="photo-actions" style="display:none">
-          <button class="btn-photo" onclick="document.getElementById('photo-input').click()" type="button">📷 Retomar</button>
-          <button class="btn-photo" onclick="admClearPhoto()" type="button">✕ Quitar</button>
+          <button class="btn-photo" onclick="document.getElementById('photo-input').click()" type="button">📷 Cambiar</button>
+          <button class="btn-photo" onclick="admClearPhoto()" type="button">✕ Borrar</button>
         </div>
+      </div>
+
+      <!-- ADDITIONAL PHOTOS -->
+      <div class="field" id="additional-photos-section">
+        <label>Fotos Adicionales <span>(opcional, máx. 4)</span></label>
+        <div id="photos-dropzone" class="photos-dropzone"
+             ondrop="admHandlePhotoDrop(event)" ondragover="admPreventDefault(event)" ondragleave="admRemoveDropActive(event)"
+             onclick="document.getElementById('photos-input-multi').click()" style="border:2px dashed var(--border); border-radius:8px; padding:2rem 1rem; text-align:center; cursor:pointer; transition:all 0.2s; background:var(--bg-alt);">
+          <div class="dropzone-content" style="color:var(--text-2);">
+            <div style="font-size:1.8rem;margin-bottom:0.5rem;">📸</div>
+            <div style="font-weight:500;margin-bottom:0.3rem;">Arrastra fotos aquí</div>
+            <div style="font-size:0.8rem;color:var(--text-3);">o haz clic para seleccionar (múltiples)</div>
+          </div>
+          <input type="file" id="photos-input-multi" accept="image/*" multiple style="display:none;">
+        </div>
+        <div id="photos-preview-grid" class="photos-preview-grid" style="margin-top:1rem;display:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:1rem;"></div>
+        <div id="photos-count" style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-3);">0 fotos adicionales</div>
       </div>
 
       <div class="field">
@@ -1259,6 +1385,7 @@ function sbToItem(r) {
     medida: r.medida || '', medidaU: r.medida_u || '',
     certificado: r.certificado || 'No', certNum: r.cert_num || '',
     precio: Number(r.precio) || 0, precioOferta: r.precio_oferta ? Number(r.precio_oferta) : null, foto: r.foto_url || null,
+    fotos: (r.fotos && Array.isArray(r.fotos) && r.fotos.length > 0) ? r.fotos : (r.foto_url ? [r.foto_url] : []),
     proveedor: r.proveedor || '', costo: Number(r.costo) || 0,
     margen: Number(r.margen) || 100, notas: r.notas || '',
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
@@ -1273,13 +1400,14 @@ function itemToSb(it) {
     medida: it.medida || '', medida_u: it.medidaU || '',
     certificado: it.certificado || 'No', cert_num: it.certNum || '',
     precio: it.precio || 0, precio_oferta: it.precioOferta || null, foto_url: it.foto || null,
+    fotos: (it.fotos && Array.isArray(it.fotos)) ? it.fotos.slice(0, 5) : (it.foto ? [it.foto] : []),
     proveedor: it.proveedor || '', costo: it.costo || 0,
     margen: (it.margen === 0 || it.margen) ? it.margen : 100,
     notas: it.notas || '', updated_at: new Date().toISOString()
   };
 }
 /* Columnas PÚBLICAS: nunca incluir cert_num, proveedor, costo, margen, notas — son admin. */
-var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,created_at';
+var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,fotos,created_at';
 function sbFetchPublic(cb) {
   if (!sbCheckRateLimit('GET /productos')) { if (cb) cb(_sbCache); return; }
   fetch(SB_URL + '/rest/v1/productos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', {
@@ -1611,9 +1739,34 @@ function openModal(id) {
   var it = findItem(id);
   if (!it) return;
 
-  var img = it.foto
-    ? '<img class="modal-img" src="' + it.foto + '" alt="">'
-    : '<div class="modal-img-ph"><svg width="60" height="60" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="50,15 82,42 74,82 26,82 18,42" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></div>';
+  var hasPhotos = it.fotos && it.fotos.length > 0;
+  var photosToShow = hasPhotos ? it.fotos : (it.foto ? [it.foto] : []);
+
+  if (photosToShow.length === 0) {
+    var img = '<div class="modal-img-ph"><svg width="60" height="60" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="50,15 82,42 74,82 26,82 18,42" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></div>';
+  } else if (photosToShow.length === 1) {
+    var img = '<img class="modal-img" src="' + photosToShow[0] + '" alt="">';
+  } else {
+    var carouselHtml = '<div class="carousel-container">' +
+      '<div class="carousel-track" id="carousel-track">' +
+      photosToShow.map(function(photo, idx) {
+        return '<img class="carousel-slide" src="' + photo + '" alt="Foto ' + (idx + 1) + '">';
+      }).join('') +
+      '</div>' +
+      '<button class="carousel-arrow carousel-prev" onclick="admCarouselPrev()" title="Anterior">‹</button>' +
+      '<button class="carousel-arrow carousel-next" onclick="admCarouselNext()" title="Siguiente">›</button>' +
+      '<div class="carousel-dots">' +
+      photosToShow.map(function(_, idx) {
+        return '<div class="carousel-dot" data-dot="' + idx + '" onclick="admCarouselGoTo(' + idx + ')"></div>';
+      }).join('') +
+      '</div>' +
+    '</div>';
+
+    var img = carouselHtml;
+    admCurrentCarouselIndex = 0;
+    admCurrentCarouselPhotos = photosToShow;
+    setTimeout(function() { admUpdateCarouselState(); }, 0);
+  }
 
   var stones = stonesText(it.piedras);
   var details = '';
@@ -1981,10 +2134,14 @@ function admClosePanel() {
 /* ============ ADMIN: cargador de productos ============ */
 var admState = { items: [], nextIdNum: 1 };
 var admPhotoDataUrl = null;
+var admAdditionalPhotos = [];         // Array de base64 strings (NEW)
+var admPhotoFileQueue = [];           // Queue para procesar async (NEW)
 var admCertValue = 'No';
 var admGalleryOpen = false;
 var admEditingId = null;      // id del producto en edición, o null si es nuevo
 var admEstado = 'publicado';  // estado seleccionado en el formulario
+var admCurrentCarouselIndex = 0;      // Índice actual carousel (NEW)
+var admCurrentCarouselPhotos = [];    // Array de fotos en carousel actual (NEW)
 
 var ESTADO_HINTS = {
   publicado: 'Visible para los clientes en la vitrina.',
@@ -2019,19 +2176,22 @@ function admNextId() {
 document.getElementById('photo-input').addEventListener('change', function(e) {
   var file = e.target.files[0];
   if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    admCompressImage(ev.target.result, function(dataUrl) {
-      admPhotoDataUrl = dataUrl;
-      var prev = document.getElementById('photo-preview');
-      prev.src = dataUrl;
-      prev.style.display = 'block';
-      document.getElementById('ph-icon').style.display = 'none';
-      document.getElementById('ph-label').style.display = 'none';
-      document.getElementById('photo-actions').style.display = 'flex';
-    });
-  };
-  reader.readAsDataURL(file);
+  admProcessPrimaryPhoto(file);
+});
+document.getElementById('photos-input-multi').addEventListener('change', function(e) {
+  var files = Array.from(e.target.files);
+  if (files.length === 0) return;
+  admProcessAdditionalPhotos(files);
+  this.value = '';
+});
+document.getElementById('photos-dropzone').addEventListener('dragover', function(e) {
+  admPreventDefault(e);
+  this.classList.add('dragover');
+});
+document.getElementById('photos-dropzone').addEventListener('dragleave', function(e) {
+  if (e.target.id === 'photos-dropzone') {
+    this.classList.remove('dragover');
+  }
 });
 function admCompressImage(src, cb) {
   var img = new Image();
@@ -2056,6 +2216,144 @@ function admClearPhoto() {
   document.getElementById('ph-label').style.display = '';
   document.getElementById('photo-actions').style.display = 'none';
   document.getElementById('photo-input').value = '';
+}
+
+function admProcessPrimaryPhoto(file) {
+  if (!file.type.match('image.*')) {
+    toast('Solo se aceptan imágenes');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    admCompressImage(e.target.result, function(dataUrl) {
+      admPhotoDataUrl = dataUrl;
+      var prev = document.getElementById('photo-preview');
+      prev.src = dataUrl;
+      prev.style.display = 'block';
+      document.getElementById('ph-icon').style.display = 'none';
+      document.getElementById('ph-label').style.display = 'none';
+      document.getElementById('photo-actions').style.display = 'flex';
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function admHandlePhotoDrop(event) {
+  admPreventDefault(event);
+  document.getElementById('photos-dropzone').classList.remove('dragover');
+  var files = event.dataTransfer.files;
+  if (files.length === 0) return;
+  admProcessAdditionalPhotos(Array.from(files));
+}
+
+function admPreventDefault(event) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function admRemoveDropActive(event) {
+  if (event.target.id === 'photos-dropzone') {
+    document.getElementById('photos-dropzone').classList.remove('dragover');
+  }
+}
+
+function admProcessAdditionalPhotos(files) {
+  var validFiles = files.filter(function(f) { return f.type.match('image.*'); });
+  if (validFiles.length === 0) {
+    toast('No se encontraron imágenes válidas');
+    return;
+  }
+
+  if (admAdditionalPhotos.length + validFiles.length > 4) {
+    toast('Máximo 4 fotos adicionales. Ya tienes ' + admAdditionalPhotos.length);
+    return;
+  }
+
+  validFiles.forEach(function(file) {
+    admPhotoFileQueue.push(file);
+  });
+
+  admProcessPhotoQueue();
+}
+
+function admProcessPhotoQueue() {
+  if (admPhotoFileQueue.length === 0) {
+    admRenderPhotoGrid();
+    return;
+  }
+
+  var file = admPhotoFileQueue.shift();
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    admCompressImage(e.target.result, function(dataUrl) {
+      admAdditionalPhotos.push(dataUrl);
+      setTimeout(function() { admProcessPhotoQueue(); }, 50);
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function admRenderPhotoGrid() {
+  var grid = document.getElementById('photos-preview-grid');
+  var count = document.getElementById('photos-count');
+
+  if (admAdditionalPhotos.length === 0) {
+    grid.style.display = 'none';
+    count.textContent = '0 fotos adicionales';
+    return;
+  }
+
+  var html = admAdditionalPhotos.map(function(dataUrl, idx) {
+    return '<div class="photo-thumbnail" style="position:relative;width:100%;aspect-ratio:1;border-radius:6px;overflow:hidden;background:var(--bg-alt);border:1px solid var(--border);transition:transform 0.2s;">' +
+      '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;">' +
+      '<button class="photo-thumbnail-remove" onclick="admRemoveAdditionalPhoto(' + idx + ')" type="button" style="position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.6);color:white;border:none;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:background 0.2s;">✕</button>' +
+      '</div>';
+  }).join('');
+
+  grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:0.8rem;">' + html + '</div>';
+  grid.style.display = 'grid';
+  count.textContent = admAdditionalPhotos.length + ' fotos adicionales';
+}
+
+function admRemoveAdditionalPhoto(idx) {
+  admAdditionalPhotos.splice(idx, 1);
+  admRenderPhotoGrid();
+  toast('Foto removida');
+}
+
+function admClearAdditionalPhotos() {
+  admAdditionalPhotos = [];
+  admPhotoFileQueue = [];
+  document.getElementById('photos-preview-grid').innerHTML = '';
+  document.getElementById('photos-preview-grid').style.display = 'none';
+  document.getElementById('photos-count').textContent = '0 fotos adicionales';
+}
+
+function admCarouselPrev() {
+  if (admCurrentCarouselPhotos.length <= 1) return;
+  admCurrentCarouselIndex = (admCurrentCarouselIndex - 1 + admCurrentCarouselPhotos.length) % admCurrentCarouselPhotos.length;
+  admUpdateCarouselState();
+}
+
+function admCarouselNext() {
+  if (admCurrentCarouselPhotos.length <= 1) return;
+  admCurrentCarouselIndex = (admCurrentCarouselIndex + 1) % admCurrentCarouselPhotos.length;
+  admUpdateCarouselState();
+}
+
+function admCarouselGoTo(idx) {
+  admCurrentCarouselIndex = idx;
+  admUpdateCarouselState();
+}
+
+function admUpdateCarouselState() {
+  var track = document.getElementById('carousel-track');
+  if (!track) return;
+  var offset = -admCurrentCarouselIndex * 100;
+  track.style.transform = 'translateX(' + offset + '%)';
+  document.querySelectorAll('.carousel-dot').forEach(function(dot, idx) {
+    dot.classList.toggle('active', idx === admCurrentCarouselIndex);
+  });
 }
 
 var ADM_ESTILOS = {
@@ -2236,6 +2534,9 @@ function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) 
       notas: document.getElementById('f-notas').value.trim(),
       estado: admEstado,
       foto: admPhotoDataUrl,
+      fotos: admAdditionalPhotos.length > 0
+        ? [admPhotoDataUrl, ...admAdditionalPhotos].slice(0, 5)
+        : [admPhotoDataUrl],
       createdAt: prevCreatedAt,
       updatedAt: Date.now()
     };
@@ -2340,6 +2641,13 @@ function admFillForm(it) {
   document.getElementById('f-margen').value = (it.margen === 0 || it.margen) ? it.margen : 100;
   document.getElementById('f-precio-oferta').value = it.precioOferta || '';
   document.getElementById('f-notas').value = it.notas || '';
+  // Fotos adicionales
+  if (it.fotos && Array.isArray(it.fotos) && it.fotos.length > 1) {
+    admAdditionalPhotos = it.fotos.slice(1);
+  } else {
+    admAdditionalPhotos = [];
+  }
+  admRenderPhotoGrid();
   admCalcPrecio();
 }
 
@@ -2425,6 +2733,7 @@ function admInitForm() {
 }
 function admResetForm() {
   admClearPhoto();
+  admClearAdditionalPhotos();
   admSetFormMode('nuevo');
   admSetEstado('publicado');
   document.getElementById('f-id').value = admNextId();
