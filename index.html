@@ -1260,14 +1260,27 @@ function itemToSb(it) {
     notas: it.notas || '', updated_at: new Date().toISOString()
   };
 }
-function sbFetchAll(cb) {
+/* Columnas PÚBLICAS: nunca incluir cert_num, proveedor, costo, margen, notas — son admin. */
+var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,foto_url,created_at';
+function sbFetchPublic(cb) {
   if (!sbCheckRateLimit('GET /productos')) { if (cb) cb(_sbCache); return; }
-  fetch(SB_URL + '/rest/v1/productos?select=*&order=created_at.desc', {
+  fetch(SB_URL + '/rest/v1/productos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
   }).then(function(r) { return r.json(); })
     .then(function(rows) { _sbCache = rows.map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; }); if (cb) cb(_sbCache); })
     .catch(function(e) { console.error('Error cargando:', e); if (cb) cb(_sbCache); });
 }
+/* Fetch admin: incluye todas las columnas. Requiere x-admin-token. */
+function sbFetchAdmin(cb) {
+  if (!sbCheckRateLimit('GET /productos-admin')) { if (cb) cb(_sbCache); return; }
+  fetch(SB_URL + '/rest/v1/productos?select=*&order=created_at.desc', {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
+  }).then(function(r) { return r.json(); })
+    .then(function(rows) { var items = rows.map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; }); if (cb) cb(items); })
+    .catch(function(e) { console.error('Error cargando (admin):', e); if (cb) cb([]); });
+}
+/* Backwards-compat: sbFetchAll ahora delega en el fetch público. */
+function sbFetchAll(cb) { sbFetchPublic(cb); }
 function sbUpsert(item, cb) {
   if (!sbCheckRateLimit('POST /productos')) { toast('Demasiadas solicitudes'); if (cb) cb(false); return; }
   fetch(SB_URL + '/rest/v1/productos', {
@@ -1588,7 +1601,7 @@ function openModal(id) {
 
   var cert = '';
   if (it.certificado === 'Sí') {
-    cert = '<div class="modal-cert">Certificado' + (it.certNum ? ' · N° ' + esc(it.certNum) : '') + '</div>';
+    cert = '<div class="modal-cert">Certificado gemológico incluido</div>';
   }
 
   var waText = encodeURIComponent('Hola, me interesa la pieza ' + it.id + (it.descripcion ? ' — ' + it.descripcion : '') + '. ¿Está disponible?');
@@ -1954,7 +1967,7 @@ function admSetEstado(val) {
 }
 
 function admLoad(cb) {
-  sbFetchAll(function(items) {
+  sbFetchAdmin(function(items) {
     admState.items = items;
     if (cb) cb();
   });
