@@ -2326,22 +2326,31 @@ function admExportPDF() {
     document.head.appendChild(s);
     return;
   }
+  var lgEl = document.getElementById('hero-logo');
+  var lgSrc = lgEl ? lgEl.src : null;
+  if (lgSrc && !admExportPDF._logoPng) {
+    var img = new Image();
+    img.onload = function() {
+      try {
+        var c = document.createElement('canvas');
+        c.width = img.naturalWidth || img.width;
+        c.height = img.naturalHeight || img.height;
+        c.getContext('2d').drawImage(img, 0, 0);
+        admExportPDF._logoPng = c.toDataURL('image/png');
+        admExportPDF._logoRatio = c.width / c.height;
+      } catch(e) { admExportPDF._logoPng = null; }
+      admExportPDF();
+    };
+    img.onerror = function() { admExportPDF._logoPng = null; admExportPDF(); };
+    img.src = lgSrc;
+    return;
+  }
   var pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   var pageWidth = pdf.internal.pageSize.getWidth();
   var pageHeight = pdf.internal.pageSize.getHeight();
   var margin = 10, colWidth = (pageWidth - 3 * margin) / 2, rowHeight = 80;
-  var logoPng = null, logoW = 0, logoH = 0;
-  try {
-    var lg = document.getElementById('hero-logo');
-    if (lg && lg.complete && lg.naturalWidth) {
-      var c = document.createElement('canvas');
-      c.width = lg.naturalWidth; c.height = lg.naturalHeight;
-      c.getContext('2d').drawImage(lg, 0, 0);
-      logoPng = c.toDataURL('image/png');
-      logoH = 18;
-      logoW = logoH * (lg.naturalWidth / lg.naturalHeight);
-    }
-  } catch(e) {}
+  var logoPng = admExportPDF._logoPng || null;
+  var logoH = 18, logoW = logoPng ? logoH * (admExportPDF._logoRatio || 1) : 0;
   var y = margin + 20;
   if (logoPng) {
     try { pdf.addImage(logoPng, 'PNG', pageWidth - margin - logoW, margin, logoW, logoH); } catch(e) {}
