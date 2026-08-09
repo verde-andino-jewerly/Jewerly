@@ -58,7 +58,13 @@ Luego se pide un **PIN**:
 
 ## 🧑‍💼 Qué se puede hacer en el panel
 
-- **Cargar un producto** con foto (tomada con la cámara o elegida de la galería), ID automático (`VA‑001`, `VA‑002`…), categoría, estilo, metal, ley (quilataje), color, piedras (tipo + cantidad + quilates), descripción, medida, certificado y datos administrativos internos (proveedor, costo, margen → precio calculado, notas).
+- **Cargar un producto** con foto (tomada con la cámara o elegida de la galería), ID automático (`VA‑001`, `VA‑002`…), categoría, estilo, metal, ley (quilataje), color, piedras (tipo + cantidad + quilates), descripción, medida, certificado y datos administrativos internos (**privados — solo la dueña los ve en el panel**):
+  - Proveedor
+  - Costo (en COP)
+  - Margen (porcentaje) → el sistema calcula automáticamente el **precio venta**
+  - Notas internas
+  
+  > **Nota de privacidad:** Los costos y márgenes NUNCA aparecen en la vitrina pública. La vitrina solo muestra: foto, ID, categoría, descripción, precio final, piedras y tallas. Los datos administrativos quedan protegidos en el panel.
 - **Editar** un producto existente **sin cambiar su identificador único** (el ID queda bloqueado).
 - **Duplicar** un producto: copia sus metadatos y variables a un registro nuevo, con ID nuevo, en estado *borrador*, para crear variantes rápido.
 - **Estado de publicación** por producto:
@@ -66,7 +72,9 @@ Luego se pide un **PIN**:
   - 🟡 **Oculto** → se retira de la vista del cliente **sin borrarlo** del catálogo.
   - ⚪ **Borrador** → trabajo en progreso; no aparece en la vitrina.
 - **Eliminar** un producto (con confirmación).
-- **Exportar** el catálogo completo a **CSV** (para Excel/Drive) y **descargar las fotos** renombradas por ID.
+- **Exportar** el catálogo de dos maneras:
+  - **CSV**: para importar a Excel/Google Drive (solo metadatos, sin fotos)
+  - **PDF**: catálogo visual con fotos + ID + descripción + precio (ideal para compartir con clientes o imprimir)
 
 👉 Guía paso a paso en [`docs/PANEL-ADMIN.md`](docs/PANEL-ADMIN.md).
 

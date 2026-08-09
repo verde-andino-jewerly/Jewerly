@@ -1,4 +1,5 @@
 <title>Verde Andino Jewelry — Esmeraldas de Colombia</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://rbvqxrkzepthbbqzkbcg.supabase.co https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://rbvqxrkzepthbbqzkbcg.supabase.co;">
 <style>
   :root {
     --bg: #FAF8F5; --bg-card: #FFFFFF; --bg-alt: #F5F2ED; --bg-hover: #FDFCFA;
@@ -1195,7 +1196,7 @@
       </p>
       <div class="export-btns">
         <button class="btn-secondary" onclick="admExportCSV()" type="button">⬇ Descargar CSV</button>
-        <button class="btn-secondary" onclick="admExportPhotos()" type="button">🖼 Descargar fotos</button>
+        <button class="btn-secondary" onclick="admExportPDF()" type="button">📄 Descargar catálogo PDF</button>
       </div>
     </div>
 
@@ -1214,6 +1215,19 @@ var activeCategory = null;
 var SB_URL = 'https://rbvqxrkzepthbbqzkbcg.supabase.co';
 var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJidnF4cmt6ZXB0aGJicXprYmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTQwNTcsImV4cCI6MjEwMTc5MDA1N30.6RA6S7nxFCZdLzyhhX-siEXZrY47jpH9mcaB0wMq0hg';
 var _sbCache = [];
+var _sbRequestLog = []; // Rate limiting: { endpoint, timestamp }
+
+function sbCheckRateLimit(endpoint) {
+  var now = Date.now();
+  var cutoff = now - 60000; // última 1 minuto
+  _sbRequestLog = _sbRequestLog.filter(function(x) { return x.timestamp > cutoff; });
+  var count = _sbRequestLog.filter(function(x) { return x.endpoint === endpoint; }).length;
+  if (count >= 100) {
+    toast('Demasiadas solicitudes. Espera un momento.'); return false;
+  }
+  _sbRequestLog.push({ endpoint: endpoint, timestamp: now });
+  return true;
+}
 
 function sbToItem(r) {
   return {
@@ -1243,6 +1257,7 @@ function itemToSb(it) {
   };
 }
 function sbFetchAll(cb) {
+  if (!sbCheckRateLimit('GET /productos')) { if (cb) cb(_sbCache); return; }
   fetch(SB_URL + '/rest/v1/productos?select=*&order=created_at.desc', {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
   }).then(function(r) { return r.json(); })
@@ -1250,6 +1265,7 @@ function sbFetchAll(cb) {
     .catch(function(e) { console.error('Error cargando:', e); if (cb) cb(_sbCache); });
 }
 function sbUpsert(item, cb) {
+  if (!sbCheckRateLimit('POST /productos')) { toast('Demasiadas solicitudes'); if (cb) cb(false); return; }
   fetch(SB_URL + '/rest/v1/productos', {
     method: 'POST',
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
@@ -1259,6 +1275,7 @@ function sbUpsert(item, cb) {
     .catch(function(e) { console.error('Error guardando:', e); toast('Error al guardar — revisa tu conexión'); if (cb) cb(false); });
 }
 function sbDeleteItem(id, cb) {
+  if (!sbCheckRateLimit('DELETE /productos')) { toast('Demasiadas solicitudes'); if (cb) cb(false); return; }
   fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(id), {
     method: 'DELETE',
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Prefer': 'return=minimal' }
@@ -1648,7 +1665,7 @@ function applyLogoBg() {
 
 /* ============ ADMIN: gate + PIN ============ */
 var ADMIN_PARAM = 'panel';
-var ADMIN_TOKEN = 'VDA1046';
+var ADMIN_TOKEN = 'VDA_' + Math.random().toString(36).substring(2, 15).toUpperCase() + Math.random().toString(36).substring(2, 15).toUpperCase();
 var ADMIN_PIN_KEY = 'va_admin_pin_hash';
 var ADMIN_SESSION_KEY = 'va_admin_unlocked';
 
@@ -2261,6 +2278,58 @@ function admExportPhotos() {
     setTimeout(next, 600);
   }
   next();
+}
+
+function admExportPDF() {
+  if (!admState.items.length) { toast('No hay productos para exportar'); return; }
+  if (typeof jsPDF === 'undefined') {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = function() { admExportPDF(); };
+    document.head.appendChild(s);
+    return;
+  }
+  var pdf = new jsPDF.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  var pageWidth = pdf.internal.pageSize.getWidth();
+  var pageHeight = pdf.internal.pageSize.getHeight();
+  var margin = 10, colWidth = (pageWidth - 3 * margin) / 2, rowHeight = 80;
+  var y = margin + 15;
+  pdf.setFontSize(16);
+  pdf.text('Verde Andino — Catálogo de Productos', margin, margin + 5);
+  pdf.setFontSize(10);
+  pdf.text('Fecha: ' + new Date().toLocaleDateString('es-CO'), margin, margin + 11);
+  var col = 0;
+  admState.items.forEach(function(it, idx) {
+    if (!it.foto && (!it.descripcion || it.precio <= 0)) return;
+    var x = margin + (colWidth + margin) * col;
+    if (y + rowHeight > pageHeight - margin) {
+      pdf.addPage();
+      y = margin + 15;
+      col = 0;
+      x = margin;
+    }
+    pdf.setDrawColor(185, 134, 11); pdf.setLineWidth(0.5);
+    pdf.rect(x, y, colWidth, rowHeight);
+    if (it.foto) {
+      try {
+        pdf.addImage(it.foto, 'JPEG', x + 2, y + 2, colWidth - 4, 40);
+      } catch(e) {}
+    }
+    pdf.setFontSize(9);
+    pdf.setTextColor(31, 111, 74);
+    pdf.text(it.id, x + 3, y + 48);
+    pdf.setTextColor(26, 23, 20);
+    pdf.setFontSize(8);
+    var desc = it.descripcion ? it.descripcion.substring(0, 45) : '';
+    pdf.text(desc, x + 3, y + 55, { maxWidth: colWidth - 6 });
+    pdf.setTextColor(184, 134, 11);
+    pdf.setFontSize(10);
+    pdf.text('$' + (it.precio || 0).toLocaleString('es-CO'), x + 3, y + 72);
+    col++;
+    if (col >= 2) { col = 0; y += rowHeight + margin; }
+  });
+  pdf.save('verde-andino-catalogo-' + new Date().toISOString().slice(0,10) + '.pdf');
+  toast('Catálogo PDF descargado');
 }
 
 /* Init — carga desde Supabase */
