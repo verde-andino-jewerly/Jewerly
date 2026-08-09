@@ -1406,7 +1406,7 @@ function itemToSb(it) {
   };
 }
 /* Columnas PÚBLICAS: nunca incluir cert_num, proveedor, costo, margen, notas — son admin. */
-var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,created_at';
+var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,fotos,created_at';
 function sbFetchPublic(cb) {
   if (!sbCheckRateLimit('GET /productos')) { if (cb) cb(_sbCache); return; }
   fetch(SB_URL + '/rest/v1/productos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', {
