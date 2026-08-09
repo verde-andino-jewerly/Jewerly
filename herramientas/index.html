@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Panel de Herramientas — Verde Andino Jewelry</title>
+<style>
+  :root {
+    --bg: #FAF8F5; --bg-card: #FFFFFF; --bg-alt: #F5F2ED; --bg-hover: #FDFCFA;
+    --text: #1A1714; --text-2: #6B6560; --text-3: #9E9790;
+    --border: #E5E0D8; --border-s: #EDEBE7;
+    --gold: #B8860B; --gold-l: #F5E6C8; --gold-bg: #FFFCF5;
+    --esm: #1F6F4A; --esm-l: #D6EADF;
+    --red: #C0392B; --red-bg: #FDEEEC;
+    --toggle-off: #6B7B8D; --toggle-off-light: #D4DCE4;
+    --c-joyas-f: #B8860B; --c-joyas-b: #F5E6C8;
+    --c-piedras-f: #1F6F4A; --c-piedras-b: #D6EADF;
+    --c-metales-f: #7B6DAA; --c-metales-b: #EEEBF5;
+    --c-taller-f: #3A7CA5; --c-taller-b: #E4F0F7;
+    --c-herr-f: #5D6D7E; --c-herr-b: #EBEEF1;
+    --c-emp-f: #2E8B8B; --c-emp-b: #E2F1F1;
+    --c-pub-f: #C4703A; --c-pub-b: #F9EAE0;
+    --c-otros-f: #9E9790; --c-otros-b: #F0EDE8;
+    --shadow: 0 1px 3px rgba(26,23,20,0.06);
+    --shadow-h: 0 2px 8px rgba(26,23,20,0.1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141210; --bg-card: #1E1C19; --bg-alt: #252320; --bg-hover: #2A2825;
+      --text: #EDE8E0; --text-2: #A09A92; --text-3: #706B65;
+      --border: #2E2B27; --border-s: #252320;
+      --gold: #D4A017; --gold-l: #3A3020; --gold-bg: #1E1B15;
+      --esm: #4FA87C; --esm-l: #1B3A2A;
+      --red: #E57373; --red-bg: #2E1A1A;
+      --toggle-off: #8FA0B4; --toggle-off-light: #2A3240;
+      --c-joyas-f: #D4A017; --c-joyas-b: #3A3020;
+      --c-piedras-f: #4FA87C; --c-piedras-b: #1B3A2A;
+      --c-metales-f: #9B8DD4; --c-metales-b: #262040;
+      --c-taller-f: #5AACDA; --c-taller-b: #1A2E3A;
+      --c-herr-f: #93A3B3; --c-herr-b: #232A31;
+      --c-emp-f: #4FB3B3; --c-emp-b: #16302F;
+      --c-pub-f: #DB9160; --c-pub-b: #33221A;
+      --c-otros-f: #706B65; --c-otros-b: #252320;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+      --shadow-h: 0 2px 8px rgba(0,0,0,0.4);
+    }
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ===== AUTH GATE ===== */
+  .auth-gate {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 1rem;
+  }
+  .auth-box {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 2rem; max-width: 360px; width: 100%;
+    text-align: center; box-shadow: var(--shadow-h);
+  }
+  .auth-box .logo { width: 140px; margin-bottom: 1rem; }
+  .auth-box h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400; font-size: 1.1rem; color: var(--text-2);
+    margin-bottom: 1.5rem;
+  }
+  .auth-box input {
+    width: 100%; padding: 0.7rem; font-size: 1rem; text-align: center;
+    background: var(--bg-alt); border: 1px solid var(--border-s);
+    border-radius: 8px; color: var(--text); font-family: inherit;
+    outline: none; letter-spacing: 0.15em;
+  }
+  .auth-box input:focus { border-color: var(--gold); }
+  .auth-box .btn-enter {
+    width: 100%; margin-top: 1rem; padding: 0.65rem;
+    background: var(--gold); color: #fff; border: none;
+    border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .auth-box .btn-enter:hover { opacity: 0.88; }
+  .auth-error {
+    color: var(--red); font-size: 0.82rem; margin-top: 0.75rem;
+    display: none;
+  }
+
+  /* ===== NAV TABS ===== */
+  .app-container { display: none; }
+  .nav-bar {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; border-bottom: 1px solid var(--border);
+    background: var(--bg-card); padding: 0 1rem;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .nav-logo { width: 36px; height: auto; margin-right: 1rem; }
+  .nav-tab {
+    padding: 0.85rem 1.5rem; font-size: 0.82rem; font-weight: 600;
+    letter-spacing: 0.04em; color: var(--text-3); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.2s;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit; text-transform: uppercase;
+  }
+  .nav-tab:hover { color: var(--text-2); }
+  .nav-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .nav-spacer { flex: 1; }
+  .btn-logout {
+    padding: 0.45rem 0.8rem; font-size: 0.72rem; color: var(--text-3);
+    background: var(--bg-alt); border: 1px solid var(--border-s);
+    border-radius: 6px; cursor: pointer; font-family: inherit;
+  }
+  .btn-logout:hover { color: var(--red); border-color: var(--red); }
+
+  .tab-content { display: none; padding: 1.5rem 1rem; }
+  .tab-content.active { display: block; }
+
+  /* ===== CALCULADORA ===== */
+  #tab-calc .container { max-width: 440px; margin: 0 auto; }
+  .switch-container {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.75rem; margin-bottom: 1.5rem;
+  }
+  .switch-label {
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-3);
+    transition: color 0.25s; cursor: pointer; user-select: none;
+  }
+  .switch-label.active { color: var(--text); }
+  .switch-track {
+    width: 56px; height: 28px; border-radius: 14px;
+    background: var(--toggle-off); position: relative;
+    cursor: pointer; transition: background 0.3s; flex-shrink: 0;
+  }
+  .switch-track[data-metal="gold"] { background: var(--gold); }
+  .switch-thumb {
+    position: absolute; top: 3px; left: 3px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; transition: transform 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .switch-track[data-metal="gold"] .switch-thumb { transform: translateX(28px); }
+
+  .calc-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow);
+    border-top: 3px solid var(--gold);
+  }
+  .calc-card:hover { box-shadow: var(--shadow-h); }
+  .calc-header {
+    display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.25rem;
+  }
+  .calc-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em;
+    background: var(--gold-l); color: var(--gold);
+  }
+  .calc-title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.15rem; font-weight: 400; letter-spacing: 0.02em;
+  }
+  .results {
+    margin-top: 1.25rem; padding: 1rem; background: var(--gold-bg);
+    border-radius: 8px; display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0.75rem; opacity: 0; transform: translateY(4px);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .results.visible { opacity: 1; transform: translateY(0); }
+  .result-item { text-align: center; }
+  .result-label {
+    font-size: 0.65rem; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--text-3); margin-bottom: 0.2rem;
+  }
+  .result-value {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.5rem; font-weight: 700; color: var(--gold);
+    font-variant-numeric: tabular-nums;
+  }
+  .result-unit { font-size: 0.75rem; font-weight: 400; color: var(--text-3); margin-left: 2px; }
+  .result-desc { font-size: 0.68rem; color: var(--text-3); margin-top: 0.15rem; }
+
+  /* ===== FINANCIERO ===== */
+  #tab-fin .container { max-width: 800px; margin: 0 auto; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.25rem; box-shadow: var(--shadow);
+    margin-bottom: 1.25rem;
+  }
+  .card-title {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-3); margin-bottom: 1rem; font-weight: 600;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .edit-flag {
+    background: var(--gold); color: #fff; border-radius: 4px;
+    padding: 0.12rem 0.5rem; font-size: 0.62rem; letter-spacing: 0.06em;
+  }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .field label {
+    display: block; font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 0.3rem;
+  }
+  .field input, .field select {
+    width: 100%; padding: 0.55rem 0.7rem; font-size: 0.88rem;
+    font-family: inherit; color: var(--text); background: var(--bg-alt);
+    border: 1px solid var(--border-s); border-radius: 7px; outline: none;
+    -webkit-appearance: none; appearance: none; min-height: 42px;
+  }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239E9790' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.7rem center;
+    padding-right: 2rem; cursor: pointer;
+  }
+  .field select optgroup { font-style: normal; font-weight: 700; color: var(--text-3); }
+  .field select option { font-weight: 400; color: var(--text); }
+  .field input:focus, .field select:focus { border-color: var(--gold); }
+  .field input::placeholder { color: var(--text-3); font-size: 0.82rem; }
+  .field input[type="number"] { font-variant-numeric: tabular-nums; }
+  .field .hint {
+    font-size: 0.68rem; color: var(--text-3); margin-top: 0.25rem;
+    text-transform: none; letter-spacing: 0; line-height: 1.4;
+  }
+  .field.hidden { display: none; }
+  .rate-badge {
+    grid-column: 1 / -1; display: none;
+    background: var(--gold-bg); border: 1px solid var(--gold-l);
+    border-radius: 7px; padding: 0.55rem 0.8rem;
+    font-size: 0.8rem; color: var(--text-2);
+    align-items: center; justify-content: space-between;
+  }
+  .rate-badge.on { display: flex; }
+  .rate-badge b {
+    color: var(--gold); font-weight: 700; font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .btn-row { display: flex; gap: 0.5rem; margin-top: 0.85rem; }
+  .btn-add {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+    padding: 0.55rem 1.4rem; background: var(--gold); color: #fff; border: none;
+    border-radius: 7px; font-size: 0.82rem; font-weight: 600;
+    letter-spacing: 0.04em; cursor: pointer; font-family: inherit; min-height: 42px;
+  }
+  .btn-add:hover { opacity: 0.88; }
+  .btn-cancel {
+    display: none; padding: 0.55rem 1rem; background: var(--bg-alt);
+    color: var(--text-2); border: 1px solid var(--border); border-radius: 7px;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    font-family: inherit; min-height: 42px;
+  }
+  .btn-cancel.on { display: inline-flex; align-items: center; }
+
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+  thead th {
+    text-align: left; font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-3); padding: 0.5rem 0.4rem;
+    border-bottom: 1px solid var(--border); font-weight: 600; white-space: nowrap;
+  }
+  tbody td { padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--border-s); vertical-align: top; }
+  tbody tr { cursor: pointer; transition: background 0.15s; }
+  tbody tr:hover { background: var(--bg-hover); }
+  tbody tr.editing { background: var(--gold-bg); }
+  .cat-badge {
+    display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap;
+  }
+  .cb-joyas { background: var(--c-joyas-b); color: var(--c-joyas-f); }
+  .cb-piedras { background: var(--c-piedras-b); color: var(--c-piedras-f); }
+  .cb-metales { background: var(--c-metales-b); color: var(--c-metales-f); }
+  .cb-taller { background: var(--c-taller-b); color: var(--c-taller-f); }
+  .cb-herr { background: var(--c-herr-b); color: var(--c-herr-f); }
+  .cb-emp { background: var(--c-emp-b); color: var(--c-emp-f); }
+  .cb-pub { background: var(--c-pub-b); color: var(--c-pub-f); }
+  .cb-otros { background: var(--c-otros-b); color: var(--c-otros-f); }
+  .link-tag {
+    display: inline-block; background: var(--esm-l); color: var(--esm);
+    padding: 0.08rem 0.4rem; border-radius: 3px; font-size: 0.68rem;
+    font-weight: 600; margin-left: 0.3rem;
+  }
+  .btn-del {
+    background: none; border: none; color: var(--text-3); cursor: pointer;
+    font-size: 1.1rem; padding: 0.2rem 0.4rem; border-radius: 4px; line-height: 1;
+  }
+  .btn-del:hover { color: var(--red); background: var(--red-bg); }
+  .empty-msg { text-align: center; padding: 2rem; color: var(--text-3); font-size: 0.88rem; }
+  .table-note { text-align: center; padding: 0.5rem; color: var(--text-3); font-size: 0.72rem; }
+  .amount-cell { font-weight: 600; white-space: nowrap; }
+  .qty-cell small { display: block; color: var(--text-3); font-size: 0.72rem; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
+  .inv, .ope {
+    border-radius: 8px; padding: 0.75rem; text-align: center;
+  }
+  .inv { background: var(--gold-bg); border: 1px solid var(--gold-l); }
+  .ope { background: var(--bg-alt); border: 1px solid var(--border-s); }
+  .sl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  .sv { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0.25rem 0; color: var(--text); }
+  .sd { font-size: 0.7rem; color: var(--text-3); line-height: 1.4; }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
+  .summary-section h4 {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-3); margin-bottom: 0.5rem; font-weight: 600;
+  }
+  .summary-row {
+    display: flex; justify-content: space-between; padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border-s); font-size: 0.82rem;
+  }
+  .summary-label { color: var(--text-2); }
+  .summary-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .insumos { display: none; margin-bottom: 1rem; }
+  .insumos.on { display: block; }
+  .insumos h4 {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-3); margin-bottom: 0.5rem; font-weight: 600;
+  }
+  .ins-row {
+    display: flex; justify-content: space-between; padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border-s); font-size: 0.82rem;
+  }
+  .ins-row .rl { color: var(--text-2); }
+  .ins-row .rv { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .ins-row .rv small { display: block; font-weight: 400; color: var(--text-3); font-size: 0.72rem; }
+  .total-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 0 0; border-top: 2px solid var(--border);
+  }
+  .total-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); }
+  .total-val { font-size: 1.3rem; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .export-row { display: flex; gap: 0.5rem; }
+  .btn-secondary {
+    flex: 1; padding: 0.55rem 1rem; background: var(--bg-alt);
+    color: var(--text-2); border: 1px solid var(--border); border-radius: 7px;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; min-height: 42px;
+  }
+  .btn-secondary:hover { background: var(--bg-hover); }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    background: var(--bg-card); border: 1px solid var(--border);
+    padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.85rem;
+    box-shadow: var(--shadow-h); z-index: 999; opacity: 0;
+    transition: opacity 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ===== LOADING ===== */
+  .loading {
+    text-align: center; padding: 2rem; color: var(--text-3);
+  }
+  .spinner {
+    display: inline-block; width: 24px; height: 24px;
+    border: 2px solid var(--border); border-top-color: var(--gold);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer {
+    text-align: center; padding: 2rem 1rem 1rem;
+    font-size: 0.75rem; color: var(--text-3); letter-spacing: 0.05em;
+  }
+
+  @media (max-width: 620px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .split { grid-template-columns: 1fr; }
+    .summary-grid { grid-template-columns: 1fr; }
+    .nav-tab { padding: 0.75rem 0.8rem; font-size: 0.72rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== AUTH GATE ===== -->
+<div class="auth-gate" id="auth-gate">
+  <div class="auth-box">
+    <img src="logo.webp" alt="Verde Andino Jewelry" class="logo">
+    <h2>Panel de Herramientas</h2>
+    <input type="password" id="auth-pin" placeholder="Clave de acceso" autocomplete="off">
+    <button class="btn-enter" onclick="authCheck()" type="button">Entrar</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div class="app-container" id="app">
+  <nav class="nav-bar">
+    <img src="logo.webp" alt="VA" class="nav-logo">
+    <button class="nav-tab active" data-tab="calc" onclick="switchTab('calc')">Calculadora</button>
+    <button class="nav-tab" data-tab="fin" onclick="switchTab('fin')">Finanzas</button>
+    <span class="nav-spacer"></span>
+    <button class="btn-logout" onclick="authLogout()">Salir</button>
+  </nav>
+
+  <!-- TAB: CALCULADORA -->
+  <div class="tab-content active" id="tab-calc">
+    <div class="container">
+      <div class="switch-container">
+        <span class="switch-label" id="label-silver" onclick="setMetal('silver')">Plata</span>
+        <div class="switch-track" id="switch-track" data-metal="gold" onclick="toggleMetal()">
+          <div class="switch-thumb"></div>
+        </div>
+        <span class="switch-label active" id="label-gold" onclick="setMetal('gold')">Oro</span>
+      </div>
+
+      <div class="calc-card" id="section-gold">
+        <div class="calc-header">
+          <div class="calc-icon">Au</div>
+          <div class="calc-title">Oro</div>
+        </div>
+        <div class="field">
+          <label for="gold-weight">Peso final deseado (g)</label>
+          <input type="number" id="gold-weight" min="0" step="0.01" placeholder="Ej: 10.00">
+        </div>
+        <div class="field">
+          <label for="gold-purity">Ley deseada</label>
+          <select id="gold-purity">
+            <option value="" disabled selected>Seleccionar ley</option>
+            <option value="24">24K - 999</option>
+            <option value="22">22K - 916</option>
+            <option value="18">18K - 750</option>
+            <option value="14">14K - 585</option>
+            <option value="10">10K - 417</option>
+            <option value="9">9K - 375</option>
+          </select>
+        </div>
+        <div class="results" id="gold-results">
+          <div class="result-item">
+            <div class="result-label">Oro puro (24K)</div>
+            <div class="result-value"><span id="gold-pure">-</span><span class="result-unit">g</span></div>
+            <div class="result-desc">Ley 999</div>
+          </div>
+          <div class="result-item">
+            <div class="result-label">Liga</div>
+            <div class="result-value"><span id="gold-alloy">-</span><span class="result-unit">g</span></div>
+            <div class="result-desc">Metal base</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="calc-card" id="section-silver" style="display:none;">
+        <div class="calc-header">
+          <div class="calc-icon">Ag</div>
+          <div class="calc-title">Plata</div>
+        </div>
+        <div class="field">
+          <label for="silver-weight">Peso final deseado (g)</label>
+          <input type="number" id="silver-weight" min="0" step="0.01" placeholder="Ej: 25.00">
+        </div>
+        <div class="field">
+          <label for="silver-purity">Ley deseada</label>
+          <select id="silver-purity">
+            <option value="" disabled selected>Seleccionar ley</option>
+            <option value="1000">1000 - Pura</option>
+            <option value="950">950</option>
+            <option value="925">925 - Sterling</option>
+            <option value="900">900</option>
+            <option value="800">800</option>
+            <option value="720">720</option>
+          </select>
+        </div>
+        <div class="results" id="silver-results">
+          <div class="result-item">
+            <div class="result-label">Plata pura (1000)</div>
+            <div class="result-value"><span id="silver-pure">-</span><span class="result-unit">g</span></div>
+            <div class="result-desc">Ley 1000</div>
+          </div>
+          <div class="result-item">
+            <div class="result-label">Liga</div>
+            <div class="result-value"><span id="silver-alloy">-</span><span class="result-unit">g</span></div>
+            <div class="result-desc">Metal base</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: FINANCIERO -->
+  <div class="tab-content" id="tab-fin">
+    <div class="container">
+      <div class="card">
+        <div class="card-title">
+          <span id="form-title">Registrar gasto</span>
+          <span class="edit-flag" id="edit-flag" style="display:none;">Editando</span>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="f-date">Fecha</label>
+            <input type="date" id="f-date">
+          </div>
+          <div class="field">
+            <label for="f-cat">Categoria</label>
+            <select id="f-cat" onchange="syncCat()">
+              <option value="" disabled selected>Seleccionar</option>
+              <optgroup label="Inventario — se recupera vendiendo">
+                <option value="Joyas para reventa">Joyas para reventa</option>
+              </optgroup>
+              <optgroup label="Insumos — se vuelven joya">
+                <option value="Piedras">Piedras</option>
+                <option value="Metales">Metales</option>
+                <option value="Mano de obra">Mano de obra / taller</option>
+              </optgroup>
+              <optgroup label="Operativo — se recupera con margen">
+                <option value="Herramientas">Herramientas</option>
+                <option value="Empaque">Empaque</option>
+                <option value="Publicidad">Publicidad</option>
+                <option value="Otros">Otros</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-desc">Descripcion</label>
+            <input type="text" id="f-desc" placeholder="Ej: Plata 925 en lamina">
+          </div>
+          <div class="field">
+            <label for="f-prov">Proveedor</label>
+            <input type="text" id="f-prov" list="prov-list" placeholder="Ej: Metalurgica Andina">
+            <datalist id="prov-list"></datalist>
+          </div>
+          <div class="field">
+            <label for="f-amount">Monto (COP)</label>
+            <input type="number" id="f-amount" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+          <div class="field hidden" id="qty-field">
+            <label for="f-qty" id="qty-label">Cantidad</label>
+            <input type="number" id="f-qty" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+            <div class="hint" id="qty-hint"></div>
+          </div>
+          <div class="field hidden" id="link-field">
+            <label for="f-link">Producto en el catalogo</label>
+            <input type="text" id="f-link" placeholder="Ej: VA-001">
+            <div class="hint">Opcional. Enlaza este gasto con la pieza que cargaste en el catalogo.</div>
+          </div>
+          <div class="rate-badge" id="rate-badge">
+            <span id="rate-label">Precio unitario</span>
+            <b id="rate-val">$0</b>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn-add" id="btn-save" onclick="saveExpense()">+ Agregar gasto</button>
+          <button class="btn-cancel" id="btn-cancel" onclick="cancelEdit()">Cancelar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>Historial de gastos</span></div>
+        <div class="loading" id="fin-loading"><div class="spinner"></div><br>Cargando gastos...</div>
+        <div class="table-wrap" id="fin-table-wrap" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Categoria</th>
+                <th>Descripcion</th>
+                <th>Proveedor</th>
+                <th style="text-align:right">Cantidad</th>
+                <th style="text-align:right">Monto</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbl-body"></tbody>
+          </table>
+          <div class="empty-msg" id="empty-msg">No hay gastos registrados</div>
+          <div class="table-note" id="table-note" style="display:none;">Toca cualquier fila para editarla.</div>
+        </div>
+      </div>
+
+      <div class="card" id="summary-card" style="display:none;">
+        <div class="card-title"><span>Resumen</span></div>
+        <div class="split">
+          <div class="inv">
+            <div class="sl">Inversion en inventario</div>
+            <div class="sv" id="split-inv">$0</div>
+            <div class="sd">Joyas e insumos. Vuelve cuando vendes la pieza.</div>
+          </div>
+          <div class="ope">
+            <div class="sl">Gasto operativo</div>
+            <div class="sv" id="split-ope">$0</div>
+            <div class="sd">Se recupera con el margen, a lo largo del tiempo.</div>
+          </div>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-section">
+            <h4>Total por categoria</h4>
+            <div id="sum-cat"></div>
+          </div>
+          <div class="summary-section">
+            <h4>Total por mes</h4>
+            <div id="sum-month"></div>
+          </div>
+        </div>
+        <div class="insumos" id="insumos-block">
+          <h4>Insumos comprados</h4>
+          <div id="insumos-rows"></div>
+        </div>
+        <div class="total-bar">
+          <span class="total-label">Total general</span>
+          <span class="total-val" id="grand-total">$0.00</span>
+        </div>
+      </div>
+
+      <div class="card" id="export-card" style="display:none;">
+        <div class="card-title"><span>Exportar</span></div>
+        <div class="export-row">
+          <button class="btn-secondary" onclick="exportXLSX()">Descargar Excel</button>
+          <button class="btn-secondary" onclick="exportCSV()">Descargar CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Verde Andino Jewelry</footer>
+</div>
+
+<div class="toast" id="toast-el"></div>
+
+<script>
+/* ===== CONFIG ===== */
+var SB_URL = 'https://rbvqxrkzepthbbqzkbcg.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJidnF4cmt6ZXB0aGJicXprYmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTQwNTcsImV4cCI6MjEwMTc5MDA1N30.6RA6S7nxFCZdLzyhhX-siEXZrY47jpH9mcaB0wMq0hg';
+var SB_TOKEN_SALT = 'VDA_2026_TOKEN_SALT_v1';
+var ADMIN_PROBE_ID = 'VA-__auth_probe__';
+
+function sbToken() { return sessionStorage.getItem('va_admin_token') || ''; }
+function sbHeaders() {
+  return {
+    'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+    'Content-Type': 'application/json', 'x-admin-token': sbToken()
+  };
+}
+
+/* ===== TOAST ===== */
+var _toastTimer;
+function toast(msg) {
+  var el = document.getElementById('toast-el');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function() { el.classList.remove('show'); }, 2500);
+}
+
+/* ===== AUTH ===== */
+function sha256(text) {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+    .then(function(buf) {
+      return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+    });
+}
+
+document.getElementById('auth-pin').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') authCheck();
+});
+
+function authCheck() {
+  var pin = document.getElementById('auth-pin').value.trim();
+  if (!pin) { toast('Escribe la clave'); return; }
+  sha256(pin + SB_TOKEN_SALT).then(function(tok) {
+    sessionStorage.setItem('va_admin_token', tok);
+    // Probe: try upserting to productos to validate token
+    fetch(SB_URL + '/rest/v1/productos', {
+      method: 'POST',
+      headers: sbHeaders(),
+      body: JSON.stringify({
+        id: ADMIN_PROBE_ID, estado: 'borrador', categoria: '', estilo: '',
+        metal: '', ley: '', color: '', genero: '', piedras: [],
+        descripcion: '__auth_probe__', medida: '', medida_u: '',
+        certificado: false, precio: 0, foto_url: ''
+      }),
+      // Merge duplicates so it works as upsert
+    }).then(function(r) {
+      if (r.ok || r.status === 201 || r.status === 200 || r.status === 409) {
+        authUnlock();
+      } else {
+        sessionStorage.removeItem('va_admin_token');
+        var err = document.getElementById('auth-error');
+        err.textContent = 'Clave incorrecta'; err.style.display = 'block';
+      }
+    }).catch(function() {
+      sessionStorage.removeItem('va_admin_token');
+      var err = document.getElementById('auth-error');
+      err.textContent = 'Error de conexion'; err.style.display = 'block';
+    });
+  });
+}
+
+function authUnlock() {
+  document.getElementById('auth-gate').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  finLoad();
+}
+
+function authLogout() {
+  sessionStorage.removeItem('va_admin_token');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-gate').style.display = 'flex';
+  document.getElementById('auth-pin').value = '';
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+// Auto-login if token exists
+if (sbToken()) {
+  // Verify token is still valid
+  fetch(SB_URL + '/rest/v1/gastos?select=id&limit=1', {
+    headers: sbHeaders()
+  }).then(function(r) {
+    if (r.ok) authUnlock();
+    else { sessionStorage.removeItem('va_admin_token'); }
+  }).catch(function() {});
+}
+
+/* ===== TABS ===== */
+function switchTab(tab) {
+  document.querySelectorAll('.nav-tab').forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('data-tab') === tab);
+  });
+  document.querySelectorAll('.tab-content').forEach(function(c) {
+    c.classList.toggle('active', c.id === 'tab-' + tab);
+  });
+}
+
+/* ===== CALCULADORA ===== */
+var currentMetal = 'gold';
+
+function setMetal(metal) { currentMetal = metal; renderMetal(); }
+function toggleMetal() { currentMetal = currentMetal === 'gold' ? 'silver' : 'gold'; renderMetal(); }
+
+function renderMetal() {
+  var track = document.getElementById('switch-track');
+  track.setAttribute('data-metal', currentMetal);
+  document.getElementById('label-gold').classList.toggle('active', currentMetal === 'gold');
+  document.getElementById('label-silver').classList.toggle('active', currentMetal === 'silver');
+  document.getElementById('section-gold').style.display = currentMetal === 'gold' ? 'block' : 'none';
+  document.getElementById('section-silver').style.display = currentMetal === 'silver' ? 'block' : 'none';
+}
+
+function calcGold() {
+  var w = parseFloat(document.getElementById('gold-weight').value);
+  var k = parseFloat(document.getElementById('gold-purity').value);
+  var r = document.getElementById('gold-results');
+  if (!w || w <= 0 || !k) { r.classList.remove('visible'); return; }
+  var pure = (w * k) / 24;
+  document.getElementById('gold-pure').textContent = pure.toFixed(2);
+  document.getElementById('gold-alloy').textContent = (w - pure).toFixed(2);
+  r.classList.add('visible');
+}
+
+function calcSilver() {
+  var w = parseFloat(document.getElementById('silver-weight').value);
+  var p = parseFloat(document.getElementById('silver-purity').value);
+  var r = document.getElementById('silver-results');
+  if (!w || w <= 0 || !p) { r.classList.remove('visible'); return; }
+  var pure = (w * p) / 1000;
+  document.getElementById('silver-pure').textContent = pure.toFixed(2);
+  document.getElementById('silver-alloy').textContent = (w - pure).toFixed(2);
+  r.classList.add('visible');
+}
+
+document.getElementById('gold-weight').addEventListener('input', calcGold);
+document.getElementById('gold-purity').addEventListener('change', calcGold);
+document.getElementById('silver-weight').addEventListener('input', calcSilver);
+document.getElementById('silver-purity').addEventListener('change', calcSilver);
+renderMetal();
+
+/* ===== FINANCIERO — Supabase CRUD ===== */
+var expenses = [];
+var editingId = null;
+var INVENTARIO = ['Joyas para reventa', 'Piedras', 'Metales', 'Mano de obra'];
+var CAT_ORDER = ['Joyas para reventa', 'Piedras', 'Metales', 'Mano de obra',
+                 'Herramientas', 'Empaque', 'Publicidad', 'Otros'];
+var CAT_CLASS = {
+  'Joyas para reventa': 'cb-joyas', 'Piedras': 'cb-piedras',
+  'Metales': 'cb-metales', 'Mano de obra': 'cb-taller',
+  'Herramientas': 'cb-herr', 'Empaque': 'cb-emp',
+  'Publicidad': 'cb-pub', 'Otros': 'cb-otros'
+};
+var UNITS = {
+  'Metales': { u: 'g', label: 'Cantidad (g)', hint: 'Gramos comprados.', rate: 'Precio por gramo' },
+  'Piedras': { u: 'ct', label: 'Cantidad (ct)', hint: 'Quilates comprados.', rate: 'Precio por quilate' }
+};
+
+function $(id) { return document.getElementById(id); }
+
+function finLoad() {
+  fetch(SB_URL + '/rest/v1/gastos?select=*&order=fecha.desc,id.desc', {
+    headers: sbHeaders()
+  }).then(function(r) { return r.json(); })
+  .then(function(rows) {
+    expenses = rows.map(function(r) {
+      return {
+        id: r.id, date: r.fecha, cat: r.categoria, desc: r.descripcion,
+        prov: r.proveedor || '', amount: parseFloat(r.monto),
+        qty: r.cantidad ? parseFloat(r.cantidad) : null,
+        unit: r.unidad || '', link: r.enlace_producto || ''
+      };
+    });
+    $('fin-loading').style.display = 'none';
+    $('fin-table-wrap').style.display = 'block';
+    renderFin();
+  }).catch(function(e) {
+    console.error('Error cargando gastos:', e);
+    $('fin-loading').innerHTML = 'Error al cargar. <button onclick="finLoad()" style="color:var(--gold);background:none;border:none;cursor:pointer;text-decoration:underline;">Reintentar</button>';
+  });
+}
+
+function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtShort(n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); }
+function fmtQty(n, u) { return (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + u; }
+function catClass(c) { return CAT_CLASS[c] || 'cb-otros'; }
+function isInv(c) { return INVENTARIO.indexOf(c) >= 0; }
+function monthName(m) {
+  var names = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var p = m.split('-');
+  return names[parseInt(p[1]) - 1] + ' ' + p[0];
+}
+
+function syncCat() {
+  var cat = $('f-cat').value;
+  var u = UNITS[cat];
+  if (u) {
+    $('qty-field').classList.remove('hidden');
+    $('qty-label').textContent = u.label;
+    $('qty-hint').textContent = u.hint;
+  } else {
+    $('qty-field').classList.add('hidden'); $('f-qty').value = '';
+  }
+  $('link-field').classList.toggle('hidden', cat !== 'Joyas para reventa');
+  if (cat !== 'Joyas para reventa') $('f-link').value = '';
+  updateRate();
+}
+
+function updateRate() {
+  var cat = $('f-cat').value, u = UNITS[cat];
+  var amt = parseFloat($('f-amount').value) || 0;
+  var qty = parseFloat($('f-qty').value) || 0;
+  if (u && amt > 0 && qty > 0) {
+    $('rate-label').textContent = u.rate;
+    $('rate-val').textContent = fmtShort(amt / qty) + ' / ' + u.u;
+    $('rate-badge').classList.add('on');
+  } else { $('rate-badge').classList.remove('on'); }
+}
+
+function refreshProviders() {
+  var seen = {}, dl = $('prov-list'); dl.innerHTML = '';
+  for (var i = 0; i < expenses.length; i++) {
+    var p = expenses[i].prov;
+    if (p && !seen[p]) { seen[p] = 1; var o = document.createElement('option'); o.value = p; dl.appendChild(o); }
+  }
+}
+
+function clearForm() {
+  $('f-desc').value = ''; $('f-prov').value = '';
+  $('f-amount').value = ''; $('f-qty').value = ''; $('f-link').value = '';
+  updateRate();
+}
+
+function cancelEdit() {
+  editingId = null;
+  $('form-title').textContent = 'Registrar gasto';
+  $('edit-flag').style.display = 'none';
+  $('btn-save').textContent = '+ Agregar gasto';
+  $('btn-cancel').classList.remove('on');
+  $('f-date').value = new Date().toISOString().split('T')[0];
+  $('f-cat').selectedIndex = 0;
+  syncCat(); clearForm(); renderFin();
+}
+
+function startEdit(id) {
+  var e = null;
+  for (var i = 0; i < expenses.length; i++) if (expenses[i].id === id) e = expenses[i];
+  if (!e) return;
+  editingId = id;
+  $('f-date').value = e.date; $('f-cat').value = e.cat; syncCat();
+  $('f-desc').value = e.desc || ''; $('f-prov').value = e.prov || '';
+  $('f-amount').value = e.amount;
+  $('f-qty').value = (e.qty || e.qty === 0) ? e.qty : '';
+  $('f-link').value = e.link || ''; updateRate();
+  $('form-title').textContent = 'Editar gasto';
+  $('edit-flag').style.display = 'inline-block';
+  $('btn-save').textContent = 'Guardar cambios';
+  $('btn-cancel').classList.add('on');
+  renderFin();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function saveExpense() {
+  var date = $('f-date').value, cat = $('f-cat').value;
+  var desc = $('f-desc').value.trim(), prov = $('f-prov').value.trim();
+  var amount = parseFloat($('f-amount').value);
+  var qtyRaw = $('f-qty').value;
+  var qty = (UNITS[cat] && qtyRaw !== '') ? (parseFloat(qtyRaw) || 0) : null;
+  var unit = UNITS[cat] ? UNITS[cat].u : '';
+  var link = (cat === 'Joyas para reventa') ? $('f-link').value.trim() : '';
+
+  if (!date || !cat || !desc || isNaN(amount) || amount <= 0) {
+    toast('Completa fecha, categoria, descripcion y monto');
+    return;
+  }
+
+  var body = {
+    fecha: date, categoria: cat, descripcion: desc, proveedor: prov,
+    monto: amount, cantidad: qty, unidad: unit, enlace_producto: link
+  };
+
+  if (editingId !== null) {
+    // UPDATE
+    fetch(SB_URL + '/rest/v1/gastos?id=eq.' + editingId, {
+      method: 'PATCH', headers: sbHeaders(),
+      body: JSON.stringify(body)
+    }).then(function(r) {
+      if (!r.ok) throw new Error(r.status);
+      // Update local
+      for (var i = 0; i < expenses.length; i++) {
+        if (expenses[i].id === editingId) {
+          var e = expenses[i];
+          e.date = date; e.cat = cat; e.desc = desc; e.prov = prov;
+          e.amount = amount; e.qty = qty; e.unit = unit; e.link = link;
+        }
+      }
+      toast('Gasto actualizado');
+      cancelEdit();
+    }).catch(function(e) { toast('Error al guardar'); console.error(e); });
+  } else {
+    // INSERT
+    fetch(SB_URL + '/rest/v1/gastos', {
+      method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+      body: JSON.stringify(body)
+    }).then(function(r) { return r.json(); })
+    .then(function(rows) {
+      var r = Array.isArray(rows) ? rows[0] : rows;
+      expenses.push({
+        id: r.id, date: r.fecha, cat: r.categoria, desc: r.descripcion,
+        prov: r.proveedor || '', amount: parseFloat(r.monto),
+        qty: r.cantidad ? parseFloat(r.cantidad) : null,
+        unit: r.unidad || '', link: r.enlace_producto || ''
+      });
+      toast('Gasto registrado');
+      renderFin(); clearForm();
+    }).catch(function(e) { toast('Error al guardar'); console.error(e); });
+  }
+}
+
+function delExpense(id, ev) {
+  if (ev) ev.stopPropagation();
+  fetch(SB_URL + '/rest/v1/gastos?id=eq.' + id, {
+    method: 'DELETE', headers: sbHeaders()
+  }).then(function(r) {
+    if (!r.ok) throw new Error(r.status);
+    expenses = expenses.filter(function(e) { return e.id !== id; });
+    if (editingId === id) { cancelEdit(); return; }
+    toast('Gasto eliminado');
+    renderFin();
+  }).catch(function(e) { toast('Error al eliminar'); console.error(e); });
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderFin() {
+  var tbody = $('tbl-body');
+  var sorted = expenses.slice().sort(function(a, b) {
+    return b.date.localeCompare(a.date) || b.id - a.id;
+  });
+
+  if (!sorted.length) {
+    tbody.innerHTML = '';
+    $('empty-msg').style.display = 'block';
+    $('table-note').style.display = 'none';
+    $('summary-card').style.display = 'none';
+    $('export-card').style.display = 'none';
+    return;
+  }
+  $('empty-msg').style.display = 'none';
+  $('table-note').style.display = 'block';
+  $('summary-card').style.display = 'block';
+  $('export-card').style.display = 'block';
+
+  var html = '';
+  for (var i = 0; i < sorted.length; i++) {
+    var e = sorted[i];
+    var dp = e.date.split('-');
+    var u = UNITS[e.cat];
+    var qtyCell = '';
+    if (e.qty && u) {
+      qtyCell = fmtQty(e.qty, u.u) + '<br><small>' + fmtShort(e.amount / e.qty) + '/' + u.u + '</small>';
+    }
+    var descCell = esc(e.desc);
+    if (e.link) descCell += ' <span class="link-tag">' + esc(e.link) + '</span>';
+    html += '<tr class="' + (editingId === e.id ? 'editing' : '') + '" onclick="startEdit(' + e.id + ')">' +
+      '<td style="white-space:nowrap">' + dp[2] + '/' + dp[1] + '/' + dp[0] + '</td>' +
+      '<td><span class="cat-badge ' + catClass(e.cat) + '">' + esc(e.cat) + '</span></td>' +
+      '<td>' + descCell + '</td>' +
+      '<td>' + esc(e.prov) + '</td>' +
+      '<td class="qty-cell" style="text-align:right">' + qtyCell + '</td>' +
+      '<td class="amount-cell" style="text-align:right">' + fmt(e.amount) + '</td>' +
+      '<td style="text-align:center"><button class="btn-del" onclick="delExpense(' + e.id + ', event)" title="Eliminar">&times;</button></td>' +
+      '</tr>';
+  }
+  tbody.innerHTML = html;
+
+  // Summary
+  var cats = {}, months = {}, total = 0, invTotal = 0, opeTotal = 0, ins = {};
+  for (var i = 0; i < expenses.length; i++) {
+    var e = expenses[i];
+    cats[e.cat] = (cats[e.cat] || 0) + e.amount;
+    var mk = e.date.substring(0, 7);
+    months[mk] = (months[mk] || 0) + e.amount;
+    total += e.amount;
+    if (isInv(e.cat)) invTotal += e.amount; else opeTotal += e.amount;
+    if (UNITS[e.cat] && e.qty) {
+      if (!ins[e.cat]) ins[e.cat] = { q: 0, a: 0 };
+      ins[e.cat].q += e.qty; ins[e.cat].a += e.amount;
+    }
+  }
+
+  $('split-inv').textContent = fmtShort(invTotal);
+  $('split-ope').textContent = fmtShort(opeTotal);
+
+  var catHtml = '', known = {};
+  for (var i = 0; i < CAT_ORDER.length; i++) {
+    var c = CAT_ORDER[i]; known[c] = 1;
+    if (cats[c]) catHtml += '<div class="summary-row"><span class="summary-label">' + c + '</span><span class="summary-val">' + fmt(cats[c]) + '</span></div>';
+  }
+  for (var c in cats) { if (!known[c]) catHtml += '<div class="summary-row"><span class="summary-label">' + esc(c) + '</span><span class="summary-val">' + fmt(cats[c]) + '</span></div>'; }
+  $('sum-cat').innerHTML = catHtml;
+
+  var mKeys = Object.keys(months).sort().reverse();
+  var mHtml = '';
+  for (var i = 0; i < mKeys.length; i++) mHtml += '<div class="summary-row"><span class="summary-label">' + monthName(mKeys[i]) + '</span><span class="summary-val">' + fmt(months[mKeys[i]]) + '</span></div>';
+  $('sum-month').innerHTML = mHtml;
+
+  var insKeys = Object.keys(ins);
+  if (insKeys.length) {
+    var ih = '';
+    for (var i = 0; i < insKeys.length; i++) {
+      var k = insKeys[i], d = ins[k], u = UNITS[k];
+      ih += '<div class="ins-row"><span class="rl">' + k + '</span><span class="rv">' + fmtQty(d.q, u.u) + '<small>' + fmtShort(d.a / d.q) + '/' + u.u + ' promedio</small></span></div>';
+    }
+    $('insumos-rows').innerHTML = ih;
+    $('insumos-block').classList.add('on');
+  } else { $('insumos-block').classList.remove('on'); }
+
+  $('grand-total').textContent = fmt(total);
+  refreshProviders();
+}
+
+/* ===== EXPORT ===== */
+function rowsForExport() {
+  var headers = ['Fecha','Tipo','Categoria','Descripcion','Proveedor','Cantidad','Unidad','Precio unitario','Monto (COP)','Producto'];
+  var out = [headers];
+  var sorted = expenses.slice().sort(function(a,b) { return a.date.localeCompare(b.date); });
+  for (var i = 0; i < sorted.length; i++) {
+    var e = sorted[i], u = UNITS[e.cat];
+    out.push([e.date, isInv(e.cat) ? 'Inventario' : 'Operativo', e.cat, e.desc, e.prov || '',
+      (e.qty || e.qty === 0) ? e.qty : '', u ? u.u : '',
+      (e.qty && u) ? Math.round(e.amount / e.qty) : '', e.amount, e.link || '']);
+  }
+  return out;
+}
+
+function stamp() {
+  var d = new Date();
+  function p(n) { return n < 10 ? '0' + n : '' + n; }
+  return d.getFullYear() + p(d.getMonth()+1) + p(d.getDate());
+}
+
+function download(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function csvEsc(v) {
+  if (v === null || v === undefined) return '';
+  var s = String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportCSV() {
+  var rows = rowsForExport();
+  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
+  download(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }),
+    'verde-andino-gastos-' + stamp() + '.csv');
+}
+
+/* XLSX */
+function crcTable() {
+  if (crcTable.t) return crcTable.t;
+  var t = [];
+  for (var i = 0; i < 256; i++) {
+    var c = i;
+    for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  crcTable.t = t; return t;
+}
+function crc32(buf) {
+  var t = crcTable(), crc = 0xFFFFFFFF;
+  for (var i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ t[(crc ^ buf[i]) & 0xFF];
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function makeZip(files) {
+  var enc = new TextEncoder();
+  var chunks = [], central = [], offset = 0;
+  for (var i = 0; i < files.length; i++) {
+    var nb = enc.encode(files[i].name);
+    var data = enc.encode(files[i].content);
+    var crc = crc32(data);
+    var lh = new Uint8Array(30 + nb.length);
+    var v = new DataView(lh.buffer);
+    v.setUint32(0, 0x04034b50, true); v.setUint16(4, 20, true);
+    v.setUint16(8, 0, true); v.setUint32(14, crc, true);
+    v.setUint32(18, data.length, true); v.setUint32(22, data.length, true);
+    v.setUint16(26, nb.length, true); lh.set(nb, 30);
+    chunks.push(lh, data);
+    var cd = new Uint8Array(46 + nb.length);
+    var c = new DataView(cd.buffer);
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true);
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true);
+    c.setUint32(24, data.length, true); c.setUint16(28, nb.length, true);
+    c.setUint32(42, offset, true); cd.set(nb, 46);
+    central.push(cd);
+    offset += lh.length + data.length;
+  }
+  var cdSize = 0;
+  for (var i = 0; i < central.length; i++) cdSize += central[i].length;
+  var eocd = new Uint8Array(22);
+  var e = new DataView(eocd.buffer);
+  e.setUint32(0, 0x06054b50, true);
+  e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, cdSize, true); e.setUint32(16, offset, true);
+  return new Blob(chunks.concat(central, [eocd]), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+function xmlEsc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function colName(n) {
+  var s = '';
+  while (n > 0) { var m = (n-1) % 26; s = String.fromCharCode(65+m) + s; n = (n-m-1) / 26; }
+  return s;
+}
+
+function exportXLSX() {
+  var rows = rowsForExport();
+  var sheet = '';
+  for (var r = 0; r < rows.length; r++) {
+    var cells = '';
+    for (var c = 0; c < rows[r].length; c++) {
+      var val = rows[r][c], ref = colName(c+1) + (r+1);
+      if (val === '' || val === null || val === undefined) continue;
+      if (r > 0 && typeof val === 'number') {
+        var st = (c === 8 || c === 7) ? ' s="2"' : '';
+        cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
+      } else {
+        var s = r === 0 ? ' s="1"' : '';
+        cells += '<c r="' + ref + '" t="inlineStr"' + s + '><is><t>' + xmlEsc(val) + '</t></is></c>';
+      }
+    }
+    sheet += '<row r="' + (r+1) + '">' + cells + '</row>';
+  }
+  var cols = '<cols><col min="1" max="1" width="11" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/><col min="4" max="4" width="34" customWidth="1"/><col min="5" max="5" width="22" customWidth="1"/><col min="6" max="6" width="10" customWidth="1"/><col min="7" max="7" width="8" customWidth="1"/><col min="8" max="8" width="15" customWidth="1"/><col min="9" max="9" width="16" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/></cols>';
+  var files = [
+    { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+    { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Gastos" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'xl/styles.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>' },
+    { name: 'xl/worksheets/sheet1.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>' }
+  ];
+  download(makeZip(files), 'verde-andino-gastos-' + stamp() + '.xlsx');
+}
+
+$('f-amount').addEventListener('input', updateRate);
+$('f-qty').addEventListener('input', updateRate);
+$('f-date').value = new Date().toISOString().split('T')[0];
+syncCat();
+</script>
+</body>
+</html>
