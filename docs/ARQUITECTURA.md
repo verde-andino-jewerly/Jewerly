@@ -64,11 +64,24 @@ Ver [`../supabase/functions/README.md`](../supabase/functions/README.md).
 
 ---
 
-## 4. Manejo de imágenes de producto
+## 4. Manejo de imágenes de producto (v2: múltiples imágenes)
 
-- Al cargar una foto, se **comprime en el navegador** (canvas) a máx 800 px por el lado mayor, JPEG calidad 0.82.
-- Se guarda como *data URI* base64 en la columna `foto_url` de Supabase.
-- El input usa `accept="image/*"` **sin** `capture` para que el celular ofrezca **cámara o galería**.
+- **Foto principal** (`foto_url`): Requerida para cada producto. Se muestra siempre en la grilla y se usa como fallback.
+- **Fotos adicionales** (`fotos` array JSONB): Opcionales (0-4 imágenes extra). Se muestran en carousel modal con flechas ← → y puntos indicadores cuando hay 2+ fotos.
+- **Compresión**: Todas las fotos se comprimen en el navegador (canvas) a máx 800 px por lado mayor, JPEG calidad 0.82, **antes** de subir.
+- **Almacenamiento**: Se guardan como *data URI* base64 en Supabase.
+- **Límite**: Máximo 5 fotos por producto (1 principal + 4 adicionales).
+- **Input**: Usa `accept="image/*"` **sin** `capture` para que el celular ofrezca **cámara o galería** (no solo cámara).
+- **Retrocompatibilidad**: Si `fotos` está vacío/null, vitrina cae a `foto_url` para mostrar imagen.
+
+## 4.1. Precios promocionales (v1: descuentos opcionales)
+
+- **Precio regular** (`precio`): Calculado server-side en Edge Function desde `costo` y `margen`.
+- **Precio de oferta** (`precio_oferta`): Campo opcional (nullable). Si se completa:
+  - Vitrina muestra: precio original tachado + precio de oferta (verde esmeralda) + badge con descuento %.
+  - Descuento calculado: `(precio - precio_oferta) / precio × 100`.
+- **Validación crítica**: `precio_oferta >= costo` para evitar pérdidas de operación (protección en `admSaveProductWithPrice()`).
+- **Visibilidad**: Ambas columnas (`precio`, `precio_oferta`) están en `SB_PUBLIC_COLS` (es información de UI, no sensible).
 
 ---
 

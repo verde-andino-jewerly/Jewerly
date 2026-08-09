@@ -79,7 +79,9 @@ JS field names use camelCase; DB columns use snake_case. Conversion via `sbToIte
 |----------|-----------|-------|
 | `medidaU` | `medida_u` | Unit: talla/cm/mm |
 | `certNum` | `cert_num` | Certificate number — admin only |
-| `foto` | `foto_url` | base64 data URI |
+| `foto` | `foto_url` | base64 data URI (primary photo, always shown in grid) |
+| `fotos` | `fotos` | JSONB array of 1-5 base64 photos; carousel in modal if 2+ photos |
+| `precioOferta` | `precio_oferta` | Optional discount price; if set, displays with discount % in vitrina |
 | `createdAt` | `created_at` | TIMESTAMPTZ, defaults to NOW() |
 | `updatedAt` | `updated_at` | TIMESTAMPTZ |
 
@@ -88,7 +90,7 @@ JS field names use camelCase; DB columns use snake_case. Conversion via `sbToIte
 ## Data classification
 
 **🟢 Public** (fetched by vitrina, visible in modal / network response):
-- `id`, `categoria`, `estilo`, `metal`, `ley`, `color`, `genero`, `piedras`, `descripcion`, `medida`, `medidaU`, `certificado` (Sí/No flag), `precio`, `foto`, `createdAt`
+- `id`, `categoria`, `estilo`, `metal`, `ley`, `color`, `genero`, `piedras`, `descripcion`, `medida`, `medidaU`, `certificado` (Sí/No flag), `precio`, `precioOferta`, `foto`, `fotos`, `createdAt`
 
 **🔴 Administrative** (only admin fetch retrieves; excluded from `sbFetchPublic`):
 - `cert_num`, `costo`, `margen`, `proveedor`, `notas`, `updated_at`
@@ -114,6 +116,34 @@ The SQL scripts are backed up in `docs-privado/` (gitignored). The live policies
 - **Audit log**: all changes recorded in `productos_audit` via trigger.
 
 Rotate the clave via the in-app modal — it emits the exact `DROP/CREATE POLICY` SQL to paste in Supabase.
+
+## Photo Management (v2: Multiple Photos)
+
+- **Primary photo** (`foto` / `foto_url`): Required for each product. Shown in grid thumbnails and used as fallback.
+- **Additional photos** (`fotos` array, JSONB): Optional (0-4 extra images). Displayed in modal carousel with ← → arrows and dot indicators when 2+ photos exist.
+- **Max total:** 5 photos (1 primary + 4 additional).
+- **Compression:** All photos compressed client-side before upload to 800px max, JPEG Q=0.82.
+- **Grid behavior:** Always shows primary photo only; carousel only appears in modal.
+- **Backward compatibility:** If `fotos` is empty/null, system falls back to `foto_url` for display.
+
+Admin panel functions:
+- `admProcessPrimaryPhoto()` — handles primary photo upload
+- `admHandlePhotoDrop()` — drag-drop for additional photos
+- `admProcessPhotoQueue()` — async compression queue
+- `admCarouselPrev/Next/GoTo()` — navigation functions
+
+## Promotional Pricing (v1: Optional Discounts)
+
+- **Price field** (`precio`): Regular price (calculated server-side from cost + margin).
+- **Discount price** (`precioOferta`): Optional field. If set, vitrina displays:
+  - Original price struck through
+  - Discount price highlighted in emerald green
+  - Discount percentage badge (calculated: `(precio - precioOferta) / precio × 100`)
+- **Validation:** `precioOferta` must be:
+  - Greater than 0
+  - Less than regular `precio`
+  - Greater than or equal to `costo` (prevent losses via `admSaveProductWithPrice()`)
+- **Visibility:** Both columns are public and appear in `SB_PUBLIC_COLS` (UI data, not sensitive).
 
 ## Important caveats
 

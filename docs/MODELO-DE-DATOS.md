@@ -28,7 +28,9 @@ Estructura exacta de los datos que maneja el sistema.
 |----------|-----------|-------|
 | `medidaU` | `medida_u` | Unidad: `talla` \| `cm` \| `mm` |
 | `certNum` | `cert_num` | Número de certificado |
-| `foto` | `foto_url` | Data URI base64 |
+| `foto` | `foto_url` | Data URI base64 (foto principal) |
+| `fotos` | `fotos` | JSONB array de 1-5 fotos base64; carousel en modal si hay 2+ |
+| `precioOferta` | `precio_oferta` | Precio de oferta opcional; si se completa, muestra descuento % |
 | `createdAt` | `created_at` | TIMESTAMPTZ, default `NOW()` |
 | `updatedAt` | `updated_at` | TIMESTAMPTZ |
 
@@ -57,7 +59,12 @@ Estructura exacta de los datos que maneja el sistema.
   medidaU:     "talla",
   certificado: "No",              // "Sí" | "No"
   precio:      4000000,           // COP, calculado server-side vía Edge Function
+  precioOferta: null,             // COP, opcional; si se completa muestra descuento %
   foto:        "data:image/jpeg;base64,...",  // o null
+  fotos:       [                  // JSONB array 1-5 fotos; carousel en modal si 2+
+    "data:image/jpeg;base64,...foto1...",
+    "data:image/jpeg;base64,...foto2..."
+  ],
 
   // ── Campos ADMINISTRATIVOS (NO expuestos en la vitrina) ─
   certNum:     "",
@@ -88,7 +95,7 @@ Cada piedra: `{ tipo, qty, ct }`.
 
 | Nivel | Campos | Visibilidad |
 |---|---|---|
-| 🟢 **Público** | `id`, `categoria`, `estilo`, `metal`, `ley`, `color`, `genero`, `piedras`, `descripcion`, `medida`, `medidaU`, `certificado` (Sí/No), `precio`, `foto`, `createdAt` | Vitrina + API pública |
+| 🟢 **Público** | `id`, `categoria`, `estilo`, `metal`, `ley`, `color`, `genero`, `piedras`, `descripcion`, `medida`, `medidaU`, `certificado` (Sí/No), `precio`, `precioOferta`, `foto`, `fotos`, `createdAt` | Vitrina + API pública |
 | 🔴 **Administrativo** | `certNum`, `costo`, `margen`, `proveedor`, `notas`, `updated_at` | Solo accesible con `x-admin-token` |
 | 🔒 **Sensible** | La clave compartida, tokens de sesión derivados | Nunca en el código ni en Supabase; solo en la mente de las personas autorizadas y en `sessionStorage` mientras el panel está abierto |
 

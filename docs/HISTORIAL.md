@@ -78,10 +78,28 @@ Son HTMLs autocontenidos con su propio `localStorage`; no comparten datos con la
 
 ---
 
+## Cambios recientes (v2)
+
+### Múltiples imágenes por producto (carousel)
+- Nueva columna `fotos` (JSONB) para almacenar array de hasta 5 imágenes base64.
+- Admin: drag-drop de hasta 4 fotos adicionales + foto principal = 5 máx.
+- Vitrina: carousel con flechas (← →) y puntos indicadores cuando hay 2+ fotos.
+- Compresión async (800px JPEG Q=0.82) en el navegador antes de subir.
+- Retrocompatibilidad: si `fotos` está vacío, sistema usa `foto_url` como fallback.
+
+### Precios promocionales (oferta)
+- Nueva columna `precio_oferta` (NUMERIC, nullable) para descuentos.
+- Admin: campo opcional en formulario; validación crítica `precio_oferta >= costo` para evitar pérdidas.
+- Vitrina: si hay oferta, muestra precio original tachado + precio de oferta + badge "descuento %".
+- Cálculo: `(precio - precioOferta) / precio × 100`
+
+---
+
 ## Pendientes / ideas a futuro
 
 - **Auth real con Supabase Auth** — reemplazar PIN + `x-admin-token` por JWT cuando escale la operación.
 - **Storage bucket** para fotos grandes en vez de base64 embebido (reduciría el tamaño de las filas de `productos`).
+- **Video en productos** — investigar soporte para videos de demostración.
 - **Generador de publicaciones para redes** desde el panel privado.
 - **Inventario y estadísticas** (visitas, productos más vistos).
 - **Dominio propio** cuando esté decidido el nombre comercial final.
