@@ -1213,7 +1213,8 @@ var activeCategory = null;
 
 /* Supabase — base de datos en la nube */
 var SB_URL = 'https://rbvqxrkzepthbbqzkbcg.supabase.co';
-var SB_KEY = 'sb_publishable_pzmuOrI24gKsoz1jb81XLQ_06qOVwBm';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJidnF4cmt6ZXB0aGJicXprYmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTQwNTcsImV4cCI6MjEwMTc5MDA1N30.6RA6S7nxFCZdLzyhhX-siEXZrY47jpH9mcaB0wMq0hg';
+var SB_ADMIN_TOKEN = 'VDA_ADMIN_SECRET'; // debe coincidir con el token en las políticas RLS de Supabase
 var _sbCache = [];
 var _sbRequestLog = []; // Rate limiting: { endpoint, timestamp }
 
@@ -1269,30 +1270,40 @@ function sbUpsert(item, cb) {
   fetch(SB_URL + '/rest/v1/productos', {
     method: 'POST',
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-      'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      'Content-Type': 'application/json',
+      'x-admin-token': SB_ADMIN_TOKEN,
+      'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(itemToSb(item))
-  }).then(function(r) { if (!r.ok) throw new Error(r.status); if (cb) cb(true); })
-    .catch(function(e) { console.error('Error guardando:', e); toast('Error al guardar — revisa tu conexión'); if (cb) cb(false); });
+  }).then(function(r) { if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t); }); if (cb) cb(true); })
+    .catch(function(e) { console.error('Error guardando:', e); toast('Error al guardar: ' + e.message); if (cb) cb(false); });
 }
 function sbDeleteItem(id, cb) {
   if (!sbCheckRateLimit('DELETE /productos')) { toast('Demasiadas solicitudes'); if (cb) cb(false); return; }
   fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(id), {
     method: 'DELETE',
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Prefer': 'return=minimal' }
-  }).then(function(r) { if (!r.ok) throw new Error(r.status); if (cb) cb(true); })
-    .catch(function(e) { console.error('Error eliminando:', e); toast('Error al eliminar — revisa tu conexión'); if (cb) cb(false); });
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+      'x-admin-token': SB_ADMIN_TOKEN,
+      'Prefer': 'return=minimal' }
+  }).then(function(r) { if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t); }); if (cb) cb(true); })
+    .catch(function(e) { console.error('Error eliminando:', e); toast('Error al eliminar: ' + e.message); if (cb) cb(false); });
 }
 
 /* Edge Function: calcular precio en servidor */
 function sbCalculatePrice(costo, margen, cb) {
+  // Fallback local por si la Edge Function falla — evita bloquear el flujo
+  var fallback = Math.round((costo || 0) * (1 + (margen || 0) / 100));
   var url = SB_URL + '/functions/v1/calculate-price';
   fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY
+    },
     body: JSON.stringify({ costo: costo, margen: margen })
-  }).then(function(r) { return r.json(); })
-    .then(function(data) { if (cb) cb(data.precio || 0); })
-    .catch(function(e) { console.error('Error calculando precio:', e); if (cb) cb(0); });
+  }).then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(data) { if (cb) cb(data.precio || fallback); })
+    .catch(function(e) { console.warn('Edge Function no disponible, usando cálculo local:', e); if (cb) cb(fallback); });
 }
 
 /* Demo catalog removed for production testing */
