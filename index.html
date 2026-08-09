@@ -275,6 +275,19 @@
     color: var(--gold); font-weight: 500;
     letter-spacing: 0.02em;
   }
+  .card-price-promo {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 0;
+  }
+  .card-price-promo .precio-original {
+    font-size: 0.9rem;
+  }
+  .card-price-promo .precio-oferta {
+    font-size: 1.1rem;
+  }
   .card-demo-badge {
     display: inline-block; font-size: 0.55rem;
     background: var(--gold-l); color: var(--gold-d);
@@ -1172,6 +1185,11 @@
           <strong id="precio-display">$ —</strong>
         </div>
         <div class="field">
+          <label>Precio de oferta (opcional)</label>
+          <input type="number" id="f-precio-oferta" placeholder="Dejar vacío si no hay oferta" min="0">
+          <small style="color: var(--text-3); font-size: 0.8rem;">Si se completa, se mostrará el descuento % automáticamente en la tienda.</small>
+        </div>
+        <div class="field">
           <label>Notas <span>(internas)</span></label>
           <textarea id="f-notas" placeholder="Notas internas del producto..." rows="2"></textarea>
         </div>
@@ -1240,7 +1258,7 @@ function sbToItem(r) {
     piedras: r.piedras || [], descripcion: r.descripcion,
     medida: r.medida || '', medidaU: r.medida_u || '',
     certificado: r.certificado || 'No', certNum: r.cert_num || '',
-    precio: Number(r.precio) || 0, foto: r.foto_url || null,
+    precio: Number(r.precio) || 0, precioOferta: r.precio_oferta ? Number(r.precio_oferta) : null, foto: r.foto_url || null,
     proveedor: r.proveedor || '', costo: Number(r.costo) || 0,
     margen: Number(r.margen) || 100, notas: r.notas || '',
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
@@ -1254,14 +1272,14 @@ function itemToSb(it) {
     piedras: it.piedras || [], descripcion: it.descripcion,
     medida: it.medida || '', medida_u: it.medidaU || '',
     certificado: it.certificado || 'No', cert_num: it.certNum || '',
-    precio: it.precio || 0, foto_url: it.foto || null,
+    precio: it.precio || 0, precio_oferta: it.precioOferta || null, foto_url: it.foto || null,
     proveedor: it.proveedor || '', costo: it.costo || 0,
     margen: (it.margen === 0 || it.margen) ? it.margen : 100,
     notas: it.notas || '', updated_at: new Date().toISOString()
   };
 }
 /* Columnas PÚBLICAS: nunca incluir cert_num, proveedor, costo, margen, notas — son admin. */
-var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,foto_url,created_at';
+var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,created_at';
 function sbFetchPublic(cb) {
   if (!sbCheckRateLimit('GET /productos')) { if (cb) cb(_sbCache); return; }
   fetch(SB_URL + '/rest/v1/productos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', {
@@ -1569,7 +1587,14 @@ function renderGrid(items, totalPublic) {
         '<div class="card-cat">' + esc(it.categoria) + (it.estilo ? ' · ' + esc(it.estilo) : '') + demoBadge + '</div>' +
         '<div class="card-desc">' + esc(it.descripcion) + '</div>' +
         '<div class="card-meta">' + esc(meta) + '</div>' +
-        '<div class="card-price">' + fmt(it.precio) + '</div>' +
+        (it.precioOferta ? (function() {
+          var desc = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
+          return '<div class="card-price-promo">' +
+            '<span class="precio-original" style="text-decoration: line-through; color: var(--text-3); font-size: 0.9rem;">$' + Math.round(it.precio).toLocaleString('es-CO') + '</span>' +
+            '<span class="precio-oferta" style="color: var(--esm); font-weight: bold;">$' + Math.round(it.precioOferta).toLocaleString('es-CO') + '</span>' +
+            '<span class="descuento-badge" style="background: var(--esm); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; align-self: center;">-' + desc + '%</span>' +
+            '</div>';
+        })() : '<div class="card-price">' + fmt(it.precio) + '</div>') +
       '</div>' +
     '</div>';
   });
@@ -1615,7 +1640,14 @@ function openModal(id) {
       '<div class="modal-desc">' + esc(it.descripcion) + '</div>' +
       '<div class="modal-details">' + details + '</div>' +
       cert +
-      '<div class="modal-price">' + fmt(it.precio) + '</div>' +
+      (it.precioOferta ? (function() {
+        var desc = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
+        return '<div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px;">' +
+          '<div><span style="color: var(--text-3); text-decoration: line-through;">Precio regular: $' + Math.round(it.precio).toLocaleString('es-CO') + '</span></div>' +
+          '<div class="modal-price" style="color: var(--esm);">En oferta: ' + fmt(it.precioOferta) + '</div>' +
+          '<div style="background: var(--esm-bg); padding: 8px 12px; border-radius: 6px; color: var(--esm); font-weight: bold;">Ahorra: $' + Math.round(it.precio - it.precioOferta).toLocaleString('es-CO') + ' (' + desc + '%)</div>' +
+          '</div>';
+      })() : '<div class="modal-price">' + fmt(it.precio) + '</div>') +
       '<div class="modal-actions">' +
         '<a class="modal-wa" href="' + waLink + '" target="_blank" rel="noopener">Preguntar por WhatsApp</a>' +
         '<button class="modal-share" onclick="sharePiece(\'' + jsEsc(it.id) + '\')" title="Compartir">Compartir</button>' +
@@ -2105,19 +2137,21 @@ function admSaveProduct() {
   var desc = document.getElementById('f-desc').value.trim();
   var costo = parseFloat(document.getElementById('f-costo').value) || 0;
   var margen = parseFloat(document.getElementById('f-margen').value) || 0;
+  var precioOferta = parseFloat(document.getElementById('f-precio-oferta').value) || null;
 
   if (!id) { toast('Ingresa un ID para el producto'); return; }
   if (!desc) { toast('La descripción es obligatoria'); return; }
   if (costo <= 0) { toast('El costo debe ser mayor a 0'); return; }
+  if (precioOferta !== null && precioOferta <= 0) { toast('Precio de oferta debe ser > 0'); return; }
 
   // Calcular precio en servidor (Edge Function)
   sbCalculatePrice(costo, margen, function(precio) {
     if (!precio || precio <= 0) { toast('El precio calculado es 0. Revisa costo y margen.'); return; }
-    admSaveProductWithPrice(id, desc, precio, costo, margen);
+    admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta);
   });
 }
 
-function admSaveProductWithPrice(id, desc, precio, costo, margen) {
+function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) {
 
   var isEdit = !!admEditingId;
 
@@ -2140,12 +2174,25 @@ function admSaveProductWithPrice(id, desc, precio, costo, margen) {
       costo: costo,
       margen: margen,
       precio: precio,
+      precioOferta: precioOferta,
       notas: document.getElementById('f-notas').value.trim(),
       estado: admEstado,
       foto: admPhotoDataUrl,
       createdAt: prevCreatedAt,
       updatedAt: Date.now()
     };
+
+    // Validaciones críticas de oferta
+    if (item.precioOferta !== null) {
+      if (item.precioOferta >= item.precio) {
+        toast('Precio de oferta debe ser menor que el precio regular');
+        return;
+      }
+      if (item.precioOferta < item.costo) {
+        toast('❌ PÉRDIDA: Precio de oferta ($' + Math.round(item.precioOferta).toLocaleString('es-CO') + ') es menor que costo ($' + Math.round(item.costo).toLocaleString('es-CO') + '). Aumenta la oferta.');
+        return;
+      }
+    }
 
     sbUpsert(item, function(ok) {
       if (!ok) return;
@@ -2233,6 +2280,7 @@ function admFillForm(it) {
   document.getElementById('f-proveedor').value = it.proveedor || '';
   document.getElementById('f-costo').value = it.costo || '';
   document.getElementById('f-margen').value = (it.margen === 0 || it.margen) ? it.margen : 100;
+  document.getElementById('f-precio-oferta').value = it.precioOferta || '';
   document.getElementById('f-notas').value = it.notas || '';
   admCalcPrecio();
 }
@@ -2338,6 +2386,7 @@ function admResetForm() {
   document.getElementById('f-proveedor').value = '';
   document.getElementById('f-costo').value = '';
   document.getElementById('f-margen').value = '100';
+  document.getElementById('f-precio-oferta').value = '';
   document.getElementById('f-notas').value = '';
   document.getElementById('precio-display').textContent = '$ —';
   admScrollFormTop();
@@ -2391,7 +2440,7 @@ function admDeleteProduct(id) {
 }
 function admExportCSV() {
   if (!admState.items.length) { toast('No hay productos para exportar'); return; }
-  var headers = ['ID','Estado','Línea','Categoría','Estilo','Metal','Ley','Color','Piedra(s)','Descripción','Género','Talla/Medida','Costo (COP)','Margen (%)','Precio venta (COP)','Certificado','Núm. Certificado','Proveedor','Notas'];
+  var headers = ['ID','Estado','Línea','Categoría','Estilo','Metal','Ley','Color','Piedra(s)','Descripción','Género','Talla/Medida','Costo (COP)','Margen (%)','Precio venta (COP)','Precio oferta (COP)','Certificado','Núm. Certificado','Proveedor','Notas'];
   var rows = admState.items.map(function(it) {
     var stones = (it.piedras || []).map(function(s) {
       return s.tipo + (s.qty > 1 ? ' x' + s.qty : '') + (s.ct ? ' ' + s.ct + 'ct' : '');
@@ -2399,7 +2448,7 @@ function admExportCSV() {
     var medida = it.medida ? (it.medida + (it.medidaU ? ' ' + it.medidaU : '')) : '';
     return [
       it.id, it.estado || 'publicado', it.linea || 'Selección', it.categoria, it.estilo, it.metal, it.ley, it.color, stones,
-      it.descripcion, it.genero, medida, it.costo || '', it.margen || '', it.precio || '',
+      it.descripcion, it.genero, medida, it.costo || '', it.margen || '', it.precio || '', it.precioOferta || '',
       it.certificado, it.certNum || '', it.proveedor || '', it.notas || ''
     ].map(function(v) {
       var s = String(v === null || v === undefined ? '' : v);
@@ -2504,6 +2553,15 @@ function admExportPDF() {
     pdf.setTextColor(184, 134, 11);
     pdf.setFontSize(10);
     pdf.text('$' + (it.precio || 0).toLocaleString('es-CO'), x + 3, y + 72);
+    if (it.precioOferta) {
+      var descuento = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
+      pdf.setTextColor(184, 134, 11); // oro
+      pdf.setFontSize(8);
+      pdf.text('Oferta: $' + Math.round(it.precioOferta).toLocaleString('es-CO'), x + 3, y + 78);
+      pdf.setTextColor(31, 111, 74); // verde esmeralda
+      pdf.setFontSize(7);
+      pdf.text('Ahorra ' + descuento + '%', x + 3, y + 82);
+    }
     col++;
     if (col >= 2) { col = 0; y += rowHeight + margin; }
   });
