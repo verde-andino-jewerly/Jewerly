@@ -1277,7 +1277,14 @@ function sbUpsert(item, cb) {
       'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(itemToSb(item))
   }).then(function(r) { if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t); }); if (cb) cb(true); })
-    .catch(function(e) { console.error('Error guardando:', e); toast('Error al guardar: ' + e.message); if (cb) cb(false); });
+    .catch(function(e) {
+      console.error('Error guardando:', e);
+      if (typeof admIsRlsError === 'function' && admIsRlsError(e.message)) {
+        toast('Guardado bloqueado por RLS — ejecuta la migración');
+        admShowMigrationModal();
+      } else { toast('Error al guardar: ' + e.message); }
+      if (cb) cb(false);
+    });
 }
 function sbDeleteItem(id, cb) {
   if (!sbCheckRateLimit('DELETE /productos')) { toast('Demasiadas solicitudes'); if (cb) cb(false); return; }
@@ -1287,7 +1294,14 @@ function sbDeleteItem(id, cb) {
       'x-admin-token': sbGetAdminToken(),
       'Prefer': 'return=minimal' }
   }).then(function(r) { if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t); }); if (cb) cb(true); })
-    .catch(function(e) { console.error('Error eliminando:', e); toast('Error al eliminar: ' + e.message); if (cb) cb(false); });
+    .catch(function(e) {
+      console.error('Error eliminando:', e);
+      if (typeof admIsRlsError === 'function' && admIsRlsError(e.message)) {
+        toast('Eliminado bloqueado por RLS — ejecuta la migración');
+        admShowMigrationModal();
+      } else { toast('Error al eliminar: ' + e.message); }
+      if (cb) cb(false);
+    });
 }
 
 /* Edge Function: calcular precio en servidor */
@@ -1860,14 +1874,13 @@ function admUnlockPanel() {
   admLoad(function() {
     admInitForm();
     admRenderGallery();
-    admMaybeShowMigration();
   });
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
-/* Muestra una sola vez el SQL a ejecutar en Supabase para actualizar las políticas RLS
-   al nuevo token derivado del PIN. Se marca como hecho en localStorage. */
-function admMaybeShowMigration() {
-  if (localStorage.getItem('va_security_migrated_v2') === '1') return;
+/* Muestra el SQL a ejecutar en Supabase para actualizar RLS al nuevo token.
+   Se llama automáticamente si un guardado/eliminado falla por RLS. */
+function admShowMigrationModal() {
+  if (document.getElementById('mig-modal')) return; // ya visible
   var tok = sbGetAdminToken();
   if (!tok) return;
   var sql =
@@ -1882,17 +1895,18 @@ function admMaybeShowMigration() {
     "CREATE POLICY \"admin_delete\" ON productos FOR DELETE\n" +
     "  USING ((current_setting('request.headers', true)::json->>'x-admin-token') = '" + tok + "');";
   var ov = document.createElement('div');
+  ov.id = 'mig-modal';
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
   ov.innerHTML =
     '<div style="background:var(--bg);color:var(--text);max-width:640px;width:100%;padding:24px;border-radius:12px;border:2px solid var(--gold);max-height:85vh;overflow:auto;">' +
-    '<h3 style="margin-top:0;color:var(--esm);">🔐 Actualización de seguridad (una sola vez)</h3>' +
-    '<p style="font-size:.9rem;">Para completar la migración, ejecuta este SQL en <b>Supabase → SQL Editor</b>:</p>' +
+    '<h3 style="margin-top:0;color:var(--esm);">🔐 Migración de seguridad pendiente</h3>' +
+    '<p style="font-size:.9rem;">El guardado falló porque las políticas RLS en Supabase esperan un token diferente. Ejecuta este SQL en <b>Supabase → SQL Editor</b> (solo una vez por PIN, para toda la operación):</p>' +
     '<textarea readonly style="width:100%;height:200px;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--gold-l);border-radius:6px;background:#f9f7f2;color:#1a1714;">' + sql + '</textarea>' +
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">' +
     '<button id="mig-copy" style="flex:1;padding:10px;background:var(--gold);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;">📋 Copiar SQL</button>' +
-    '<button id="mig-done" style="flex:1;padding:10px;background:var(--esm);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;">✓ Ya lo ejecuté</button>' +
+    '<button id="mig-close" style="flex:1;padding:10px;background:var(--esm);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Cerrar</button>' +
     '</div>' +
-    '<p style="font-size:.75rem;margin-top:12px;color:#666;">Hasta que ejecutes el SQL, guardar/editar/eliminar productos dará error. El SQL contiene un token único derivado de tu PIN — nadie más lo puede generar.</p>' +
+    '<p style="font-size:.75rem;margin-top:12px;color:#666;">Este SQL contiene un token único derivado de tu PIN — nadie más lo puede generar. Si ya lo ejecutaste antes en otro dispositivo con el mismo PIN, no hace falta correrlo de nuevo.</p>' +
     '</div>';
   document.body.appendChild(ov);
   document.getElementById('mig-copy').onclick = function() {
@@ -1900,11 +1914,12 @@ function admMaybeShowMigration() {
     ta.select(); document.execCommand('copy');
     toast('SQL copiado');
   };
-  document.getElementById('mig-done').onclick = function() {
-    localStorage.setItem('va_security_migrated_v2', '1');
+  document.getElementById('mig-close').onclick = function() {
     document.body.removeChild(ov);
-    toast('Migración completada ✓');
   };
+}
+function admIsRlsError(msg) {
+  return msg && /401|403|policy|permission|42501|RLS|row.level/i.test(msg);
 }
 function admClosePanel() {
   document.getElementById('admin-panel').style.display = 'none';
