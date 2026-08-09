@@ -1,4 +1,5 @@
 <title>Verde Andino Jewelry — Esmeraldas de Colombia</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://rbvqxrkzepthbbqzkbcg.supabase.co https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://rbvqxrkzepthbbqzkbcg.supabase.co;">
 <style>
   :root {
@@ -2094,9 +2095,11 @@ function admSaveProduct() {
 
   if (!id) { toast('Ingresa un ID para el producto'); return; }
   if (!desc) { toast('La descripción es obligatoria'); return; }
+  if (costo <= 0) { toast('El costo debe ser mayor a 0'); return; }
 
   // Calcular precio en servidor (Edge Function)
   sbCalculatePrice(costo, margen, function(precio) {
+    if (!precio || precio <= 0) { toast('El precio calculado es 0. Revisa costo y margen.'); return; }
     admSaveProductWithPrice(id, desc, precio, costo, margen);
   });
 }
