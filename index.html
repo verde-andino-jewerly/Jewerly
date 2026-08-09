@@ -2330,7 +2330,22 @@ function admExportPDF() {
   var pageWidth = pdf.internal.pageSize.getWidth();
   var pageHeight = pdf.internal.pageSize.getHeight();
   var margin = 10, colWidth = (pageWidth - 3 * margin) / 2, rowHeight = 80;
-  var y = margin + 15;
+  var logoPng = null, logoW = 0, logoH = 0;
+  try {
+    var lg = document.getElementById('hero-logo');
+    if (lg && lg.complete && lg.naturalWidth) {
+      var c = document.createElement('canvas');
+      c.width = lg.naturalWidth; c.height = lg.naturalHeight;
+      c.getContext('2d').drawImage(lg, 0, 0);
+      logoPng = c.toDataURL('image/png');
+      logoH = 18;
+      logoW = logoH * (lg.naturalWidth / lg.naturalHeight);
+    }
+  } catch(e) {}
+  var y = margin + 20;
+  if (logoPng) {
+    try { pdf.addImage(logoPng, 'PNG', pageWidth - margin - logoW, margin, logoW, logoH); } catch(e) {}
+  }
   pdf.setFontSize(16);
   pdf.text('Verde Andino — Catálogo de Productos', margin, margin + 5);
   pdf.setFontSize(10);
@@ -2341,7 +2356,8 @@ function admExportPDF() {
     var x = margin + (colWidth + margin) * col;
     if (y + rowHeight > pageHeight - margin) {
       pdf.addPage();
-      y = margin + 15;
+      if (logoPng) { try { pdf.addImage(logoPng, 'PNG', pageWidth - margin - logoW, margin, logoW, logoH); } catch(e) {} }
+      y = margin + 20;
       col = 0;
       x = margin;
     }
