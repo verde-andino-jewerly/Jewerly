@@ -1213,7 +1213,7 @@ var activeCategory = null;
 
 /* Supabase — base de datos en la nube */
 var SB_URL = 'https://rbvqxrkzepthbbqzkbcg.supabase.co';
-var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJidnF4cmt6ZXB0aGJicXprYmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTQwNTcsImV4cCI6MjEwMTc5MDA1N30.6RA6S7nxFCZdLzyhhX-siEXZrY47jpH9mcaB0wMq0hg';
+var SB_KEY = 'sb_publishable_pzmuOrI24gKsoz1jb81XLQ_06qOVwBm';
 var _sbCache = [];
 var _sbRequestLog = []; // Rate limiting: { endpoint, timestamp }
 
@@ -1281,6 +1281,18 @@ function sbDeleteItem(id, cb) {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Prefer': 'return=minimal' }
   }).then(function(r) { if (!r.ok) throw new Error(r.status); if (cb) cb(true); })
     .catch(function(e) { console.error('Error eliminando:', e); toast('Error al eliminar — revisa tu conexión'); if (cb) cb(false); });
+}
+
+/* Edge Function: calcular precio en servidor */
+function sbCalculatePrice(costo, margen, cb) {
+  var url = SB_URL + '/functions/v1/calculate-price';
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ costo: costo, margen: margen })
+  }).then(function(r) { return r.json(); })
+    .then(function(data) { if (cb) cb(data.precio || 0); })
+    .catch(function(e) { console.error('Error calculando precio:', e); if (cb) cb(0); });
 }
 
 /* Demo catalog removed for production testing */
@@ -1945,9 +1957,14 @@ function admSetCert(val) {
 function admCalcPrecio() {
   var costo = parseFloat(document.getElementById('f-costo').value) || 0;
   var margen = parseFloat(document.getElementById('f-margen').value) || 0;
-  var precio = costo * (1 + margen / 100);
-  document.getElementById('precio-display').textContent = precio > 0 ? fmt(precio) : '$ —';
-  return precio;
+  if (costo <= 0) {
+    document.getElementById('precio-display').textContent = '$ —';
+    return 0;
+  }
+  sbCalculatePrice(costo, margen, function(precio) {
+    document.getElementById('precio-display').textContent = precio > 0 ? fmt(precio) : '$ —';
+  });
+  return 0; // placeholder while waiting for server
 }
 function admToggleAdminSection() {
   document.getElementById('admin-toggle').classList.toggle('open');
@@ -1962,10 +1979,17 @@ function admSaveProduct() {
   var desc = document.getElementById('f-desc').value.trim();
   var costo = parseFloat(document.getElementById('f-costo').value) || 0;
   var margen = parseFloat(document.getElementById('f-margen').value) || 0;
-  var precio = Math.round(costo * (1 + margen / 100));
 
   if (!id) { toast('Ingresa un ID para el producto'); return; }
   if (!desc) { toast('La descripción es obligatoria'); return; }
+
+  // Calcular precio en servidor (Edge Function)
+  sbCalculatePrice(costo, margen, function(precio) {
+    admSaveProductWithPrice(id, desc, precio, costo, margen);
+  });
+}
+
+function admSaveProductWithPrice(id, desc, precio, costo, margen) {
 
   var isEdit = !!admEditingId;
 
