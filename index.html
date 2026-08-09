@@ -2317,14 +2317,16 @@ function admExportPhotos() {
 
 function admExportPDF() {
   if (!admState.items.length) { toast('No hay productos para exportar'); return; }
-  if (typeof jsPDF === 'undefined') {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    toast('Cargando librería PDF...');
     var s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
     s.onload = function() { admExportPDF(); };
+    s.onerror = function() { toast('No se pudo cargar la librería PDF'); };
     document.head.appendChild(s);
     return;
   }
-  var pdf = new jsPDF.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  var pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   var pageWidth = pdf.internal.pageSize.getWidth();
   var pageHeight = pdf.internal.pageSize.getHeight();
   var margin = 10, colWidth = (pageWidth - 3 * margin) / 2, rowHeight = 80;
