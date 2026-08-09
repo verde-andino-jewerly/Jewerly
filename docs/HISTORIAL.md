@@ -62,6 +62,10 @@ Son HTMLs autocontenidos con su propio `localStorage`; no comparten datos con la
 - **La foto solo abría la cámara** → atributo `capture` → quitarlo.
 - **Mojibake al inyectar el logo con PowerShell** → leer/escribir con UTF-8 sin BOM explícito.
 - **PDF export no funcionaba** → jsPDF UMD expone `window.jspdf` (minúsculas), no `window.jsPDF`.
+- **Modelo PIN por-dispositivo no servía** para operación con múltiples cargadores → rediseño a **clave compartida** (una sola clave para toda la operación, validada server-side, sin hash local, sin crear PIN por dispositivo).
+- **El sitio se veía con zoom en celular** → faltaba `<meta name="viewport">`; sin él, el móvil renderizaba al ancho de escritorio y no aplicaban los media queries.
+- **Se podían guardar productos con precio 0** → validación pre-envío: costo debe ser > 0, precio calculado debe ser > 0.
+- **Número de certificado (`certNum`) filtrado en modal público** → oculto en la vista, y removido del fetch público (`sbFetchPublic` excluye columnas administrativas).
 
 ---
 

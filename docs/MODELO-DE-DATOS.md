@@ -88,11 +88,13 @@ Cada piedra: `{ tipo, qty, ct }`.
 
 | Nivel | Campos | Visibilidad |
 |---|---|---|
-| 🟢 **Público** | `id`, `categoria`, `estilo`, `metal`, `ley`, `color`, `genero`, `piedras`, `descripcion`, `medida`, `medidaU`, `certificado`, `precio`, `foto`, `createdAt` | Vitrina + API pública (via RLS) |
-| 🔴 **Administrativo** | `costo`, `margen`, `proveedor`, `notas`, `certNum`, `updated_at` | Solo accesible con `x-admin-token` |
-| 🔒 **Sensible** | Hash del PIN, tokens | Nunca en Supabase; solo en `localStorage` del dispositivo administrativo |
+| 🟢 **Público** | `id`, `categoria`, `estilo`, `metal`, `ley`, `color`, `genero`, `piedras`, `descripcion`, `medida`, `medidaU`, `certificado` (Sí/No), `precio`, `foto`, `createdAt` | Vitrina + API pública |
+| 🔴 **Administrativo** | `certNum`, `costo`, `margen`, `proveedor`, `notas`, `updated_at` | Solo accesible con `x-admin-token` |
+| 🔒 **Sensible** | La clave compartida, tokens de sesión derivados | Nunca en el código ni en Supabase; solo en la mente de las personas autorizadas y en `sessionStorage` mientras el panel está abierto |
 
-RLS enforcement: ver [`../migrations/rls-policies.sql`](../migrations/rls-policies.sql).
+**Nota:** el flag `certificado` (Sí/No) es público — el cliente necesita saber si la pieza incluye certificado. Pero el **número exacto** (`certNum`) es administrativo. El modal muestra solo "Certificado gemológico incluido", sin número.
+
+**Implementación:** el fetch público (`sbFetchPublic` en `index.html`) usa una lista explícita de columnas y NO incluye los campos administrativos. La respuesta HTTP que recibe el navegador de un visitante no contiene `cert_num`, `costo`, `margen`, `proveedor` ni `notas`.
 
 ---
 

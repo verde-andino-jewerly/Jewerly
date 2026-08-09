@@ -33,7 +33,7 @@ Lo que ve el cliente:
 
 ### b) Panel de gestión (privado)
 
-Panel interno de la dueña para carga y administración de productos. **No documentado públicamente por razones de seguridad** (ver sección 6). El código convive en el mismo `index.html` pero el acceso está protegido.
+Panel interno para carga y administración de productos. Usa **un secreto compartido** — múltiples personas autorizadas pueden entrar desde cualquier dispositivo con la misma clave. El detalle del mecanismo de acceso **no se documenta públicamente por razones de seguridad** (ver sección 6). El código convive en el mismo `index.html` pero el acceso está protegido por RLS + validación server-side de la clave.
 
 ---
 
@@ -48,11 +48,13 @@ El schema completo, mapeo camelCase↔snake_case y filtros aplicados están en [
 
 ### Lectura pública (vitrina)
 
-La vitrina hace `GET` a `productos` con la anon key de Supabase (pública por diseño). RLS filtra automáticamente a solo productos con `estado='publicado' AND precio>0 AND descripcion IS NOT NULL`.
+La vitrina hace `GET` a `productos` con la anon key. Dos capas:
+- **RLS (filas):** solo productos con `estado='publicado' AND precio>0 AND descripcion IS NOT NULL`.
+- **Columnas explícitas:** el fetch pide solo columnas públicas (`sbFetchPublic`). `cert_num`, `costo`, `margen`, `proveedor` y `notas` nunca viajan en la respuesta al navegador del cliente.
 
 ### Escritura (panel privado)
 
-Todas las mutaciones (INSERT / UPDATE / DELETE) requieren header `x-admin-token`. RLS rechaza cualquier escritura sin él (ver [`migrations/rls-policies.sql`](../migrations/rls-policies.sql)).
+Todas las mutaciones (INSERT / UPDATE / DELETE) requieren header `x-admin-token`. RLS rechaza cualquier escritura sin él. El token no está hardcoded en el código — se deriva del secreto compartido en runtime.
 
 ### Cálculo de precios (server-side)
 
@@ -78,13 +80,18 @@ Respeta `prefers-color-scheme` y permite toggle manual. Colores en variables CSS
 
 ## 6. Seguridad — enfoque de capas
 
-1. **RLS en Supabase**: la anon key es pública, pero solo puede leer productos publicados. Escrituras requieren `x-admin-token`.
-2. **Content-Security-Policy** en el `<head>`: restringe `connect-src` y `script-src` al dominio de Supabase + jsPDF CDN.
-3. **Rate limiting cliente**: 100 req/min por endpoint.
-4. **Auditoría**: trigger PostgreSQL que registra todos los cambios en la tabla `productos_audit` (ver [`../migrations/audit-table.sql`](../migrations/audit-table.sql)).
-5. **PIN local** para el panel privado (SHA-256 en `localStorage`).
+1. **RLS en Supabase (filas):** la anon key es pública; SELECT solo devuelve productos publicados con precio y descripción.
+2. **Fetch con columnas explícitas:** el frontend público pide solo columnas seguras (`SB_PUBLIC_COLS`) — datos administrativos no viajan en la respuesta.
+3. **Clave compartida como único secreto:** cualquier persona autorizada la usa desde cualquier dispositivo. Está solo en la mente de las personas, no en el código ni en la documentación pública.
+4. **Token derivado en runtime:** el `x-admin-token` que se envía a Supabase es `SHA-256(clave + salt)`, calculado al ingresar la clave. Vive en `sessionStorage` mientras el panel esté abierto, se borra al cerrar.
+5. **Validación server-side de la clave:** un upsert de una fila oculta prueba RLS antes de abrir el panel. Sin hash local.
+6. **Rate limiting**: 100 req/min por endpoint API; 5 intentos de clave / 5 min de bloqueo local.
+7. **Content-Security-Policy** en el `<head>`: restringe `connect-src` y `script-src` al dominio de Supabase + jsPDF CDN.
+8. **Auditoría:** trigger PostgreSQL que registra todos los cambios en la tabla `productos_audit`.
 
-**Limitación honesta:** al ser una página estática pública, el `x-admin-token` está en el HTML del cliente. Esto es *obscurity + trigger PIN*, no seguridad criptográfica. Es suficiente para el objetivo actual (bloquear acceso casual). Migración natural futura: auth real con Supabase Auth y JWT.
+**Limitación honesta:** al ser una página estática pública, el mecanismo del gesto de acceso se puede inferir leyendo el código. Pero acceder al panel sin la clave correcta no sirve — no se pueden hacer escrituras. Migración natural futura: auth real con Supabase Auth y JWT.
+
+**Defensa profunda pendiente (opcional):** a nivel Postgres, el rol `anon` sigue teniendo SELECT en todas las columnas. Un atacante que arme su propio request `select=*` podría leer campos administrativos. Se puede endurecer con `REVOKE SELECT` + `GRANT SELECT(columnas)`, pero requiere refactor del fetch admin a una RPC con `SECURITY DEFINER`.
 
 ---
 
