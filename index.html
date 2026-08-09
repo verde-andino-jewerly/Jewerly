@@ -482,6 +482,21 @@
     font-weight: 300; transition: transform 0.2s;
   }
   .faq-item[open] summary::after { content: '−'; }
+  .section-accordion { border: none; }
+  .section-accordion > summary { cursor: pointer; list-style: none; text-align: center; }
+  .section-accordion > summary::-webkit-details-marker { display: none; }
+  .section-accordion > summary::after {
+    content: '+'; display: block; margin: 0.8rem auto 0;
+    font-size: 1.4rem; color: var(--gold); transition: transform 0.2s;
+  }
+  .section-accordion[open] > summary::after { content: '\2212'; }
+  .section-accordion .accordion-body {
+    animation: accordionOpen 0.3s ease;
+  }
+  @keyframes accordionOpen {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
   .faq-answer {
     padding: 0 0 1.3rem; font-size: 0.85rem;
     color: var(--text-2); line-height: 1.7;
@@ -1004,21 +1019,22 @@
 <!-- ============ EDUCATION ============ -->
 <section style="background: var(--bg-alt);">
   <div class="container">
-    <div class="section-head">
-      <div class="section-kicker">Origen</div>
-      <h2 class="section-title">La esmeralda colombiana</h2>
-      <div class="section-line"></div>
-    </div>
-
-    <div class="mines-tabs" role="tablist">
-      <button class="mine-tab active" data-mine="muzo" onclick="showMine('muzo')" role="tab">Muzo</button>
-      <button class="mine-tab" data-mine="chivor" onclick="showMine('chivor')" role="tab">Chivor</button>
-      <button class="mine-tab" data-mine="coscuez" onclick="showMine('coscuez')" role="tab">Coscuez</button>
-    </div>
-
-    <div class="mine-panel" id="mine-panel" role="tabpanel"></div>
-
-    <p class="edu-note">Colombia concentra buena parte de la producción mundial de esmeraldas y es reconocida internacionalmente como fuente de las piedras de mayor calidad cromática.</p>
+    <details class="section-accordion" id="edu-accordion">
+      <summary>
+        <div class="section-kicker">Origen</div>
+        <h2 class="section-title">La esmeralda colombiana</h2>
+        <div class="section-line"></div>
+      </summary>
+      <div class="accordion-body">
+        <div class="mines-tabs" role="tablist">
+          <button class="mine-tab active" data-mine="muzo" onclick="showMine('muzo')" role="tab">Muzo</button>
+          <button class="mine-tab" data-mine="chivor" onclick="showMine('chivor')" role="tab">Chivor</button>
+          <button class="mine-tab" data-mine="coscuez" onclick="showMine('coscuez')" role="tab">Coscuez</button>
+        </div>
+        <div class="mine-panel" id="mine-panel" role="tabpanel"></div>
+        <p class="edu-note">Colombia concentra buena parte de la producción mundial de esmeraldas y es reconocida internacionalmente como fuente de las piedras de mayor calidad cromática.</p>
+      </div>
+    </details>
   </div>
 </section>
 
@@ -1050,33 +1066,37 @@
 <!-- ============ FAQ ============ -->
 <section style="background: var(--bg-alt);">
   <div class="container-sm">
-    <div class="section-head">
-      <div class="section-kicker">Preguntas frecuentes</div>
-      <h2 class="section-title">Lo que debes saber</h2>
-      <div class="section-line"></div>
-    </div>
-    <div class="faq-list">
-      <details class="faq-item">
-        <summary>¿Las esmeraldas vienen con certificado?</summary>
-        <div class="faq-answer">Las piezas marcadas con el sello de certificado incluyen documento gemológico con número de referencia. Para las demás entregamos ficha técnica propia con descripción del origen y características observables.</div>
-      </details>
-      <details class="faq-item">
-        <summary>¿Hacen envíos a todo el país?</summary>
-        <div class="faq-answer">Sí. Enviamos a toda Colombia con guía asegurada. El costo depende del destino y del valor de la pieza; lo confirmamos al momento de coordinar la compra.</div>
-      </details>
-      <details class="faq-item">
-        <summary>¿Qué medios de pago aceptan?</summary>
-        <div class="faq-answer">Transferencia bancaria, Nequi, Daviplata y efectivo para entregas en persona. Coordinamos el método por WhatsApp una vez confirmes la pieza.</div>
-      </details>
-      <details class="faq-item">
-        <summary>¿Puedo pedir una pieza personalizada?</summary>
-        <div class="faq-answer">Sí. Trabajamos con talleres de confianza para mandar a hacer piezas únicas — anillos de compromiso, aretes, dijes con diseño propio. Escríbenos con tu idea o referencia y te enviamos cotización.</div>
-      </details>
-      <details class="faq-item">
-        <summary>¿Aceptan devoluciones?</summary>
-        <div class="faq-answer">Las piezas de catálogo se pueden devolver dentro de los 5 días siguientes a la entrega, siempre que estén sin usar y con empaque original. Piezas mandadas a hacer no admiten devolución.</div>
-      </details>
-    </div>
+    <details class="section-accordion">
+      <summary>
+        <div class="section-kicker">Preguntas frecuentes</div>
+        <h2 class="section-title">Lo que debes saber</h2>
+        <div class="section-line"></div>
+      </summary>
+      <div class="accordion-body">
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>¿Las esmeraldas vienen con certificado?</summary>
+            <div class="faq-answer">Las piezas marcadas con el sello de certificado incluyen documento gemológico con número de referencia. Para las demás entregamos ficha técnica propia con descripción del origen y características observables.</div>
+          </details>
+          <details class="faq-item">
+            <summary>¿Hacen envíos a todo el país?</summary>
+            <div class="faq-answer">Sí. Enviamos a toda Colombia con guía asegurada. El costo depende del destino y del valor de la pieza; lo confirmamos al momento de coordinar la compra.</div>
+          </details>
+          <details class="faq-item">
+            <summary>¿Qué medios de pago aceptan?</summary>
+            <div class="faq-answer">Transferencia bancaria, Nequi, Daviplata y efectivo para entregas en persona. Coordinamos el método por WhatsApp una vez confirmes la pieza.</div>
+          </details>
+          <details class="faq-item">
+            <summary>¿Puedo pedir una pieza personalizada?</summary>
+            <div class="faq-answer">Sí. Trabajamos con talleres de confianza para mandar a hacer piezas únicas — anillos de compromiso, aretes, dijes con diseño propio. Escríbenos con tu idea o referencia y te enviamos cotización.</div>
+          </details>
+          <details class="faq-item">
+            <summary>¿Aceptan devoluciones?</summary>
+            <div class="faq-answer">Las piezas de catálogo se pueden devolver dentro de los 5 días siguientes a la entrega, siempre que estén sin usar y con empaque original. Piezas mandadas a hacer no admiten devolución.</div>
+          </details>
+        </div>
+      </div>
+    </details>
   </div>
 </section>
 
@@ -3015,7 +3035,15 @@ function admExportPDF() {
 }
 
 /* Init — carga desde Supabase */
-showMine('muzo');
+var eduAcc = document.getElementById('edu-accordion');
+if (eduAcc) {
+  eduAcc.addEventListener('toggle', function() {
+    if (eduAcc.open && !eduAcc._loaded) {
+      eduAcc._loaded = true;
+      showMine('muzo');
+    }
+  });
+}
 applyFilters();
 sbFetchAll(function() { applyFilters(); });
 admGateInit();
