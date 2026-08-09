@@ -1264,7 +1264,7 @@ function sbFetchAll(cb) {
   fetch(SB_URL + '/rest/v1/productos?select=*&order=created_at.desc', {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
   }).then(function(r) { return r.json(); })
-    .then(function(rows) { _sbCache = rows.map(sbToItem); if (cb) cb(_sbCache); })
+    .then(function(rows) { _sbCache = rows.map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; }); if (cb) cb(_sbCache); })
     .catch(function(e) { console.error('Error cargando:', e); if (cb) cb(_sbCache); });
 }
 function sbUpsert(item, cb) {
@@ -1705,8 +1705,8 @@ function applyLogoBg() {
 /* ============ ADMIN: gate + PIN ============ */
 var ADMIN_PARAM = 'panel';
 var ADMIN_TOKEN = 'VDA_' + Math.random().toString(36).substring(2, 15).toUpperCase() + Math.random().toString(36).substring(2, 15).toUpperCase();
-var ADMIN_PIN_KEY = 'va_admin_pin_hash';
 var ADMIN_SESSION_KEY = 'va_admin_unlocked';
+var ADMIN_PROBE_ID = 'VA-__auth_probe__';
 
 function admHasSecretParam() {
   try {
@@ -1766,9 +1766,9 @@ function admConfirm(msg, onYes, opts) {
 
 function admShowGate() {
   if (sessionStorage.getItem(ADMIN_SESSION_KEY) === '1' && sbGetAdminToken()) { admUnlockPanel(); return; }
-  sessionStorage.removeItem(ADMIN_SESSION_KEY); // token faltante: forzar re-PIN
+  sessionStorage.removeItem(ADMIN_SESSION_KEY);
   document.getElementById('admin-gate').style.display = 'flex';
-  admRenderGateStep(localStorage.getItem(ADMIN_PIN_KEY) ? 'enter' : 'create');
+  admRenderGateStep();
 }
 function admGateInit() {
   if (admHasSecretParam()) admShowGate();
@@ -1804,68 +1804,73 @@ function admBindLogoAccess() {
   logo.addEventListener('mouseleave', admHoldCancel);
   logo.addEventListener('click', function(e){ e.preventDefault(); admLogoTap(); });
 }
-function admRenderGateStep(step) {
+function admRenderGateStep() {
   var box = document.getElementById('admin-gate-body');
-  if (step === 'create') {
-    box.innerHTML =
-      '<h3>Configura tu PIN</h3>' +
-      '<p>Primera vez aquí. Crea un PIN de 4 a 6 dígitos — solo tú lo vas a usar para cargar productos.</p>' +
-      '<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="adm-pin-new" placeholder="Nuevo PIN">' +
-      '<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="adm-pin-confirm" placeholder="Confirma el PIN">' +
-      '<button class="btn-primary" onclick="admCreatePin()" type="button">Guardar PIN</button>';
-  } else {
-    box.innerHTML =
-      '<h3>Acceso administrador</h3>' +
-      '<p>Ingresa tu PIN para cargar productos.</p>' +
-      '<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="adm-pin-enter" placeholder="PIN">' +
-      '<button class="btn-primary" onclick="admCheckPin()" type="button">Entrar</button>' +
-      '<button class="admin-gate-link" onclick="admResetPinFlow()" type="button">¿Olvidaste tu PIN?</button>';
-  }
+  box.innerHTML =
+    '<h3>Acceso administrador</h3>' +
+    '<p>Ingresa la clave compartida para cargar productos.</p>' +
+    '<input type="password" inputmode="text" maxlength="32" id="adm-pin-enter" placeholder="Clave">' +
+    '<button class="btn-primary" onclick="admCheckPin()" type="button">Entrar</button>' +
+    '<button class="admin-gate-link" onclick="admShowBootstrap()" type="button">¿Primera vez? Ver SQL de setup</button>';
   setTimeout(function() {
-    var inputs = box.querySelectorAll('input');
-    inputs.forEach(function(inp) {
-      inp.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { step === 'create' ? admCreatePin() : admCheckPin(); }
-      });
-    });
-    if (inputs[0]) inputs[0].focus();
+    var inp = box.querySelector('input');
+    if (inp) {
+      inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') admCheckPin(); });
+      inp.focus();
+    }
   }, 30);
 }
-function admCreatePin() {
-  var a = document.getElementById('adm-pin-new').value.trim();
-  var b = document.getElementById('adm-pin-confirm').value.trim();
-  if (!/^\d{4,6}$/.test(a)) { toast('El PIN debe tener entre 4 y 6 números'); return; }
-  if (a !== b) { toast('Los PIN no coinciden'); return; }
-  Promise.all([admSha256(a), admDeriveToken(a)]).then(function(res) {
-    localStorage.setItem(ADMIN_PIN_KEY, res[0]);
-    sessionStorage.setItem('va_admin_token', res[1]);
-    admRecordSuccess();
-    admUnlockPanel();
-    toast('PIN guardado ✓');
-  });
-}
+/* Valida la clave probando un upsert contra Supabase. Si RLS acepta el token derivado
+   de la clave, el panel abre. Sin hash local — la clave misma es el secreto compartido. */
 function admCheckPin() {
   var locked = admIsLocked();
   if (locked) { toast('Demasiados intentos. Espera ' + locked + ' min.'); return; }
   var v = document.getElementById('adm-pin-enter').value.trim();
-  Promise.all([admSha256(v), admDeriveToken(v)]).then(function(res) {
-    if (res[0] === localStorage.getItem(ADMIN_PIN_KEY)) {
-      sessionStorage.setItem('va_admin_token', res[1]);
-      admRecordSuccess();
-      admUnlockPanel();
-    } else {
-      admRecordFail();
-      var d = admAttemptsRead();
-      var left = ADMIN_MAX_ATTEMPTS - d.n;
-      toast(left > 0 ? 'PIN incorrecto. Quedan ' + left + ' intentos.' : 'PIN incorrecto. Bloqueado 5 min.');
-    }
+  if (!v) { toast('Escribe la clave'); return; }
+  admDeriveToken(v).then(function(tok) {
+    sessionStorage.setItem('va_admin_token', tok);
+    admProbeAuth(function(ok) {
+      if (ok) { admRecordSuccess(); admUnlockPanel(); }
+      else {
+        sessionStorage.removeItem('va_admin_token');
+        admRecordFail();
+        var d = admAttemptsRead();
+        var left = ADMIN_MAX_ATTEMPTS - d.n;
+        toast(left > 0 ? 'Clave incorrecta. Quedan ' + left + ' intentos.' : 'Clave incorrecta. Bloqueado 5 min.');
+      }
+    });
   });
 }
-function admResetPinFlow() {
-  admConfirm('Esto borra el PIN actual (tu catálogo NO se borra). Vas a crear uno nuevo.', function() {
-    localStorage.removeItem(ADMIN_PIN_KEY);
-    admRenderGateStep('create');
-  }, { title: 'Restablecer PIN', yesText: 'Continuar', danger: false });
+/* Setup / cambio de clave: muestra el SQL a ejecutar en Supabase para autorizar
+   la clave escrita en el campo. Se usa una sola vez por clave nueva. */
+function admShowBootstrap() {
+  var v = document.getElementById('adm-pin-enter').value.trim();
+  if (!v) { toast('Primero escribe la clave que quieres autorizar'); return; }
+  admDeriveToken(v).then(function(tok) {
+    sessionStorage.setItem('va_admin_token', tok);
+    admShowMigrationModal();
+  });
+}
+/* Probe: intenta un upsert de una fila oculta. Si RLS acepta, la clave es correcta. */
+function admProbeAuth(cb) {
+  var body = {
+    id: ADMIN_PROBE_ID, estado: 'borrador',
+    categoria: '', estilo: '', metal: '', ley: '', color: '', genero: '',
+    piedras: [], descripcion: '__auth_probe__', medida: '', medida_u: '',
+    certificado: 'No', cert_num: '', precio: 0, foto_url: null,
+    proveedor: '', costo: 0, margen: 0, notas: '', updated_at: new Date().toISOString()
+  };
+  fetch(SB_URL + '/rest/v1/productos', {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+      'x-admin-token': sbGetAdminToken(),
+      'Prefer': 'resolution=merge-duplicates,return=minimal'
+    },
+    body: JSON.stringify(body)
+  }).then(function(r) { cb(r.ok); })
+    .catch(function() { cb(false); });
 }
 function admUnlockPanel() {
   sessionStorage.setItem(ADMIN_SESSION_KEY, '1');
@@ -1899,8 +1904,8 @@ function admShowMigrationModal() {
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
   ov.innerHTML =
     '<div style="background:var(--bg);color:var(--text);max-width:640px;width:100%;padding:24px;border-radius:12px;border:2px solid var(--gold);max-height:85vh;overflow:auto;">' +
-    '<h3 style="margin-top:0;color:var(--esm);">🔐 Migración de seguridad pendiente</h3>' +
-    '<p style="font-size:.9rem;">El guardado falló porque las políticas RLS en Supabase esperan un token diferente. Ejecuta este SQL en <b>Supabase → SQL Editor</b> (solo una vez por PIN, para toda la operación):</p>' +
+    '<h3 style="margin-top:0;color:var(--esm);">🔐 Autorizar esta clave</h3>' +
+    '<p style="font-size:.9rem;">Esta clave aún no está autorizada en Supabase. Ejecuta este SQL en <b>Supabase → SQL Editor</b> (una sola vez por clave, para toda la operación — todos los dispositivos que usen esta clave podrán entrar):</p>' +
     '<textarea readonly style="width:100%;height:200px;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--gold-l);border-radius:6px;background:#f9f7f2;color:#1a1714;">' + sql + '</textarea>' +
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">' +
     '<button id="mig-copy" style="flex:1;padding:10px;background:var(--gold);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;">📋 Copiar SQL</button>' +
