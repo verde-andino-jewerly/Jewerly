@@ -1214,7 +1214,9 @@ var activeCategory = null;
 /* Supabase — base de datos en la nube */
 var SB_URL = 'https://rbvqxrkzepthbbqzkbcg.supabase.co';
 var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJidnF4cmt6ZXB0aGJicXprYmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTQwNTcsImV4cCI6MjEwMTc5MDA1N30.6RA6S7nxFCZdLzyhhX-siEXZrY47jpH9mcaB0wMq0hg';
-var SB_ADMIN_TOKEN = 'VDA_ADMIN_SECRET'; // debe coincidir con el token en las políticas RLS de Supabase
+/* El admin-token se DERIVA del PIN en sesión (sbGetAdminToken). Nunca aparece hardcoded. */
+var SB_TOKEN_SALT = 'VDA_2026_TOKEN_SALT_v1';
+function sbGetAdminToken() { return sessionStorage.getItem('va_admin_token') || ''; }
 var _sbCache = [];
 var _sbRequestLog = []; // Rate limiting: { endpoint, timestamp }
 
@@ -1271,7 +1273,7 @@ function sbUpsert(item, cb) {
     method: 'POST',
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
       'Content-Type': 'application/json',
-      'x-admin-token': SB_ADMIN_TOKEN,
+      'x-admin-token': sbGetAdminToken(),
       'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(itemToSb(item))
   }).then(function(r) { if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t); }); if (cb) cb(true); })
@@ -1282,7 +1284,7 @@ function sbDeleteItem(id, cb) {
   fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(id), {
     method: 'DELETE',
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-      'x-admin-token': SB_ADMIN_TOKEN,
+      'x-admin-token': sbGetAdminToken(),
       'Prefer': 'return=minimal' }
   }).then(function(r) { if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t); }); if (cb) cb(true); })
     .catch(function(e) { console.error('Error eliminando:', e); toast('Error al eliminar: ' + e.message); if (cb) cb(false); });
@@ -1705,6 +1707,29 @@ function admSha256(text) {
     return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
   });
 }
+/* Deriva el token que se envía como x-admin-token a Supabase, a partir del PIN + salt.
+   El token nunca aparece en el código; solo existe en sessionStorage tras desbloqueo. */
+function admDeriveToken(pin) { return admSha256(pin + SB_TOKEN_SALT); }
+/* Rate limiting de intentos de PIN: 5 intentos, luego 5 min de bloqueo. */
+var ADMIN_ATTEMPTS_KEY = 'va_admin_pin_attempts';
+var ADMIN_LOCKOUT_MS = 5 * 60 * 1000;
+var ADMIN_MAX_ATTEMPTS = 5;
+function admAttemptsRead() {
+  try { return JSON.parse(localStorage.getItem(ADMIN_ATTEMPTS_KEY) || '{"n":0,"lockUntil":0}'); }
+  catch(e) { return { n: 0, lockUntil: 0 }; }
+}
+function admIsLocked() {
+  var d = admAttemptsRead();
+  if (d.lockUntil > Date.now()) return Math.ceil((d.lockUntil - Date.now()) / 60000);
+  return 0;
+}
+function admRecordFail() {
+  var d = admAttemptsRead();
+  d.n = (d.n || 0) + 1;
+  if (d.n >= ADMIN_MAX_ATTEMPTS) { d.lockUntil = Date.now() + ADMIN_LOCKOUT_MS; d.n = 0; }
+  localStorage.setItem(ADMIN_ATTEMPTS_KEY, JSON.stringify(d));
+}
+function admRecordSuccess() { localStorage.removeItem(ADMIN_ATTEMPTS_KEY); }
 /* Confirmación propia: window.confirm() está bloqueado dentro del iframe del artefacto (sin allow-modals),
    por eso usamos este modal para que "Eliminar" y demás confirmaciones funcionen en móvil y escritorio. */
 function admConfirm(msg, onYes, opts) {
@@ -1726,7 +1751,8 @@ function admConfirm(msg, onYes, opts) {
 }
 
 function admShowGate() {
-  if (sessionStorage.getItem(ADMIN_SESSION_KEY) === '1') { admUnlockPanel(); return; }
+  if (sessionStorage.getItem(ADMIN_SESSION_KEY) === '1' && sbGetAdminToken()) { admUnlockPanel(); return; }
+  sessionStorage.removeItem(ADMIN_SESSION_KEY); // token faltante: forzar re-PIN
   document.getElementById('admin-gate').style.display = 'flex';
   admRenderGateStep(localStorage.getItem(ADMIN_PIN_KEY) ? 'enter' : 'create');
 }
@@ -1796,17 +1822,29 @@ function admCreatePin() {
   var b = document.getElementById('adm-pin-confirm').value.trim();
   if (!/^\d{4,6}$/.test(a)) { toast('El PIN debe tener entre 4 y 6 números'); return; }
   if (a !== b) { toast('Los PIN no coinciden'); return; }
-  admSha256(a).then(function(hash) {
-    localStorage.setItem(ADMIN_PIN_KEY, hash);
+  Promise.all([admSha256(a), admDeriveToken(a)]).then(function(res) {
+    localStorage.setItem(ADMIN_PIN_KEY, res[0]);
+    sessionStorage.setItem('va_admin_token', res[1]);
+    admRecordSuccess();
     admUnlockPanel();
     toast('PIN guardado ✓');
   });
 }
 function admCheckPin() {
+  var locked = admIsLocked();
+  if (locked) { toast('Demasiados intentos. Espera ' + locked + ' min.'); return; }
   var v = document.getElementById('adm-pin-enter').value.trim();
-  admSha256(v).then(function(hash) {
-    if (hash === localStorage.getItem(ADMIN_PIN_KEY)) admUnlockPanel();
-    else toast('PIN incorrecto');
+  Promise.all([admSha256(v), admDeriveToken(v)]).then(function(res) {
+    if (res[0] === localStorage.getItem(ADMIN_PIN_KEY)) {
+      sessionStorage.setItem('va_admin_token', res[1]);
+      admRecordSuccess();
+      admUnlockPanel();
+    } else {
+      admRecordFail();
+      var d = admAttemptsRead();
+      var left = ADMIN_MAX_ATTEMPTS - d.n;
+      toast(left > 0 ? 'PIN incorrecto. Quedan ' + left + ' intentos.' : 'PIN incorrecto. Bloqueado 5 min.');
+    }
   });
 }
 function admResetPinFlow() {
@@ -1822,8 +1860,51 @@ function admUnlockPanel() {
   admLoad(function() {
     admInitForm();
     admRenderGallery();
+    admMaybeShowMigration();
   });
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+/* Muestra una sola vez el SQL a ejecutar en Supabase para actualizar las políticas RLS
+   al nuevo token derivado del PIN. Se marca como hecho en localStorage. */
+function admMaybeShowMigration() {
+  if (localStorage.getItem('va_security_migrated_v2') === '1') return;
+  var tok = sbGetAdminToken();
+  if (!tok) return;
+  var sql =
+    "-- Verde Andino — Actualizar RLS al nuevo token derivado del PIN\n" +
+    "DROP POLICY IF EXISTS \"admin_insert\" ON productos;\n" +
+    "CREATE POLICY \"admin_insert\" ON productos FOR INSERT\n" +
+    "  WITH CHECK ((current_setting('request.headers', true)::json->>'x-admin-token') = '" + tok + "');\n\n" +
+    "DROP POLICY IF EXISTS \"admin_update\" ON productos;\n" +
+    "CREATE POLICY \"admin_update\" ON productos FOR UPDATE\n" +
+    "  USING ((current_setting('request.headers', true)::json->>'x-admin-token') = '" + tok + "');\n\n" +
+    "DROP POLICY IF EXISTS \"admin_delete\" ON productos;\n" +
+    "CREATE POLICY \"admin_delete\" ON productos FOR DELETE\n" +
+    "  USING ((current_setting('request.headers', true)::json->>'x-admin-token') = '" + tok + "');";
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML =
+    '<div style="background:var(--bg);color:var(--text);max-width:640px;width:100%;padding:24px;border-radius:12px;border:2px solid var(--gold);max-height:85vh;overflow:auto;">' +
+    '<h3 style="margin-top:0;color:var(--esm);">🔐 Actualización de seguridad (una sola vez)</h3>' +
+    '<p style="font-size:.9rem;">Para completar la migración, ejecuta este SQL en <b>Supabase → SQL Editor</b>:</p>' +
+    '<textarea readonly style="width:100%;height:200px;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--gold-l);border-radius:6px;background:#f9f7f2;color:#1a1714;">' + sql + '</textarea>' +
+    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">' +
+    '<button id="mig-copy" style="flex:1;padding:10px;background:var(--gold);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;">📋 Copiar SQL</button>' +
+    '<button id="mig-done" style="flex:1;padding:10px;background:var(--esm);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;">✓ Ya lo ejecuté</button>' +
+    '</div>' +
+    '<p style="font-size:.75rem;margin-top:12px;color:#666;">Hasta que ejecutes el SQL, guardar/editar/eliminar productos dará error. El SQL contiene un token único derivado de tu PIN — nadie más lo puede generar.</p>' +
+    '</div>';
+  document.body.appendChild(ov);
+  document.getElementById('mig-copy').onclick = function() {
+    var ta = ov.querySelector('textarea');
+    ta.select(); document.execCommand('copy');
+    toast('SQL copiado');
+  };
+  document.getElementById('mig-done').onclick = function() {
+    localStorage.setItem('va_security_migrated_v2', '1');
+    document.body.removeChild(ov);
+    toast('Migración completada ✓');
+  };
 }
 function admClosePanel() {
   document.getElementById('admin-panel').style.display = 'none';
