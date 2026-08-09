@@ -2106,6 +2106,63 @@ function admGetStones() {
   });
   return result;
 }
+/* Valida todos los campos del formulario y devuelve list de campos faltantes */
+function admValidateForm() {
+  var missing = [];
+  if (!admPhotoDataUrl) missing.push('Fotografía (obligatoria)');
+  if (!document.getElementById('f-id').value.trim()) missing.push('ID del producto');
+  if (!document.getElementById('f-cat').value) missing.push('Categoría');
+  if (!document.getElementById('f-estilo').value) missing.push('Estilo');
+  if (!document.getElementById('f-metal').value) missing.push('Metal');
+  if (!document.getElementById('f-ley').value) missing.push('Ley');
+  if (!document.getElementById('f-color').value) missing.push('Color');
+  if (!document.getElementById('f-genero').value) missing.push('Género');
+  var costo = parseFloat(document.getElementById('f-costo').value) || 0;
+  if (costo <= 0) missing.push('Costo (debe ser mayor a 0)');
+  return missing;
+}
+/* Muestra modal de campos faltantes */
+function admShowMissingFields(missing) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML =
+    '<div style="background:var(--bg);color:var(--text);max-width:480px;width:100%;padding:24px;border-radius:12px;border:2px solid var(--gold);">' +
+    '<h3 style="margin-top:0;color:#C0392B;">⚠️ Faltan campos obligatorios</h3>' +
+    '<p style="margin:12px 0;color:var(--text-2);">No se puede guardar el producto hasta completar:</p>' +
+    '<ul style="margin:16px 0;padding-left:20px;color:var(--text);">' +
+    missing.map(function(f) { return '<li>' + f + '</li>'; }).join('') +
+    '</ul>' +
+    '<button style="width:100%;padding:12px;background:var(--gold);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;" onclick="this.closest(\'div\').parentElement.remove();">Entendido</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+}
+/* Muestra modal visual de PÉRDIDA (cuando precio_oferta < costo) */
+function admShowLossAlert(precioOferta, costo) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;';
+  var diferencia = costo - precioOferta;
+  ov.innerHTML =
+    '<div style="background:var(--bg);color:var(--text);max-width:520px;width:100%;padding:28px;border-radius:12px;border:3px solid #C0392B;box-shadow:0 0 20px rgba(192,57,43,0.3);">' +
+    '<h3 style="margin-top:0;color:#C0392B;font-size:1.3rem;">🚨 ¡PÉRDIDA DE DINERO!</h3>' +
+    '<p style="margin:16px 0 12px;font-size:1rem;color:var(--text);">No puedes guardar este producto porque:</p>' +
+    '<div style="background:#C0392B;color:white;padding:16px;border-radius:8px;margin:12px 0;font-weight:bold;text-align:center;">' +
+    '<div style="font-size:0.9rem;margin-bottom:8px;">Precio de oferta</div>' +
+    '<div style="font-size:1.4rem;">$' + Math.round(precioOferta).toLocaleString('es-CO') + '</div>' +
+    '<div style="font-size:0.75rem;margin-top:4px;opacity:0.9;color:rgba(255,255,255,0.9);">es menor que tu costo</div>' +
+    '</div>' +
+    '<div style="background:var(--esm-bg);color:var(--esm);padding:16px;border-radius:8px;margin:12px 0;text-align:center;font-weight:bold;">' +
+    '<div style="font-size:0.9rem;margin-bottom:8px;">Costo al proveedor</div>' +
+    '<div style="font-size:1.4rem;">$' + Math.round(costo).toLocaleString('es-CO') + '</div>' +
+    '</div>' +
+    '<div style="background:rgba(192,57,43,0.1);color:#C0392B;padding:16px;border-radius:8px;margin:12px 0;border-left:4px solid #C0392B;font-weight:bold;text-align:center;">' +
+    '<div style="font-size:0.9rem;">Pérdida por pieza:</div>' +
+    '<div style="font-size:1.3rem;">-$' + Math.round(diferencia).toLocaleString('es-CO') + '</div>' +
+    '</div>' +
+    '<p style="margin:16px 0 12px;color:var(--text-2);font-size:0.9rem;">✏️ Aumenta el precio de oferta para que sea mayor que tu costo.</p>' +
+    '<button style="width:100%;padding:14px;background:#C0392B;color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:1rem;" onclick="this.closest(\'div\').parentElement.remove();">Volver a editar</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+}
 function admSetCert(val) {
   admCertValue = val;
   document.getElementById('cert-no').className = val === 'No' ? 'active' : '';
@@ -2133,15 +2190,16 @@ function admToggleGallery() {
   document.getElementById('gallery-body').classList.toggle('hidden', !admGalleryOpen);
 }
 function admSaveProduct() {
+  /* Validar campos obligatorios */
+  var missing = admValidateForm();
+  if (missing.length > 0) { admShowMissingFields(missing); return; }
+
   var id = document.getElementById('f-id').value.trim();
   var desc = document.getElementById('f-desc').value.trim();
   var costo = parseFloat(document.getElementById('f-costo').value) || 0;
   var margen = parseFloat(document.getElementById('f-margen').value) || 0;
   var precioOferta = parseFloat(document.getElementById('f-precio-oferta').value) || null;
 
-  if (!id) { toast('Ingresa un ID para el producto'); return; }
-  if (!desc) { toast('La descripción es obligatoria'); return; }
-  if (costo <= 0) { toast('El costo debe ser mayor a 0'); return; }
   if (precioOferta !== null && precioOferta <= 0) { toast('Precio de oferta debe ser > 0'); return; }
 
   // Calcular precio en servidor (Edge Function)
@@ -2189,7 +2247,7 @@ function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) 
         return;
       }
       if (item.precioOferta < item.costo) {
-        toast('❌ PÉRDIDA: Precio de oferta ($' + Math.round(item.precioOferta).toLocaleString('es-CO') + ') es menor que costo ($' + Math.round(item.costo).toLocaleString('es-CO') + '). Aumenta la oferta.');
+        admShowLossAlert(item.precioOferta, item.costo);
         return;
       }
     }
