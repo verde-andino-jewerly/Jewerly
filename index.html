@@ -2878,58 +2878,137 @@ function admExportPDF() {
     return;
   }
   var pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  var pageWidth = pdf.internal.pageSize.getWidth();
-  var pageHeight = pdf.internal.pageSize.getHeight();
-  var margin = 10, colWidth = (pageWidth - 3 * margin) / 2, rowHeight = 80;
+  var pageW = pdf.internal.pageSize.getWidth();
+  var pageH = pdf.internal.pageSize.getHeight();
+
+  /* Rejilla: 2 columnas × 3 filas = 6 fichas por página */
+  var margin = 10, gutter = 8, rowGap = 5;
+  var cardW = (pageW - margin * 2 - gutter) / 2;
+  var cardH = 80;
+  var pad = 4;                 // aire interno de la ficha
+  var imgBoxH = 40;            // alto del marco de la foto
+
+  var C_EMER = [31, 111, 74], C_GOLD = [184, 134, 11];
+  var C_TEXT = [26, 23, 20], C_MUTED = [136, 128, 118], C_BORDER = [224, 216, 202];
+
   var logoPng = admExportPDF._logoPng || null;
-  var logoH = 18, logoW = logoPng ? logoH * (admExportPDF._logoRatio || 1) : 0;
-  var y = margin + 20;
-  if (logoPng) {
-    try { pdf.addImage(logoPng, 'PNG', pageWidth - margin - logoW, margin, logoW, logoH); } catch(e) {}
-  }
-  pdf.setFontSize(16);
-  pdf.text('Verde Andino — Catálogo de Productos', margin, margin + 5);
-  pdf.setFontSize(10);
-  pdf.text('Fecha: ' + new Date().toLocaleDateString('es-CO'), margin, margin + 11);
-  var col = 0;
-  admState.items.forEach(function(it, idx) {
-    if (!it.foto && (!it.descripcion || it.precio <= 0)) return;
-    var x = margin + (colWidth + margin) * col;
-    if (y + rowHeight > pageHeight - margin) {
-      pdf.addPage();
-      if (logoPng) { try { pdf.addImage(logoPng, 'PNG', pageWidth - margin - logoW, margin, logoW, logoH); } catch(e) {} }
-      y = margin + 20;
-      col = 0;
-      x = margin;
+  var logoRatio = admExportPDF._logoRatio || 1;
+
+  /* Cabecera: completa en la primera página, compacta en las siguientes */
+  function drawHeader(first) {
+    var h = first ? 26 : 16;
+    var lh = first ? 16 : 10;
+    var lw = logoPng ? lh * logoRatio : 0;
+    if (logoPng) {
+      try { pdf.addImage(logoPng, 'PNG', pageW - margin - lw, margin - 2, lw, lh); } catch(e) {}
     }
-    pdf.setDrawColor(185, 134, 11); pdf.setLineWidth(0.5);
-    pdf.rect(x, y, colWidth, rowHeight);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(first ? 15 : 10);
+    pdf.setTextColor.apply(pdf, C_EMER);
+    pdf.text('Verde Andino', margin, margin + (first ? 6 : 4));
+    pdf.setFont('helvetica', 'normal');
+    if (first) {
+      pdf.setFontSize(9);
+      pdf.setTextColor.apply(pdf, C_MUTED);
+      pdf.text('Catálogo de productos · ' + new Date().toLocaleDateString('es-CO'), margin, margin + 12);
+    }
+    pdf.setDrawColor.apply(pdf, C_BORDER);
+    pdf.setLineWidth(0.3);
+    pdf.line(margin, margin + h - 6, pageW - margin, margin + h - 6);
+    return margin + h;
+  }
+
+  /* Ficha: ID arriba → foto → descripción → precio → oferta + % al lado */
+  function drawCard(it, x, y) {
+    pdf.setDrawColor.apply(pdf, C_BORDER);
+    pdf.setLineWidth(0.4);
+    pdf.roundedRect(x, y, cardW, cardH, 2, 2);
+
+    /* ID en la parte superior */
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor.apply(pdf, C_EMER);
+    pdf.text(String(it.id || ''), x + pad, y + pad + 3.5);
+
+    /* Foto centrada, respetando la proporción original (sin deformar) */
+    var boxX = x + pad, boxY = y + pad + 6, boxW = cardW - pad * 2;
     if (it.foto) {
+      var dw = imgBoxH, dh = imgBoxH, fmt = 'JPEG';
       try {
-        pdf.addImage(it.foto, 'JPEG', x + 2, y + 2, colWidth - 4, 40);
+        var p = pdf.getImageProperties(it.foto);
+        if (p.fileType) fmt = p.fileType;
+        var r = p.width / p.height;
+        dw = boxW; dh = boxW / r;
+        if (dh > imgBoxH) { dh = imgBoxH; dw = imgBoxH * r; }
+      } catch(e) {}
+      try {
+        pdf.addImage(it.foto, fmt, boxX + (boxW - dw) / 2, boxY + (imgBoxH - dh) / 2, dw, dh);
       } catch(e) {}
     }
-    pdf.setFontSize(9);
-    pdf.setTextColor(31, 111, 74);
-    pdf.text(it.id, x + 3, y + 48);
-    pdf.setTextColor(26, 23, 20);
-    pdf.setFontSize(8);
-    var desc = it.descripcion ? it.descripcion.substring(0, 45) : '';
-    pdf.text(desc, x + 3, y + 55, { maxWidth: colWidth - 6 });
-    pdf.setTextColor(184, 134, 11);
-    pdf.setFontSize(10);
-    pdf.text('$' + (it.precio || 0).toLocaleString('es-CO'), x + 3, y + 72);
+
+    /* Descripción debajo de la foto (máx. 2 líneas) */
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor.apply(pdf, C_TEXT);
+    var lines = pdf.splitTextToSize(it.descripcion || '', boxW).slice(0, 2);
+    pdf.text(lines, x + pad, boxY + imgBoxH + 5.5);
+
+    /* Bloque de precios anclado al pie de la ficha */
+    var baseY = y + cardH - pad - 1.5;
     if (it.precioOferta) {
-      var descuento = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
-      pdf.setTextColor(184, 134, 11); // oro
+      /* Precio regular tachado */
       pdf.setFontSize(8);
-      pdf.text('Oferta: $' + Math.round(it.precioOferta).toLocaleString('es-CO'), x + 3, y + 78);
-      pdf.setTextColor(31, 111, 74); // verde esmeralda
-      pdf.setFontSize(7);
-      pdf.text('Ahorra ' + descuento + '%', x + 3, y + 82);
+      pdf.setTextColor.apply(pdf, C_MUTED);
+      var regTxt = '$' + Math.round(it.precio || 0).toLocaleString('es-CO');
+      var regY = baseY - 8.5;
+      pdf.text(regTxt, x + pad, regY);
+      pdf.setDrawColor.apply(pdf, C_MUTED);
+      pdf.setLineWidth(0.3);
+      pdf.line(x + pad, regY - 1, x + pad + pdf.getTextWidth(regTxt), regY - 1);
+
+      /* Precio de oferta */
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      pdf.setTextColor.apply(pdf, C_EMER);
+      var offTxt = '$' + Math.round(it.precioOferta).toLocaleString('es-CO');
+      pdf.text(offTxt, x + pad, baseY);
+      var offW = pdf.getTextWidth(offTxt);
+
+      /* Badge de descuento, al lado del precio de oferta */
+      var pct = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
+      var bTxt = '-' + pct + '%';
+      pdf.setFontSize(7.5);
+      var bw = pdf.getTextWidth(bTxt) + 4, bh = 5;
+      var bx = x + pad + offW + 3;
+      if (bx + bw > x + cardW - pad) bx = x + cardW - pad - bw;
+      pdf.setFillColor.apply(pdf, C_EMER);
+      pdf.roundedRect(bx, baseY - 4, bw, bh, 1, 1, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(bTxt, bx + 2, baseY - 0.4);
+    } else {
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      pdf.setTextColor.apply(pdf, C_GOLD);
+      pdf.text('$' + Math.round(it.precio || 0).toLocaleString('es-CO'), x + pad, baseY);
     }
+  }
+
+  var visibles = admState.items.filter(function(it) {
+    if (it.id === ADMIN_PROBE_ID) return false;
+    return !(!it.foto && (!it.descripcion || it.precio <= 0));
+  });
+  if (!visibles.length) { toast('No hay productos para exportar'); return; }
+
+  var y = drawHeader(true);
+  var col = 0;
+  visibles.forEach(function(it) {
+    if (col === 0 && y + cardH > pageH - margin) {
+      pdf.addPage();
+      y = drawHeader(false);
+    }
+    drawCard(it, margin + (cardW + gutter) * col, y);
     col++;
-    if (col >= 2) { col = 0; y += rowHeight + margin; }
+    if (col >= 2) { col = 0; y += cardH + rowGap; }
   });
   pdf.save('verde-andino-catalogo-' + new Date().toISOString().slice(0,10) + '.pdf');
   toast('Catálogo PDF descargado');
