@@ -456,6 +456,70 @@
   }
   .modal-footer button { padding: 8px 16px; }
 
+  textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95em;
+    resize: vertical;
+    transition: border-color 0.2s ease;
+  }
+  textarea:focus {
+    outline: none;
+    border-color: #1f6f4a;
+    box-shadow: 0 0 0 2px rgba(31, 111, 74, 0.1);
+  }
+  textarea::placeholder {
+    color: var(--text-3);
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .checkbox-label input[type="checkbox"] {
+    display: none;
+  }
+  .checkbox-visual {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-card);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  .checkbox-label input[type="checkbox"]:checked + .checkbox-visual {
+    background: #1f6f4a;
+    border-color: #1f6f4a;
+    color: white;
+  }
+  .checkbox-label input[type="checkbox"]:checked + .checkbox-visual::after {
+    content: '✓';
+    font-weight: bold;
+    color: white;
+    font-size: 14px;
+  }
+  .checkbox-label:hover .checkbox-visual {
+    border-color: var(--text-2);
+    background: var(--bg-hover);
+  }
+  .checkbox-text {
+    font-size: 0.95em;
+  }
+
   @media (max-width: 620px) {
     .form-grid { grid-template-columns: 1fr; }
     .split { grid-template-columns: 1fr; }
@@ -779,9 +843,10 @@
             </select>
           </div>
           <div class="field">
-            <label>
+            <label class="checkbox-label">
               <input type="checkbox" id="f-tiene-factura" onchange="toggleNumeroFactura()">
-              ¿Tiene factura DIAN?
+              <span class="checkbox-visual"></span>
+              <span class="checkbox-text">¿Tiene factura DIAN?</span>
             </label>
           </div>
           <div class="field" id="f-numero-factura-wrapper" style="display: none;">
@@ -798,7 +863,7 @@
           </div>
           <div class="field">
             <label for="f-notas-ven">Notas</label>
-            <textarea id="f-notas-ven" rows="3" placeholder="Notas internas (opcional)"></textarea>
+            <textarea id="f-notas-ven" rows="4" placeholder="Notas internas (opcional)"></textarea>
           </div>
         </div>
         <div class="btn-row">
