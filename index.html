@@ -1322,7 +1322,8 @@
           </div>
           <div class="field">
             <label>Margen (%)</label>
-            <input type="number" id="f-margen" placeholder="100" min="20" value="100" oninput="admCalcPrecio()">
+            <input type="number" id="f-margen" placeholder="100" min="20" value="100" oninput="admCalcPrecio();admPreviewMargen()">
+            <div id="margen-preview" style="display:none; margin-top:4px; padding:6px 10px; border-radius:6px; font-size:0.82rem; font-weight:500;"></div>
           </div>
         </div>
         <div class="price-display" style="margin-bottom:12px">
@@ -1462,6 +1463,14 @@ function sbUpsert(item, cb) {
       if (typeof admIsRlsError === 'function' && admIsRlsError(e.message)) {
         toast('Guardado bloqueado por RLS — ejecuta la migración');
         admShowMigrationModal();
+      } else if (/chk_margen_minimo/i.test(e.message)) {
+        toast('El margen debe ser al menos 20%');
+      } else if (/chk_oferta_sobre_costo/i.test(e.message)) {
+        toast('La oferta debe dejar al menos 12% sobre el costo');
+      } else if (/chk_descuento_maximo/i.test(e.message)) {
+        toast('El descuento no puede superar 40%');
+      } else if (/violates check constraint/i.test(e.message)) {
+        toast('Valor fuera de rango permitido. Revisa margen y oferta.');
       } else { toast('Error al guardar: ' + e.message); }
       if (cb) cb(false);
     });
@@ -2462,6 +2471,26 @@ function promoLabel(descPct) {
   if (descPct <= 30) return 'Gran oferta -' + descPct + '%';
   return 'Super oferta -' + descPct + '%';
 }
+function admPreviewMargen() {
+  var el = document.getElementById('margen-preview');
+  var margen = parseFloat(document.getElementById('f-margen').value);
+  if (isNaN(margen)) { el.style.display = 'none'; return; }
+  var costo = parseFloat(document.getElementById('f-costo').value) || 0;
+  var color, bg, msg;
+  if (margen < 20) {
+    color = '#c0392b'; bg = '#fdecea';
+    msg = 'Mínimo permitido: 20%';
+  } else if (margen < 30) {
+    color = '#e67e22'; bg = '#fef9e7';
+    msg = 'Margen ' + margen + '% — descuento máximo en oferta: ~' + Math.round((1 - 1.12 / (1 + margen / 100)) * 100) + '%';
+  } else {
+    color = 'var(--esm)'; bg = 'var(--esm-bg)';
+    var maxDesc = Math.min(40, Math.round((1 - 1.12 / (1 + margen / 100)) * 100));
+    msg = 'Margen ' + margen + '%' + (costo > 0 ? ' · Ganancia: $' + Math.round(costo * margen / 100).toLocaleString('es-CO') : '') + ' · Oferta hasta -' + maxDesc + '%';
+  }
+  el.style.display = 'block'; el.style.color = color; el.style.background = bg;
+  el.textContent = msg;
+}
 function admPreviewOferta() {
   var el = document.getElementById('oferta-preview');
   var oferta = parseFloat(document.getElementById('f-precio-oferta').value) || 0;
@@ -2820,6 +2849,8 @@ function admResetForm() {
   document.getElementById('f-precio-oferta').value = '';
   document.getElementById('f-notas').value = '';
   document.getElementById('precio-display').textContent = '$ —';
+  document.getElementById('margen-preview').style.display = 'none';
+  document.getElementById('oferta-preview').style.display = 'none';
   admScrollFormTop();
 }
 function admRenderGallery() {
