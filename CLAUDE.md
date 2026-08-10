@@ -122,6 +122,47 @@ JS field names use camelCase; DB columns use snake_case. Conversion via `sbToIte
 
 `piedras` is JSONB: `[{ tipo, qty, ct }]`. The vitrina's `stonesText()` also accepts legacy `cantidad`/`quilates` field names.
 
+## Control de Ventas (Panel de Herramientas)
+
+Módulo nuevo para registrar ventas de productos con integración automática al Control Financiero.
+
+**Tabla `ventas`:**
+- `numero_venta` (TEXT, UNIQUE): Auto-generado (V-001, V-002, etc.)
+- `fecha` (DATE): Fecha de la venta
+- `cliente_nombre` (TEXT): Nombre del cliente
+- `cliente_contacto` (TEXT): WhatsApp, email, etc. (opcional)
+- `producto_id` (TEXT, FK): Link a tabla `productos`
+- `cantidad_vendida` (NUMERIC): Unidades vendidas
+- `precio_unitario` (NUMERIC): Lo que el cliente pagó
+- `monto_total` (NUMERIC, GENERATED): cantidad × precio
+- `costo_unitario` (NUMERIC): Costo en momento de venta
+- `ganancia_bruta` (NUMERIC, GENERATED): cantidad × (precio - costo)
+- `estado` (TEXT): cotización | pendiente | completada | cancelada
+- `metodo_pago` (TEXT): Efectivo, Transferencia, Tarjeta, etc.
+- `tiene_factura` (BOOLEAN): ¿Facturado en DIAN?
+- `numero_factura` (TEXT): Número de factura DIAN
+- `notas` (TEXT): Observaciones internas
+- `ingreso_id` (BIGINT, FK): Link automático a gasto en Control Financiero
+- `confirmada` (BOOLEAN): Usuario confirmó datos antes de crear ingreso
+- `created_at`, `updated_at`: Auditoría
+
+**RLS:** Admin-only (requiere `x-admin-token` válido)
+
+**Auditoría:** Tabla `ventas_audit` registra INSERT/UPDATE/DELETE automáticamente via trigger
+
+**Integración automática:**
+- Cuando se registra una venta confirmada, se crea automáticamente un apunte en tabla `gastos` con categoría "Ingresos por Ventas"
+- `monto` del gasto = `ganancia_bruta` de la venta
+- Si se elimina la venta, se elimina también el gasto asociado (cascada)
+
+**UI en Panel de Herramientas:**
+- Tab "Ventas" junto a Calculadora y Finanzas
+- Formulario: cliente, producto (dropdown), cantidad, precio, estado, factura DIAN
+- Tabla: todas las ventas con cálculos en tiempo real
+- Resumen: total vendido, ganancia total, margen promedio
+- Exportación: CSV y XLSX
+- Modal de confirmación: usuario revisa datos antes de guardar (destaca ganancia en verde)
+
 ## Data classification
 
 **🟢 Public** (fetched by vitrina, visible in modal / network response):
