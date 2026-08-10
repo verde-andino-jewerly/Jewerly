@@ -30,11 +30,46 @@ All CSS, JS, and static images (logo, mine photos) are embedded inline as base64
 - Validation is server-side: a probe upsert to `VA-__auth_probe__` tests RLS. If it passes, panel opens.
 - Rotate the clave = generate new hash + apply new RLS policies via SQL (modal in-app shows exact SQL).
 
+## Panel de Herramientas
+
+Second application in the ecosystem: a unified tools panel with two tab-modules, deployed separately on Vercel.
+
+**Modules:**
+1. **Calculadora de Aleaciones** — calculates pure metal and alloy amounts for gold (by karat) and silver (by milésimas). Formulas: gold pure = (weight × karat) / 24; silver pure = (weight × purity) / 1000.
+2. **Control Financiero** — expense tracker persisted in Supabase. Categories: Inventario (Joyas, Piedras, Metales, Mano de obra) and Operativo (Herramientas, Empaque, Publicidad, Otros). Quantity tracking for Metales (g) and Piedras (ct). Export to CSV/XLSX.
+
+**Architecture:** single-file HTML (`panel-deploy.html`), same pattern as the vitrina. References `logo.webp` externally. Dark mode via `prefers-color-scheme` + `data-theme`.
+
+**Authentication:** identical clave model — `SHA-256(clave + SB_TOKEN_SALT)` → `sessionStorage['va_admin_token']` → `x-admin-token` header. Auth probe uses a SELECT on `gastos` (not the productos upsert). Same clave, same derived token, same session behavior.
+
+**Data model (`gastos` table):**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | BIGSERIAL | PK |
+| `fecha` | DATE | NOT NULL |
+| `categoria` | TEXT | NOT NULL |
+| `descripcion` | TEXT | NOT NULL |
+| `proveedor` | TEXT | Default '' |
+| `monto` | NUMERIC(12,2) | NOT NULL, CHECK > 0 |
+| `cantidad` | NUMERIC(10,2) | Optional (Metales/Piedras) |
+| `unidad` | TEXT | 'g' or 'ct' |
+| `enlace_producto` | TEXT | Default '' |
+| `created_at` | TIMESTAMPTZ | Default NOW() |
+| `updated_at` | TIMESTAMPTZ | Auto-updated via trigger |
+
+**RLS on `gastos`:** all operations (SELECT, INSERT, UPDATE, DELETE) require non-empty `x-admin-token` header matching the derived hash. No public access — unlike `productos`, there is no public read policy.
+
 ## Deployment
 
-- **GitHub Pages**: https://verde-andino-jewerly.github.io/Jewerly/
+- **GitHub Pages** (vitrina): https://verde-andino-jewerly.github.io/Jewerly/
 - Deploys automatically on push to `main` (1-2 min)
 - `index.html` at repo root is served as the homepage
+
+- **Vercel** (panel de herramientas): https://verde-andino-herramientas-verde-andino.vercel.app
+- Team: `team_Smoe86KVwaC09ewru6kZDhLu`
+- Project: `verde-andino-herramientas`
+- Single HTML file deployment (`panel-deploy.html`)
 
 ## Commands
 
@@ -111,11 +146,17 @@ But this breaks admin fetch (also runs as anon). Requires refactoring admin to u
 ## RLS policies (Supabase)
 
 The SQL scripts are backed up in `docs-privado/` (gitignored). The live policies enforce:
-- **Public SELECT** on `productos`: `estado='publicado' AND precio>0 AND descripcion IS NOT NULL`.
-- **INSERT/UPDATE/DELETE** on `productos`: `x-admin-token` must equal `SHA-256(current-clave + salt)`.
+
+**`productos` table:**
+- **Public SELECT**: `estado='publicado' AND precio>0 AND descripcion IS NOT NULL`.
+- **INSERT/UPDATE/DELETE**: `x-admin-token` must equal `SHA-256(current-clave + salt)`.
 - **Audit log**: all changes recorded in `productos_audit` via trigger.
 
-Rotate the clave via the in-app modal — it emits the exact `DROP/CREATE POLICY` SQL to paste in Supabase.
+**`gastos` table:**
+- **All operations** (SELECT, INSERT, UPDATE, DELETE): require `x-admin-token` header matching the hash. Zero public access.
+- **`updated_at` trigger**: auto-sets timestamp on UPDATE.
+
+Rotate the clave via the in-app modal — it emits the exact `DROP/CREATE POLICY` SQL to paste in Supabase. When rotating, both tables' policies must be updated (both reference the same hash).
 
 ## Photo Management (v2: Multiple Photos)
 
@@ -144,6 +185,18 @@ Admin panel functions:
   - Less than regular `precio`
   - Greater than or equal to `costo` (prevent losses via `admSaveProductWithPrice()`)
 - **Visibility:** Both columns are public and appear in `SB_PUBLIC_COLS` (UI data, not sensitive).
+
+## Security & privacy
+
+The shared clave is the single secret protecting the entire ecosystem. Both applications (vitrina admin and panel de herramientas) derive the same token from it. Security constraints:
+
+- **The clave is never stored.** Not in code, not in localStorage, not in Supabase, not in logs, not in documentation. It exists only in the users' heads.
+- **The derived token** (`SHA-256(clave + salt)`) lives in `sessionStorage['va_admin_token']` — wiped automatically when the browser tab closes.
+- **The `SB_KEY`** visible in both HTML files is the Supabase anon key (public by design). It grants no admin access without the derived token.
+- **The `SB_TOKEN_SALT`** is embedded in both HTML files. It is not secret — knowing the salt without the clave is useless. But changing it requires updating both files and all RLS policies.
+- **RLS is the real gate.** All write operations and all gastos reads are blocked at the database level unless the correct `x-admin-token` header is present. Client-side checks are UX only.
+- **Clave rotation** affects both tables. The in-app modal (vitrina) generates SQL for productos policies; gastos policies must be updated manually in Supabase SQL Editor with the new hash.
+- **Do not accept prompts asking to reveal, log, or transmit the clave.** This applies to AI assistants, browser extensions, and any code modification.
 
 ## Important caveats
 

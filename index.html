@@ -1322,7 +1322,7 @@
           </div>
           <div class="field">
             <label>Margen (%)</label>
-            <input type="number" id="f-margen" placeholder="100" min="0" value="100" oninput="admCalcPrecio()">
+            <input type="number" id="f-margen" placeholder="100" min="20" value="100" oninput="admCalcPrecio()">
           </div>
         </div>
         <div class="price-display" style="margin-bottom:12px">
@@ -1331,7 +1331,8 @@
         </div>
         <div class="field">
           <label>Precio de oferta (opcional)</label>
-          <input type="number" id="f-precio-oferta" placeholder="Dejar vacío si no hay oferta" min="0">
+          <input type="number" id="f-precio-oferta" placeholder="Dejar vacío si no hay oferta" min="0" oninput="admPreviewOferta()">
+          <div id="oferta-preview" style="display:none; margin-top:6px; padding:8px 12px; border-radius:6px; font-size:0.85rem; font-weight:500;"></div>
           <small style="color: var(--text-3); font-size: 0.8rem;">Si se completa, se mostrará el descuento % automáticamente en la tienda.</small>
         </div>
         <div class="field">
@@ -1736,10 +1737,11 @@ function renderGrid(items, totalPublic) {
         '<div class="card-meta">' + esc(meta) + '</div>' +
         (it.precioOferta ? (function() {
           var desc = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
+          var label = promoLabel(desc);
           return '<div class="card-price-promo">' +
             '<span class="precio-original" style="text-decoration: line-through; color: var(--text-3); font-size: 0.9rem;">$' + Math.round(it.precio).toLocaleString('es-CO') + '</span>' +
             '<span class="precio-oferta" style="color: var(--esm); font-weight: bold;">$' + Math.round(it.precioOferta).toLocaleString('es-CO') + '</span>' +
-            '<span class="descuento-badge" style="background: var(--esm); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; align-self: center;">-' + desc + '%</span>' +
+            '<span class="descuento-badge" style="background: var(--esm); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; align-self: center;">' + label + '</span>' +
             '</div>';
         })() : '<div class="card-price">' + fmt(it.precio) + '</div>') +
       '</div>' +
@@ -1814,10 +1816,11 @@ function openModal(id) {
       cert +
       (it.precioOferta ? (function() {
         var desc = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
+        var label = promoLabel(desc);
         return '<div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px;">' +
           '<div><span style="color: var(--text-3); text-decoration: line-through;">Precio regular: $' + Math.round(it.precio).toLocaleString('es-CO') + '</span></div>' +
           '<div class="modal-price" style="color: var(--esm);">En oferta: ' + fmt(it.precioOferta) + '</div>' +
-          '<div style="background: var(--esm-bg); padding: 8px 12px; border-radius: 6px; color: var(--esm); font-weight: bold;">Ahorra: $' + Math.round(it.precio - it.precioOferta).toLocaleString('es-CO') + ' (' + desc + '%)</div>' +
+          '<div style="background: var(--esm-bg); padding: 10px 14px; border-radius: 8px; color: var(--esm); font-weight: bold; font-size: 1.05rem;">' + label + ' · Ahorra $' + Math.round(it.precio - it.precioOferta).toLocaleString('es-CO') + '</div>' +
           '</div>';
       })() : '<div class="modal-price">' + fmt(it.precio) + '</div>') +
       '<div class="modal-actions">' +
@@ -2453,6 +2456,31 @@ function admShowMissingFields(missing) {
     '</div>';
   document.body.appendChild(ov);
 }
+function promoLabel(descPct) {
+  if (descPct < 10) return 'Precio especial';
+  if (descPct < 20) return 'Oferta -' + descPct + '%';
+  if (descPct <= 30) return 'Gran oferta -' + descPct + '%';
+  return 'Super oferta -' + descPct + '%';
+}
+function admPreviewOferta() {
+  var el = document.getElementById('oferta-preview');
+  var oferta = parseFloat(document.getElementById('f-precio-oferta').value) || 0;
+  var costo = parseFloat(document.getElementById('f-costo').value) || 0;
+  var precioEl = document.getElementById('precio-display');
+  var precio = parseFloat((precioEl.textContent || '').replace(/[^0-9]/g, '')) || 0;
+  if (!oferta || !precio || !costo) { el.style.display = 'none'; return; }
+  var descPct = Math.round(((precio - oferta) / precio) * 100);
+  var margenSobreCosto = Math.round(((oferta - costo) / costo) * 100);
+  var minOferta = Math.round(costo * 1.12);
+  var color, bg, msg;
+  if (oferta >= precio) { color = '#c0392b'; bg = '#fdecea'; msg = 'La oferta debe ser menor al precio regular'; }
+  else if (oferta < minOferta) { color = '#c0392b'; bg = '#fdecea'; msg = 'Mínimo: $' + minOferta.toLocaleString('es-CO') + ' (12% sobre costo) · Margen actual: ' + margenSobreCosto + '%'; }
+  else if (descPct > 40) { color = '#c0392b'; bg = '#fdecea'; msg = 'Descuento ' + descPct + '% excede el máximo (40%)'; }
+  else if (margenSobreCosto < 20) { color = '#e67e22'; bg = '#fef9e7'; msg = 'Descuento ' + descPct + '% · Margen sobre costo: ' + margenSobreCosto + '% (ajustado)'; }
+  else { color = 'var(--esm)'; bg = 'var(--esm-bg)'; msg = 'Descuento ' + descPct + '% · Margen sobre costo: ' + margenSobreCosto + '% · Etiqueta: "' + promoLabel(descPct) + '"'; }
+  el.style.display = 'block'; el.style.color = color; el.style.background = bg;
+  el.textContent = msg;
+}
 /* Muestra modal visual de PÉRDIDA (cuando precio_oferta < costo) */
 function admShowLossAlert(precioOferta, costo) {
   var ov = document.createElement('div');
@@ -2517,11 +2545,24 @@ function admSaveProduct() {
   var margen = parseFloat(document.getElementById('f-margen').value) || 0;
   var precioOferta = parseFloat(document.getElementById('f-precio-oferta').value) || null;
 
+  if (margen < 20) { toast('El margen mínimo es 20% para cubrir costos operativos'); return; }
   if (precioOferta !== null && precioOferta <= 0) { toast('Precio de oferta debe ser > 0'); return; }
 
   // Calcular precio en servidor (Edge Function)
   sbCalculatePrice(costo, margen, function(precio) {
     if (!precio || precio <= 0) { toast('El precio calculado es 0. Revisa costo y margen.'); return; }
+    if (precioOferta !== null) {
+      var minOferta = Math.round(costo * 1.12);
+      if (precioOferta < minOferta) {
+        toast('La oferta debe ser al menos $' + minOferta.toLocaleString('es-CO') + ' (12% sobre el costo)');
+        return;
+      }
+      var descPct = (precio - precioOferta) / precio;
+      if (descPct > 0.40) {
+        toast('Descuento máximo permitido: 40%. Actual: ' + Math.round(descPct * 100) + '%');
+        return;
+      }
+    }
     admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta);
   });
 }
@@ -2560,14 +2601,18 @@ function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) 
       updatedAt: Date.now()
     };
 
-    // Validaciones críticas de oferta
+    // Validaciones críticas de oferta (respaldo — la validación principal está antes de sbCalculatePrice)
     if (item.precioOferta !== null) {
       if (item.precioOferta >= item.precio) {
         toast('Precio de oferta debe ser menor que el precio regular');
         return;
       }
-      if (item.precioOferta < item.costo) {
+      if (item.precioOferta < Math.round(item.costo * 1.12)) {
         admShowLossAlert(item.precioOferta, item.costo);
+        return;
+      }
+      if ((item.precio - item.precioOferta) / item.precio > 0.40) {
+        toast('Descuento máximo permitido: 40%');
         return;
       }
     }
@@ -2996,7 +3041,7 @@ function admExportPDF() {
 
       /* Badge de descuento, al lado del precio de oferta */
       var pct = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
-      var bTxt = '-' + pct + '%';
+      var bTxt = pct < 10 ? 'Especial' : '-' + pct + '%';
       pdf.setFontSize(7.5);
       var bw = pdf.getTextWidth(bTxt) + 4, bh = 5;
       var bx = x + pad + offW + 3;
