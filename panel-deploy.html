@@ -338,12 +338,18 @@
   .amount-cell { font-weight: 600; white-space: nowrap; }
   .qty-cell small { display: block; color: var(--text-3); font-size: 0.72rem; }
 
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
-  .inv, .ope {
+  .split { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
+  .inv, .ope, .ing, .util {
     border-radius: 8px; padding: 0.75rem; text-align: center;
   }
   .inv { background: var(--gold-bg); border: 1px solid var(--gold-l); }
   .ope { background: var(--bg-alt); border: 1px solid var(--border-s); }
+  .ing { background: var(--esm-bg); border: 1px solid var(--esm-l); }
+  .util { background: var(--esm-bg); border: 1px solid var(--esm-l); }
+  .util.neg { background: var(--red-bg); border: 1px solid var(--red); }
+  .ing .sv { color: var(--esm); }
+  .util .sv { color: var(--esm); }
+  .util.neg .sv { color: var(--red); }
   .sl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
   .sv { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0.25rem 0; color: var(--text); }
   .sd { font-size: 0.7rem; color: var(--text-3); line-height: 1.4; }
@@ -522,7 +528,7 @@
 
   @media (max-width: 620px) {
     .form-grid { grid-template-columns: 1fr; }
-    .split { grid-template-columns: 1fr; }
+    .split { grid-template-columns: 1fr 1fr; }
     .summary-grid { grid-template-columns: 1fr; }
     .nav-tab { padding: 0.75rem 0.8rem; font-size: 0.72rem; }
   }
@@ -696,6 +702,44 @@
             <b id="rate-val">$0</b>
           </div>
         </div>
+
+        <div class="form-grid" id="soporte-fields" style="margin-top: 0.75rem;">
+          <div class="field">
+            <label class="checkbox-label">
+              <input type="checkbox" id="f-sin-soporte" onchange="toggleSinSoporte()">
+              <span class="checkbox-visual"></span>
+              <span class="checkbox-text">Sin soporte (sin factura ni recibo)</span>
+            </label>
+          </div>
+          <div class="field" id="f-nit-wrapper">
+            <label for="f-nit">NIT / cedula del proveedor</label>
+            <input type="text" id="f-nit" placeholder="Ej: 900123456-7">
+          </div>
+          <div class="field" id="f-factura-wrapper">
+            <label for="f-numfactura">Numero de factura</label>
+            <input type="text" id="f-numfactura" placeholder="Ej: FE-00123">
+          </div>
+          <div class="field" id="f-formapago-wrapper">
+            <label for="f-formapago">Forma de pago</label>
+            <select id="f-formapago">
+              <option value="">-- Selecciona --</option>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Transferencia">Transferencia</option>
+              <option value="Tarjeta credito">Tarjeta credito</option>
+              <option value="Tarjeta debito">Tarjeta debito</option>
+            </select>
+          </div>
+          <div class="field" id="f-iva-wrapper">
+            <label for="f-iva">IVA pagado (COP, opcional)</label>
+            <input type="number" id="f-iva" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+          <div class="field" id="f-comprobante-wrapper">
+            <label for="f-comprobante">Foto del comprobante</label>
+            <input type="file" id="f-comprobante" accept="image/*" onchange="handleComprobanteFile(event)">
+            <div class="hint" id="f-comprobante-hint"></div>
+          </div>
+        </div>
+
         <div class="btn-row">
           <button class="btn-add" id="btn-save" onclick="saveExpense()">+ Agregar gasto</button>
           <button class="btn-cancel" id="btn-cancel" onclick="cancelEdit()">Cancelar</button>
@@ -738,6 +782,16 @@
             <div class="sv" id="split-ope">$0</div>
             <div class="sd">Se recupera con el margen, a lo largo del tiempo.</div>
           </div>
+          <div class="ing">
+            <div class="sl">Ingresos por ventas</div>
+            <div class="sv" id="split-ing">$0</div>
+            <div class="sd">Ganancia bruta acumulada de Control de Ventas.</div>
+          </div>
+          <div class="util" id="split-util-box">
+            <div class="sl">Utilidad</div>
+            <div class="sv" id="split-util">$0</div>
+            <div class="sd">Ingresos por ventas menos gasto operativo.</div>
+          </div>
         </div>
         <div class="summary-grid">
           <div class="summary-section">
@@ -754,7 +808,7 @@
           <div id="insumos-rows"></div>
         </div>
         <div class="total-bar">
-          <span class="total-label">Total general</span>
+          <span class="total-label">Total de gastos (egresos, sin incluir ingresos por ventas)</span>
           <span class="total-val" id="grand-total">$0.00</span>
         </div>
       </div>
@@ -764,6 +818,7 @@
         <div class="export-row">
           <button class="btn-secondary" onclick="exportXLSX()">Descargar Excel</button>
           <button class="btn-secondary" onclick="exportCSV()">Descargar CSV</button>
+          <button class="btn-secondary" onclick="descargarConsolidadoComprobantes()">Descargar comprobantes (PDF)</button>
         </div>
       </div>
     </div>
@@ -1025,6 +1080,8 @@ function authUnlock() {
   document.getElementById('auth-gate').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   finLoad();
+  venLoad();
+  loadProductosDropdown();
 }
 
 function authLogout() {
@@ -1118,20 +1175,26 @@ var UNITS = {
 
 function $(id) { return document.getElementById(id); }
 
+function mapGastoRow(r) {
+  return {
+    id: r.id, date: r.fecha, cat: r.categoria, desc: r.descripcion,
+    prov: r.proveedor || '', amount: parseFloat(r.monto),
+    qty: r.cantidad ? parseFloat(r.cantidad) : null,
+    unit: r.unidad || '', link: r.enlace_producto || '',
+    nit: r.nit_proveedor || '', numFactura: r.numero_factura || '',
+    ivaMonto: r.iva_monto ? parseFloat(r.iva_monto) : 0,
+    formaPago: r.forma_pago || '', comprobante: r.comprobante_url || '',
+    sinSoporte: !!r.sin_soporte,
+    created_at: r.created_at, updated_at: r.updated_at
+  };
+}
+
 function finLoad() {
   fetch(SB_URL + '/rest/v1/gastos?select=*&order=fecha.desc,id.desc', {
     headers: sbHeaders()
   }).then(function(r) { return r.json(); })
   .then(function(rows) {
-    expenses = rows.map(function(r) {
-      return {
-        id: r.id, date: r.fecha, cat: r.categoria, desc: r.descripcion,
-        prov: r.proveedor || '', amount: parseFloat(r.monto),
-        qty: r.cantidad ? parseFloat(r.cantidad) : null,
-        unit: r.unidad || '', link: r.enlace_producto || '',
-        created_at: r.created_at, updated_at: r.updated_at
-      };
-    });
+    expenses = rows.map(mapGastoRow);
     $('fin-loading').style.display = 'none';
     $('fin-table-wrap').style.display = 'block';
     renderFin();
@@ -1186,9 +1249,66 @@ function refreshProviders() {
   }
 }
 
+var comprobanteUrl = '';
+
+function toggleSinSoporte() {
+  var sin = $('f-sin-soporte').checked;
+  ['f-nit-wrapper','f-factura-wrapper','f-comprobante-wrapper'].forEach(function(id) {
+    $(id).style.opacity = sin ? '0.4' : '1';
+  });
+  $('f-nit').disabled = sin; $('f-numfactura').disabled = sin; $('f-comprobante').disabled = sin;
+  if (sin) { $('f-nit').value = ''; $('f-numfactura').value = ''; comprobanteUrl = ''; $('f-comprobante-hint').textContent = ''; $('f-comprobante').value = ''; }
+}
+
+function handleComprobanteFile(ev) {
+  var file = ev.target.files[0];
+  if (!file) { return; }
+  comprobanteUrl = '';
+  $('f-comprobante-hint').textContent = 'Subiendo...';
+  var path = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+  fetch(SB_URL + '/storage/v1/object/comprobantes/' + path, {
+    method: 'POST',
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'x-admin-token': sbToken(), 'Content-Type': file.type },
+    body: file
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+    comprobanteUrl = path;
+    $('f-comprobante-hint').textContent = 'Comprobante subido (' + Math.round(file.size / 1024) + ' KB)';
+  }).catch(function(e) {
+    console.error('Error al subir comprobante:', e);
+    $('f-comprobante-hint').textContent = 'Error al subir el archivo';
+    toast('Error al subir el comprobante');
+  });
+}
+
+function verComprobanteGasto(id) {
+  var e = expenses.find(function(x) { return x.id === id; });
+  if (e && e.comprobante) verComprobante(e.comprobante);
+}
+
+function fetchComprobanteBlob(path) {
+  return fetch(SB_URL + '/storage/v1/object/comprobantes/' + path, {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'x-admin-token': sbToken() }
+  }).then(function(r) {
+    if (!r.ok) throw new Error('No se pudo cargar el comprobante');
+    return r.blob();
+  });
+}
+
+function verComprobante(path) {
+  fetchComprobanteBlob(path).then(function(blob) {
+    window.open(URL.createObjectURL(blob), '_blank');
+  }).catch(function(e) { console.error(e); toast('Error al abrir el comprobante'); });
+}
+
 function clearForm() {
   $('f-desc').value = ''; $('f-prov').value = '';
   $('f-amount').value = ''; $('f-qty').value = ''; $('f-link').value = '';
+  $('f-nit').value = ''; $('f-numfactura').value = ''; $('f-formapago').value = '';
+  $('f-iva').value = ''; $('f-sin-soporte').checked = false;
+  $('f-comprobante').value = ''; $('f-comprobante-hint').textContent = '';
+  comprobanteUrl = '';
+  toggleSinSoporte();
   updateRate();
 }
 
@@ -1215,6 +1335,7 @@ function startEdit(id) {
   var e = null;
   for (var i = 0; i < expenses.length; i++) if (expenses[i].id === id) e = expenses[i];
   if (!e) return;
+  if (e.cat === 'Ingresos por Ventas') { toast('Este ingreso está vinculado a una venta. Edítalo desde Control de Ventas.'); return; }
   if (isLocked(e)) { toast('Este gasto tiene mas de 30 dias y no se puede editar'); return; }
   editingId = id;
   $('f-date').value = e.date; $('f-cat').value = e.cat; syncCat();
@@ -1222,6 +1343,12 @@ function startEdit(id) {
   $('f-amount').value = e.amount;
   $('f-qty').value = (e.qty || e.qty === 0) ? e.qty : '';
   $('f-link').value = e.link || ''; updateRate();
+  $('f-nit').value = e.nit || ''; $('f-numfactura').value = e.numFactura || '';
+  $('f-formapago').value = e.formaPago || ''; $('f-iva').value = e.ivaMonto || '';
+  $('f-sin-soporte').checked = !!e.sinSoporte;
+  comprobanteUrl = e.comprobante || '';
+  $('f-comprobante-hint').textContent = e.comprobante ? 'Ya tiene foto de comprobante guardada' : '';
+  toggleSinSoporte();
   $('form-title').textContent = 'Editar gasto';
   $('edit-flag').style.display = 'inline-block';
   $('btn-save').textContent = 'Guardar cambios';
@@ -1244,9 +1371,18 @@ function saveExpense() {
     return;
   }
 
+  var sinSoporte = $('f-sin-soporte').checked;
+  var nit = sinSoporte ? '' : $('f-nit').value.trim();
+  var numFactura = sinSoporte ? '' : $('f-numfactura').value.trim();
+  var formaPago = $('f-formapago').value;
+  var ivaMonto = parseFloat($('f-iva').value) || 0;
+  var comprobante = sinSoporte ? '' : comprobanteUrl;
+
   var body = {
     fecha: date, categoria: cat, descripcion: desc, proveedor: prov,
-    monto: amount, cantidad: qty, unidad: unit, enlace_producto: link
+    monto: amount, cantidad: qty, unidad: unit, enlace_producto: link,
+    nit_proveedor: nit, numero_factura: numFactura, forma_pago: formaPago,
+    iva_monto: ivaMonto, comprobante_url: comprobante, sin_soporte: sinSoporte
   };
 
   if (editingId !== null) {
@@ -1266,6 +1402,8 @@ function saveExpense() {
           var e = expenses[i];
           e.date = date; e.cat = cat; e.desc = desc; e.prov = prov;
           e.amount = amount; e.qty = qty; e.unit = unit; e.link = link;
+          e.nit = nit; e.numFactura = numFactura; e.formaPago = formaPago;
+          e.ivaMonto = ivaMonto; e.comprobante = comprobante; e.sinSoporte = sinSoporte;
           if (updated) { e.updated_at = updated.updated_at; e.created_at = updated.created_at; }
         }
       }
@@ -1285,6 +1423,10 @@ function saveExpense() {
         prov: r.proveedor || '', amount: parseFloat(r.monto),
         qty: r.cantidad ? parseFloat(r.cantidad) : null,
         unit: r.unidad || '', link: r.enlace_producto || '',
+        nit: r.nit_proveedor || '', numFactura: r.numero_factura || '',
+        ivaMonto: r.iva_monto ? parseFloat(r.iva_monto) : 0,
+        formaPago: r.forma_pago || '', comprobante: r.comprobante_url || '',
+        sinSoporte: !!r.sin_soporte,
         created_at: r.created_at, updated_at: r.updated_at
       });
       toast('Gasto registrado');
@@ -1298,6 +1440,7 @@ function delExpense(id, ev) {
   var target = null;
   for (var i = 0; i < expenses.length; i++) if (expenses[i].id === id) target = expenses[i];
   if (!target) return;
+  if (target.cat === 'Ingresos por Ventas') { toast('Este ingreso está vinculado a una venta. Elimínalo desde Control de Ventas.'); return; }
   if (isLocked(target)) { toast('Este gasto tiene mas de 30 dias y no se puede eliminar'); return; }
   if (!confirm('Eliminar "' + target.desc + '" por ' + fmt(target.amount) + '?\nEsta accion no se puede deshacer.')) return;
   fetch(SB_URL + '/rest/v1/gastos?id=eq.' + id, {
@@ -1330,8 +1473,8 @@ function showAudit(id, ev) {
       return;
     }
     var html = '';
-    var labels = { fecha:'Fecha', categoria:'Categoria', descripcion:'Descripcion', proveedor:'Proveedor', monto:'Monto', cantidad:'Cantidad', unidad:'Unidad', enlace_producto:'Producto' };
-    var fields = ['fecha','categoria','descripcion','proveedor','monto','cantidad','unidad','enlace_producto'];
+    var labels = { fecha:'Fecha', categoria:'Categoria', descripcion:'Descripcion', proveedor:'Proveedor', monto:'Monto', cantidad:'Cantidad', unidad:'Unidad', enlace_producto:'Producto', nit_proveedor:'NIT proveedor', numero_factura:'No. factura', forma_pago:'Forma de pago', iva_monto:'IVA pagado', sin_soporte:'Sin soporte' };
+    var fields = ['fecha','categoria','descripcion','proveedor','monto','cantidad','unidad','enlace_producto','nit_proveedor','numero_factura','forma_pago','iva_monto','sin_soporte'];
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       var ts = new Date(r.timestamp).toLocaleString('es-CO');
@@ -1354,8 +1497,13 @@ function showAudit(id, ev) {
         html += '</div>';
       } else if (r.accion === 'delete' && r.datos_anteriores) {
         html += '<div class="audit-diff">';
-        html += '<div class="changed"><span class="field-name">Descripcion</span><span class="old-val">' + esc(r.datos_anteriores.descripcion) + '</span></div>';
-        html += '<div class="changed"><span class="field-name">Monto</span><span class="old-val">' + esc(r.datos_anteriores.monto) + '</span></div>';
+        for (var f2 = 0; f2 < fields.length; f2++) {
+          var key2 = fields[f2];
+          var v2 = r.datos_anteriores[key2];
+          if (v2 !== null && v2 !== undefined && v2 !== '') {
+            html += '<div class="changed"><span class="field-name">' + (labels[key2] || key2) + '</span><span class="old-val">' + esc(v2) + '</span></div>';
+          }
+        }
         html += '</div>';
       }
       html += '</div>';
@@ -1369,6 +1517,68 @@ function showAudit(id, ev) {
 
 function closeAudit() {
   $('audit-overlay').classList.remove('open');
+}
+
+function showAuditVenta(id, ev) {
+  if (ev) ev.stopPropagation();
+  var overlay = $('audit-overlay');
+  overlay.classList.add('open');
+  $('audit-body').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  fetch(SB_URL + '/rest/v1/ventas_audit?venta_id=eq.' + id + '&order=timestamp.desc', {
+    headers: sbHeaders()
+  }).then(function(r) { return r.json(); })
+  .then(function(rows) {
+    if (!rows.length) {
+      $('audit-body').innerHTML = '<p style="color:var(--text-3);text-align:center;padding:1rem 0;">Sin cambios registrados</p>';
+      return;
+    }
+    var labels = {
+      fecha:'Fecha', cliente_nombre:'Cliente', cliente_contacto:'Contacto',
+      producto_id:'Producto', cantidad_vendida:'Cantidad', precio_unitario:'Precio unitario',
+      costo_unitario:'Costo unitario', estado:'Estado', metodo_pago:'Metodo de pago',
+      tiene_factura:'Factura DIAN', numero_factura:'No. factura',
+      transportadora:'Transportadora', numero_guia:'No. guia', notas:'Notas'
+    };
+    var fields = Object.keys(labels);
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var ts = new Date(r.timestamp).toLocaleString('es-CO');
+      var opLabel = r.accion === 'update' ? 'Modificacion' : r.accion === 'delete' ? 'Eliminacion' : 'Creacion';
+      html += '<div class="audit-entry">';
+      html += '<div class="audit-op ' + r.accion + '">' + opLabel + '</div>';
+      html += '<div class="audit-time">' + ts + '</div>';
+      if (r.accion === 'update' && r.datos_anteriores && r.datos_nuevos) {
+        html += '<div class="audit-diff">';
+        for (var f = 0; f < fields.length; f++) {
+          var key = fields[f];
+          var oldV = r.datos_anteriores[key];
+          var newV = r.datos_nuevos[key];
+          if (String(oldV || '') !== String(newV || '')) {
+            html += '<div class="changed"><span class="field-name">' + labels[key] + '</span>';
+            html += '<span><span class="old-val">' + esc(oldV) + '</span> ';
+            html += '<span class="new-val">' + esc(newV) + '</span></span></div>';
+          }
+        }
+        html += '</div>';
+      } else if (r.accion === 'delete' && r.datos_anteriores) {
+        html += '<div class="audit-diff">';
+        for (var f2 = 0; f2 < fields.length; f2++) {
+          var key2 = fields[f2];
+          var v2 = r.datos_anteriores[key2];
+          if (v2 !== null && v2 !== undefined && v2 !== '') {
+            html += '<div class="changed"><span class="field-name">' + labels[key2] + '</span><span class="old-val">' + esc(v2) + '</span></div>';
+          }
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    $('audit-body').innerHTML = html;
+  }).catch(function(e) {
+    console.error('Error loading audit:', e);
+    $('audit-body').innerHTML = '<p style="color:#e74c3c;text-align:center;padding:1rem 0;">Error al cargar historial</p>';
+  });
 }
 
 function renderFin() {
@@ -1401,6 +1611,9 @@ function renderFin() {
     }
     var descCell = esc(e.desc);
     if (e.link) descCell += ' <span class="link-tag">' + esc(e.link) + '</span>';
+    if (e.comprobante) descCell += ' <span onclick="event.stopPropagation(); verComprobanteGasto(' + e.id + ')" title="Ver comprobante" style="cursor:pointer;">&#128206;</span>' +
+      ' <span onclick="event.stopPropagation(); descargarComprobantePDF(' + e.id + ')" title="Descargar comprobante en PDF" style="cursor:pointer;">&#11015;&#65039;</span>';
+    if (e.sinSoporte) descCell += ' <span class="cat-badge" style="background:var(--red-bg,#fbedeb);color:var(--red,#b03a2e);" title="Sin factura ni recibo">sin soporte</span>';
     var isEdited = e.updated_at && e.created_at && e.updated_at !== e.created_at;
     if (isEdited) descCell += ' <span class="edited-badge" onclick="showAudit(' + e.id + ', event)" title="Ver historial de cambios">&#9998; editado</span>';
     var locked = isLocked(e);
@@ -1421,22 +1634,27 @@ function renderFin() {
   tbody.innerHTML = html;
 
   // Summary
-  var cats = {}, months = {}, total = 0, invTotal = 0, opeTotal = 0, ins = {};
+  var cats = {}, months = {}, total = 0, invTotal = 0, opeTotal = 0, ingresosVentas = 0, ins = {};
   for (var i = 0; i < expenses.length; i++) {
     var e = expenses[i];
     cats[e.cat] = (cats[e.cat] || 0) + e.amount;
     var mk = e.date.substring(0, 7);
     months[mk] = (months[mk] || 0) + e.amount;
-    total += e.amount;
-    if (isInv(e.cat)) invTotal += e.amount; else opeTotal += e.amount;
+    if (e.cat === 'Ingresos por Ventas') { ingresosVentas += e.amount; }
+    else if (isInv(e.cat)) { invTotal += e.amount; total += e.amount; }
+    else { opeTotal += e.amount; total += e.amount; }
     if (UNITS[e.cat] && e.qty) {
       if (!ins[e.cat]) ins[e.cat] = { q: 0, a: 0 };
       ins[e.cat].q += e.qty; ins[e.cat].a += e.amount;
     }
   }
+  var utilidad = ingresosVentas - opeTotal;
 
   $('split-inv').textContent = fmtShort(invTotal);
   $('split-ope').textContent = fmtShort(opeTotal);
+  $('split-ing').textContent = fmtShort(ingresosVentas);
+  $('split-util').textContent = fmtShort(utilidad);
+  $('split-util-box').classList.toggle('neg', utilidad < 0);
 
   var catHtml = '', known = {};
   for (var i = 0; i < CAT_ORDER.length; i++) {
@@ -1468,12 +1686,16 @@ function renderFin() {
 
 /* ===== EXPORT ===== */
 function rowsForExport() {
-  var headers = ['Fecha','Tipo','Categoria','Descripcion','Proveedor','Cantidad','Unidad','Precio unitario','Monto (COP)','Producto'];
+  var headers = ['Fecha','Tipo','Categoria','Descripcion','Proveedor','NIT/Cedula proveedor',
+    'No. factura','Forma de pago','IVA pagado','Sin soporte','Cantidad','Unidad','Precio unitario',
+    'Monto (COP)','Producto'];
   var out = [headers];
   var sorted = expenses.slice().sort(function(a,b) { return a.date.localeCompare(b.date); });
   for (var i = 0; i < sorted.length; i++) {
     var e = sorted[i], u = UNITS[e.cat];
-    out.push([e.date, isInv(e.cat) ? 'Inventario' : 'Operativo', e.cat, e.desc, e.prov || '',
+    var tipo = e.cat === 'Ingresos por Ventas' ? 'Ingreso' : (isInv(e.cat) ? 'Inventario' : 'Operativo');
+    out.push([e.date, tipo, e.cat, e.desc, e.prov || '', e.nit || '', e.numFactura || '',
+      e.formaPago || '', e.ivaMonto || '', e.sinSoporte ? 'Si' : 'No',
       (e.qty || e.qty === 0) ? e.qty : '', u ? u.u : '',
       (e.qty && u) ? Math.round(e.amount / e.qty) : '', e.amount, e.link || '']);
   }
@@ -1572,7 +1794,7 @@ function exportXLSX() {
       var val = rows[r][c], ref = colName(c+1) + (r+1);
       if (val === '' || val === null || val === undefined) continue;
       if (r > 0 && typeof val === 'number') {
-        var st = (c === 8 || c === 7) ? ' s="2"' : '';
+        var st = (c === 8 || c === 12 || c === 13) ? ' s="2"' : '';
         cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
       } else {
         var s = r === 0 ? ' s="1"' : '';
@@ -1581,7 +1803,7 @@ function exportXLSX() {
     }
     sheet += '<row r="' + (r+1) + '">' + cells + '</row>';
   }
-  var cols = '<cols><col min="1" max="1" width="11" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/><col min="4" max="4" width="34" customWidth="1"/><col min="5" max="5" width="22" customWidth="1"/><col min="6" max="6" width="10" customWidth="1"/><col min="7" max="7" width="8" customWidth="1"/><col min="8" max="8" width="15" customWidth="1"/><col min="9" max="9" width="16" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/></cols>';
+  var cols = '<cols><col min="1" max="1" width="11" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/><col min="4" max="4" width="34" customWidth="1"/><col min="5" max="5" width="22" customWidth="1"/><col min="6" max="6" width="18" customWidth="1"/><col min="7" max="7" width="16" customWidth="1"/><col min="8" max="8" width="16" customWidth="1"/><col min="9" max="9" width="12" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/><col min="11" max="11" width="10" customWidth="1"/><col min="12" max="12" width="8" customWidth="1"/><col min="13" max="13" width="15" customWidth="1"/><col min="14" max="14" width="16" customWidth="1"/><col min="15" max="15" width="12" customWidth="1"/></cols>';
   var files = [
     { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
     { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
@@ -1593,25 +1815,157 @@ function exportXLSX() {
   download(makeZip(files), 'verde-andino-gastos-' + stamp() + '.xlsx');
 }
 
+/* ===== PDF de comprobantes (sin librerias externas) ===== */
+var PDF_ACCENTS = { 'á':'a','é':'e','í':'i','ó':'o','ú':'u','Á':'A','É':'E','Í':'I','Ó':'O','Ú':'U','ñ':'n','Ñ':'N','ü':'u','Ü':'U','¿':'?','¡':'!' };
+function pdfAsciiSafe(s) {
+  return String(s || '').replace(/[áéíóúÁÉÍÓÚñÑüÜ¿¡]/g, function(c) { return PDF_ACCENTS[c] || c; });
+}
+function pdfEscStr(s) {
+  return pdfAsciiSafe(s).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+}
+
+function blobToJpeg(blob) {
+  return new Promise(function(resolve, reject) {
+    var url = URL.createObjectURL(blob);
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(function(jpegBlob) {
+        URL.revokeObjectURL(url);
+        if (!jpegBlob) { reject(new Error('No se pudo convertir la imagen')); return; }
+        jpegBlob.arrayBuffer().then(function(buf) {
+          resolve({ bytes: new Uint8Array(buf), width: canvas.width, height: canvas.height });
+        });
+      }, 'image/jpeg', 0.85);
+    };
+    img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('No se pudo cargar la imagen')); };
+    img.src = url;
+  });
+}
+
+function buildComprobantesPdf(pages) {
+  var enc = new TextEncoder();
+  var chunks = []; var offsets = []; var pos = 0;
+  function push(x) { var b = (typeof x === 'string') ? enc.encode(x) : x; chunks.push(b); pos += b.length; }
+  function startObj(n) { offsets[n] = pos; push(n + ' 0 obj\n'); }
+  function endObj() { push('endobj\n'); }
+
+  var numPages = pages.length;
+  var totalObjs = 3 + numPages * 3;
+
+  push('%PDF-1.4\n');
+  startObj(1); push('<< /Type /Catalog /Pages 2 0 R >>\n'); endObj();
+  var kids = []; for (var i = 0; i < numPages; i++) kids.push((4 + i * 3) + ' 0 R');
+  startObj(2); push('<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + numPages + ' >>\n'); endObj();
+  startObj(3); push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\n'); endObj();
+
+  var pageW = 612, pageH = 792, margin = 50;
+  for (var p = 0; p < numPages; p++) {
+    var pg = pages[p];
+    var pageNum = 4 + p * 3, contentNum = 5 + p * 3, imageNum = 6 + p * 3;
+    var maxImgW = pageW - margin * 2, maxImgH = 380;
+    var scale = Math.min(maxImgW / pg.jpeg.width, maxImgH / pg.jpeg.height, 1);
+    var imgW = pg.jpeg.width * scale, imgH = pg.jpeg.height * scale;
+    var imgX = margin, imgY = margin;
+    var textTop = pageH - margin;
+
+    var content = 'BT /F1 14 Tf 1 0 0 1 ' + margin + ' ' + textTop + ' Tm (' + pdfEscStr(pg.title) + ') Tj ET\n';
+    content += 'BT /F1 10 Tf\n';
+    for (var li = 0; li < pg.lines.length; li++) {
+      content += '1 0 0 1 ' + margin + ' ' + (textTop - 24 - li * 15) + ' Tm (' + pdfEscStr(pg.lines[li]) + ') Tj\n';
+    }
+    content += 'ET\n';
+    content += 'q ' + imgW.toFixed(2) + ' 0 0 ' + imgH.toFixed(2) + ' ' + imgX.toFixed(2) + ' ' + imgY.toFixed(2) + ' cm /Im0 Do Q\n';
+
+    startObj(pageNum);
+    push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pageW + ' ' + pageH + '] /Resources << /Font << /F1 3 0 R >> /XObject << /Im0 ' + imageNum + ' 0 R >> >> /Contents ' + contentNum + ' 0 R >>\n');
+    endObj();
+
+    var contentBytes = enc.encode(content);
+    startObj(contentNum);
+    push('<< /Length ' + contentBytes.length + ' >>\nstream\n'); push(contentBytes); push('\nendstream\n');
+    endObj();
+
+    startObj(imageNum);
+    push('<< /Type /XObject /Subtype /Image /Width ' + pg.jpeg.width + ' /Height ' + pg.jpeg.height + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + pg.jpeg.bytes.length + ' >>\nstream\n');
+    push(pg.jpeg.bytes); push('\nendstream\n');
+    endObj();
+  }
+
+  var xrefStart = pos;
+  push('xref\n0 ' + (totalObjs + 1) + '\n0000000000 65535 f \n');
+  for (var n = 1; n <= totalObjs; n++) push(String(offsets[n]).padStart(10, '0') + ' 00000 n \n');
+  push('trailer\n<< /Size ' + (totalObjs + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF');
+
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+
+function comprobantePdfLines(e) {
+  return [
+    'Fecha: ' + e.date,
+    'Categoria: ' + e.cat,
+    'Descripcion: ' + e.desc,
+    'Proveedor: ' + (e.prov || '-'),
+    'NIT/Cedula proveedor: ' + (e.nit || '-'),
+    'No. factura: ' + (e.numFactura || '-'),
+    'Forma de pago: ' + (e.formaPago || '-'),
+    'IVA pagado: ' + fmt(e.ivaMonto || 0),
+    'Monto: ' + fmt(e.amount),
+    'Sin soporte: ' + (e.sinSoporte ? 'Si' : 'No')
+  ];
+}
+
+function descargarComprobantePDF(id) {
+  var e = expenses.find(function(x) { return x.id === id; });
+  if (!e || !e.comprobante) return;
+  toast('Generando PDF...');
+  fetchComprobanteBlob(e.comprobante).then(blobToJpeg).then(function(jpeg) {
+    var pdf = buildComprobantesPdf([{ title: 'Comprobante de gasto - Verde Andino Jewelry', lines: comprobantePdfLines(e), jpeg: jpeg }]);
+    download(pdf, 'comprobante-gasto-' + e.id + '.pdf');
+  }).catch(function(err) { console.error(err); toast('Error al generar el PDF del comprobante'); });
+}
+
+function descargarConsolidadoComprobantes() {
+  var conFoto = expenses.filter(function(e) { return e.comprobante; }).slice().sort(function(a, b) { return a.date.localeCompare(b.date); });
+  if (!conFoto.length) { toast('No hay comprobantes con foto para incluir'); return; }
+  toast('Generando PDF consolidado...');
+  Promise.all(conFoto.map(function(e) {
+    return fetchComprobanteBlob(e.comprobante).then(blobToJpeg).then(function(jpeg) {
+      return { title: 'Comprobante de gasto - Verde Andino Jewelry', lines: comprobantePdfLines(e), jpeg: jpeg };
+    });
+  })).then(function(pages) {
+    var pdf = buildComprobantesPdf(pages);
+    download(pdf, 'comprobantes-verde-andino-' + stamp() + '.pdf');
+  }).catch(function(err) { console.error(err); toast('Error al generar el PDF consolidado'); });
+}
+
 /* ===== CONTROL DE VENTAS ===== */
 var ventas = [];
 var editingIdVenta = null;
 var nextVentaNumber = 1;
 var filtrosVentas = { fechaDesde: '', fechaHasta: '', cliente: '', producto_id: '', estado: '' };
 
+function mapVentaRow(r) {
+  return {
+    id: r.id, numero: r.numero_venta, fecha: r.fecha, cliente: r.cliente_nombre,
+    contacto: r.cliente_contacto || '', producto_id: r.producto_id, producto_nombre: r.producto_nombre || '',
+    cantidad: parseFloat(r.cantidad_vendida), precio_unitario: parseFloat(r.precio_unitario),
+    monto_total: parseFloat(r.monto_total), costo_unitario: parseFloat(r.costo_unitario),
+    ganancia_bruta: parseFloat(r.ganancia_bruta), metodo_pago: r.metodo_pago || '', estado: r.estado,
+    tiene_factura: r.tiene_factura, numero_factura: r.numero_factura,
+    transportadora: r.transportadora || '', numero_guia: r.numero_guia || '', notas: r.notas || '',
+    ingreso_id: r.ingreso_id, created_at: r.created_at, updated_at: r.updated_at
+  };
+}
+
 function venLoad() {
   fetch(SB_URL + '/rest/v1/ventas?select=*&order=fecha.desc,id.desc', { headers: sbHeaders() })
   .then(r => r.json()).then(rows => {
-    ventas = rows.map(r => ({
-      id: r.id, numero: r.numero_venta, fecha: r.fecha, cliente: r.cliente_nombre,
-      contacto: r.cliente_contacto || '', producto_id: r.producto_id, producto_nombre: r.producto_nombre || '',
-      cantidad: parseFloat(r.cantidad_vendida), precio_unitario: parseFloat(r.precio_unitario),
-      monto_total: parseFloat(r.monto_total), costo_unitario: parseFloat(r.costo_unitario),
-      ganancia_bruta: parseFloat(r.ganancia_bruta), metodo_pago: r.metodo_pago || '', estado: r.estado,
-      tiene_factura: r.tiene_factura, numero_factura: r.numero_factura,
-      transportadora: r.transportadora || '', numero_guia: r.numero_guia || '', notas: r.notas || '',
-      ingreso_id: r.ingreso_id, created_at: r.created_at
-    }));
+    ventas = rows.map(mapVentaRow);
     nextVentaNumber = Math.max(...ventas.map(v => parseInt(v.numero.split('-')[1]) || 0), 0) + 1;
     renderVentas();
   }).catch(e => { console.error('Error loading ventas:', e); toast('Error al cargar ventas'); });
@@ -1642,7 +1996,8 @@ function saveVenta() {
 
   var monto = cantidad * precio;
   var ganancia = monto - (cantidad * costo);
-  var numero = editingIdVenta ? ventas.find(v => v.id === editingIdVenta).numero : 'V-' + String(nextVentaNumber).padStart(3, '0');
+  var editingVenta = editingIdVenta ? ventas.find(v => v.id === editingIdVenta) : null;
+  var numero = editingVenta ? editingVenta.numero : 'V-' + String(nextVentaNumber).padStart(3, '0');
   var tieneFactura = $('f-tiene-factura').checked;
   var numeroFactura = $('f-numero-factura').value.trim();
   var transportadora = $('f-transportadora').value.trim();
@@ -1650,9 +2005,11 @@ function saveVenta() {
 
   window._ventaPendiente = {
     numero: numero, fecha: fecha, cliente: cliente, contacto: contacto, producto_id: producto_id,
+    producto_nombre: ventaProductoNombreActual,
     cantidad: cantidad, precio: precio, monto: monto, costo: costo, ganancia: ganancia,
     metodo: metodo, estado: estado, tieneFactura: tieneFactura, numeroFactura: numeroFactura,
-    transportadora: transportadora, guia: guia, notas: notas, editingId: editingIdVenta
+    transportadora: transportadora, guia: guia, notas: notas, editingId: editingIdVenta,
+    ingresoIdExistente: editingVenta ? editingVenta.ingreso_id : null
   };
   mostrarModalConfirmacionVenta();
 }
@@ -1704,7 +2061,8 @@ function confirmarYGuardarVenta() {
   cerrarModalConfirmacion();
   var ventaBody = {
     numero_venta: v.numero, fecha: v.fecha, cliente_nombre: v.cliente, cliente_contacto: v.contacto,
-    producto_id: v.producto_id, cantidad_vendida: v.cantidad, precio_unitario: v.precio,
+    producto_id: v.producto_id, producto_nombre: v.producto_nombre || null,
+    cantidad_vendida: v.cantidad, precio_unitario: v.precio,
     costo_unitario: v.costo, estado: v.estado, metodo_pago: v.metodo,
     tiene_factura: v.tieneFactura, numero_factura: v.numeroFactura || null,
     transportadora: v.transportadora || null, numero_guia: v.guia || null,
@@ -1714,46 +2072,61 @@ function confirmarYGuardarVenta() {
   if (v.editingId) {
     fetch(SB_URL + '/rest/v1/ventas?id=eq.' + v.editingId, {
       method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ventaBody)
-    }).then(r => r.json()).then(rows => {
-      for (var i = 0; i < ventas.length; i++) {
-        if (ventas[i].id === v.editingId) {
-          Object.assign(ventas[i], { ...ventaBody, monto_total: v.monto, ganancia_bruta: v.ganancia });
-        }
+    }).then(r => {
+      if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
+      return r.json();
+    }).then(rows => {
+      var ventaActualizada = Array.isArray(rows) ? rows[0] : rows;
+      var idxVenta = ventas.findIndex(x => x.id === v.editingId);
+      if (idxVenta >= 0 && ventaActualizada) ventas[idxVenta] = mapVentaRow(ventaActualizada);
+      if (v.ingresoIdExistente && ventaActualizada) {
+        var gastoBody = {
+          fecha: v.fecha,
+          descripcion: 'Venta #' + v.numero + ': ' + v.producto_id + ' a ' + v.cliente,
+          proveedor: v.cliente, monto: ventaActualizada.ganancia_bruta, enlace_producto: v.producto_id
+        };
+        fetch(SB_URL + '/rest/v1/gastos?id=eq.' + v.ingresoIdExistente, {
+          method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(gastoBody)
+        }).then(r => r.json()).then(gastoRows => {
+          var gastoActualizado = Array.isArray(gastoRows) ? gastoRows[0] : gastoRows;
+          var idxGasto = expenses.findIndex(x => x.id === v.ingresoIdExistente);
+          if (idxGasto >= 0 && gastoActualizado) { expenses[idxGasto] = mapGastoRow(gastoActualizado); renderFin(); }
+        }).catch(function(e) { console.error('Error al sincronizar ingreso vinculado:', e); toast('Venta actualizada, pero no se pudo sincronizar el ingreso en Finanzas'); });
       }
       toast('Venta actualizada'); cancelEditVenta(); renderVentas(); window._ventaPendiente = null;
-    }).catch(e => { console.error(e); toast('Error al guardar'); });
+    }).catch(e => { console.error(e); toast('Error al guardar: ' + e.message); });
   } else {
-    fetch(SB_URL + '/rest/v1/ventas', {
-      method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ventaBody)
-    }).then(r => r.json()).then(rows => {
-      var ventaCreada = Array.isArray(rows) ? rows[0] : rows;
-      var ingresoBody = {
-        fecha: v.fecha, categoria: 'Ingresos por Ventas',
-        descripcion: 'Venta #' + v.numero + ': ' + v.producto_id + ' a ' + v.cliente,
-        proveedor: v.cliente, monto: v.ganancia, enlace_producto: v.producto_id
-      };
-      fetch(SB_URL + '/rest/v1/gastos', {
-        method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ingresoBody)
-      }).then(r => r.json()).then(ingresoRows => {
-        var ingresoCreado = Array.isArray(ingresoRows) ? ingresoRows[0] : ingresoRows;
-        fetch(SB_URL + '/rest/v1/ventas?id=eq.' + ventaCreada.id, {
-          method: 'PATCH', headers: sbHeaders(), body: JSON.stringify({ ingreso_id: ingresoCreado.id })
-        }).then(() => {
-          ventas.push({
-            id: ventaCreada.id, numero: ventaCreada.numero_venta, fecha: ventaCreada.fecha,
-            cliente: ventaCreada.cliente_nombre, contacto: ventaCreada.cliente_contacto,
-            producto_id: ventaCreada.producto_id, cantidad: parseFloat(ventaCreada.cantidad_vendida),
-            precio_unitario: parseFloat(ventaCreada.precio_unitario), monto_total: v.monto,
-            costo_unitario: v.costo, ganancia_bruta: v.ganancia, metodo_pago: ventaCreada.metodo_pago,
-            estado: ventaCreada.estado, tiene_factura: ventaCreada.tiene_factura,
-            numero_factura: ventaCreada.numero_factura, notas: ventaCreada.notas,
-            ingreso_id: ingresoCreado.id, created_at: ventaCreada.created_at
-          });
-          nextVentaNumber++; toast('✓ Venta registrada e ingreso creado en Control Financiero');
-          cancelEditVenta(); renderVentas(); window._ventaPendiente = null;
-        }).catch(e => { console.error(e); toast('Error al vincular ingreso'); });
-      }).catch(e => { console.error(e); toast('Error al crear ingreso'); });
-    }).catch(e => { console.error(e); toast('Error al guardar venta'); });
+    var ingresoBody = {
+      fecha: v.fecha, categoria: 'Ingresos por Ventas',
+      descripcion: 'Venta #' + v.numero + ': ' + v.producto_id + ' a ' + v.cliente,
+      proveedor: v.cliente, monto: v.ganancia, enlace_producto: v.producto_id
+    };
+    fetch(SB_URL + '/rest/v1/gastos', {
+      method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ingresoBody)
+    }).then(r => {
+      if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
+      return r.json();
+    }).then(ingresoRows => {
+      var ingresoCreado = Array.isArray(ingresoRows) ? ingresoRows[0] : ingresoRows;
+      ventaBody.ingreso_id = ingresoCreado.id;
+      fetch(SB_URL + '/rest/v1/ventas', {
+        method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ventaBody)
+      }).then(r => {
+        if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
+        return r.json();
+      }).then(rows => {
+        var ventaCreada = Array.isArray(rows) ? rows[0] : rows;
+        if (!ventaCreada || !ventaCreada.id) { toast('Error: respuesta inesperada de Supabase'); return; }
+        ventas.unshift(mapVentaRow(ventaCreada));
+        expenses.unshift(mapGastoRow(ingresoCreado));
+        nextVentaNumber++;
+        toast('Venta registrada e ingreso creado en Control Financiero');
+        cancelEditVenta(); renderVentas(); renderFin(); window._ventaPendiente = null;
+      }).catch(e => {
+        console.error(e); toast('Error al guardar venta: ' + e.message);
+        fetch(SB_URL + '/rest/v1/gastos?id=eq.' + ingresoCreado.id, { method: 'DELETE', headers: sbHeaders() }).catch(function(){});
+      });
+    }).catch(e => { console.error(e); toast('Error al crear ingreso: ' + e.message); });
   }
 }
 
@@ -1764,20 +2137,24 @@ function delVenta(id, ev) {
   var msg = 'Eliminar venta #' + v.numero + ' (' + esc(v.cliente) + ', ' + fmt(v.ganancia_bruta) + ')?';
   if (v.ingreso_id) msg += '\n\n⚠️ También se eliminará el ingreso asociado en Control Financiero.';
   if (!confirm(msg)) return;
-  if (v.ingreso_id) {
-    fetch(SB_URL + '/rest/v1/gastos?id=eq.' + v.ingreso_id, { method: 'DELETE', headers: sbHeaders() })
-    .then(r => { if (!r.ok) throw new Error('Error al eliminar ingreso'); eliminarVentaFinal(id); })
-    .catch(e => { console.error(e); toast('Error al eliminar ingreso'); });
-  } else {
-    eliminarVentaFinal(id);
-  }
-}
-
-function eliminarVentaFinal(id) {
+  // La venta referencia al gasto via ingreso_id (FK sin ON DELETE CASCADE), asi que hay
+  // que borrar primero la venta y despues el gasto, o la FK rechaza el borrado del gasto.
   fetch(SB_URL + '/rest/v1/ventas?id=eq.' + id, { method: 'DELETE', headers: sbHeaders() })
-  .then(r => { if (!r.ok) throw new Error(r.status);
-    ventas = ventas.filter(x => x.id !== id); toast('Venta e ingreso eliminados'); renderVentas();
-  }).catch(e => { console.error(e); toast('Error al eliminar venta'); });
+  .then(r => {
+    if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
+    ventas = ventas.filter(x => x.id !== id);
+    renderVentas();
+    if (v.ingreso_id) {
+      return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + v.ingreso_id, { method: 'DELETE', headers: sbHeaders() })
+        .then(r2 => {
+          if (!r2.ok) throw new Error('La venta se elimino, pero no se pudo eliminar el ingreso vinculado en Finanzas');
+          expenses = expenses.filter(x => x.id !== v.ingreso_id);
+          renderFin();
+        });
+    }
+  }).then(() => {
+    toast('Venta' + (v.ingreso_id ? ' e ingreso eliminados' : ' eliminada'));
+  }).catch(e => { console.error(e); toast(e.message || 'Error al eliminar venta'); });
 }
 
 function renderVentas() {
@@ -1790,13 +2167,16 @@ function renderVentas() {
   ventas.forEach(v => {
     var row = document.createElement('tr');
     row.style.cursor = 'pointer'; row.onclick = () => editVenta(v.id);
-    row.innerHTML = `<td>${esc(v.numero)}</td><td>${v.fecha}</td><td>${esc(v.cliente)}</td><td>${esc(v.producto_nombre)}</td>
+    var clienteCell = esc(v.cliente);
+    var isEdited = v.updated_at && v.created_at && v.updated_at !== v.created_at;
+    if (isEdited) clienteCell += ' <span class="edited-badge" onclick="showAuditVenta(' + v.id + ', event)" title="Ver historial de cambios">&#9998; editado</span>';
+    row.innerHTML = `<td>${esc(v.numero)}</td><td>${v.fecha}</td><td>${clienteCell}</td><td>${esc(v.producto_nombre)}</td>
       <td>${fmtQty(v.cantidad)}</td><td>${fmt(v.precio_unitario)}</td><td>${fmt(v.monto_total)}</td>
       <td>${fmt(v.costo_unitario)}</td><td style="color: #1f6f4a; font-weight: bold;">${fmt(v.ganancia_bruta)}</td>
       <td>${esc(v.metodo_pago || '—')}</td><td>${v.tiene_factura ? esc(v.numero_factura) : '—'}</td>
       <td><span class="badge badge-${v.estado}">${v.estado}</span></td>
       <td>${esc(v.transportadora || '—')}</td><td>${esc(v.numero_guia || '—')}</td>
-      <td><button class="btn-small" onclick="editVenta(${v.id}, event)">✏️</button>
+      <td><button class="btn-small" onclick="showAuditVenta(${v.id}, event)" title="Historial de cambios">🕘</button>
       <button class="btn-small" onclick="delVenta(${v.id}, event)">🗑️</button></td>`;
     tbody.appendChild(row);
   });
@@ -1812,7 +2192,19 @@ function editVenta(id, ev) {
   $('f-fecha-ven').value = v.fecha;
   $('f-cliente').value = v.cliente;
   $('f-contacto').value = v.contacto;
-  $('f-producto-ven').value = v.producto_id;
+  var selProd = $('f-producto-ven');
+  if (v.producto_id && !Array.from(selProd.options).some(o => o.value === v.producto_id)) {
+    var opt = document.createElement('option');
+    opt.value = v.producto_id;
+    opt.textContent = v.producto_id + (v.producto_nombre ? ' — ' + v.producto_nombre : '') + ' (no publicado)';
+    selProd.appendChild(opt);
+  }
+  selProd.value = v.producto_id;
+  ventaProductoNombreActual = v.producto_nombre || '';
+  if (!ventaProductoNombreActual && v.producto_id) {
+    fetch(SB_URL + '/rest/v1/productos?id=eq.' + v.producto_id + '&select=descripcion', { headers: sbHeaders() })
+    .then(r => r.json()).then(rows => { if (rows.length > 0) ventaProductoNombreActual = rows[0].descripcion || ''; });
+  }
   $('f-cantidad-ven').value = v.cantidad;
   $('f-precio-ven').value = v.precio_unitario;
   $('f-costo-ven').value = v.costo_unitario;
@@ -1871,15 +2263,19 @@ function loadProductosDropdown() {
   });
 }
 
+var ventaProductoNombreActual = '';
+
 function ventaProductoChanged() {
   var producto_id = $('f-producto-ven').value;
+  ventaProductoNombreActual = '';
   if (!producto_id) { $('f-costo-ven').value = ''; $('f-precio-ven').value = ''; return; }
-  fetch(SB_URL + '/rest/v1/productos?id=eq.' + producto_id + '&select=costo,precio', { headers: sbHeaders() })
+  fetch(SB_URL + '/rest/v1/productos?id=eq.' + producto_id + '&select=costo,precio,descripcion', { headers: sbHeaders() })
   .then(r => r.json()).then(rows => {
     if (rows.length > 0) {
       var p = rows[0];
       $('f-costo-ven').value = p.costo;
       $('f-precio-ven').value = p.precio;
+      ventaProductoNombreActual = p.descripcion || '';
       ventaCalcGanancia();
     }
   });
@@ -1916,25 +2312,32 @@ function ventaEstadoChanged() {
   }
 }
 
+function ventasExportRows() {
+  var headers = ['Número','Fecha','Cliente','Contacto','ID producto','Producto','Cantidad',
+    'Precio unitario','Monto total','Costo unitario','Ganancia bruta','Método de pago',
+    'Factura DIAN','No. factura','Transportadora','No. guía','Estado','Notas'];
+  var rows = [headers];
+  ventas.forEach(v => {
+    rows.push([v.numero, v.fecha, v.cliente, v.contacto || '', v.producto_id, v.producto_nombre || '',
+      v.cantidad, v.precio_unitario, v.monto_total, v.costo_unitario, v.ganancia_bruta, v.metodo_pago || '',
+      v.tiene_factura ? 'Si' : 'No', v.numero_factura || '', v.transportadora || '', v.numero_guia || '',
+      v.estado, v.notas || '']);
+  });
+  return rows;
+}
+
 function exportVentasCSV() {
   if (ventas.length === 0) { toast('Sin ventas para exportar'); return; }
-  var csv = 'Número,Fecha,Cliente,Contacto,Producto,Cantidad,Precio unitario,Monto total,Costo,Ganancia,Pago,Factura DIAN,Estado,Notas\n';
-  ventas.forEach(v => {
-    csv += `"${v.numero}","${v.fecha}","${v.cliente}","${v.contacto}","${v.producto_id}",${v.cantidad},${v.precio_unitario},${v.monto_total},${v.costo_unitario},${v.ganancia_bruta},"${v.metodo_pago}","${v.numero_factura || ''}","${v.estado}","${v.notas}"\n`;
-  });
-  var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-  var link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = 'ventas_' + new Date().toISOString().split('T')[0] + '.csv';
-  link.click(); toast('Archivo descargado');
+  var rows = ventasExportRows();
+  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
+  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }),
+    'ventas_' + new Date().toISOString().split('T')[0] + '.csv');
+  toast('Archivo descargado');
 }
 
 function exportVentasXLSX() {
   if (ventas.length === 0) { toast('Sin ventas para exportar'); return; }
-  var rows = [['Número','Fecha','Cliente','Contacto','Producto','Cantidad','Precio unit.','Monto total','Costo','Ganancia','Pago','Factura','Estado','Notas']];
-  ventas.forEach(v => {
-    rows.push([v.numero, v.fecha, v.cliente, v.contacto, v.producto_id, v.cantidad, v.precio_unitario, v.monto_total, v.costo_unitario, v.ganancia_bruta, v.metodo_pago, v.numero_factura || '', v.estado, v.notas]);
-  });
+  var rows = ventasExportRows();
   var sheet = '';
   for (var r = 0; r < rows.length; r++) {
     var cells = '';
@@ -1942,7 +2345,7 @@ function exportVentasXLSX() {
       var val = rows[r][c], ref = colName(c+1) + (r+1);
       if (val === '' || val === null || val === undefined) continue;
       if (r > 0 && typeof val === 'number') {
-        var st = (c === 8 || c === 7 || c === 9) ? ' s="2"' : '';
+        var st = (c === 7 || c === 8 || c === 9 || c === 10) ? ' s="2"' : '';
         cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
       } else {
         var s = r === 0 ? ' s="1"' : '';
@@ -1970,8 +2373,6 @@ $('f-qty').addEventListener('input', updateRate);
 $('f-date').value = new Date().toISOString().split('T')[0];
 $('f-fecha-ven').value = new Date().toISOString().split('T')[0];
 syncCat();
-venLoad();
-loadProductosDropdown();
 </script>
 </body>
 </html>
