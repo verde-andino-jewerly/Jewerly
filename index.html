@@ -2034,12 +2034,23 @@ function admBindLogoAccess() {
   logo.addEventListener('mouseleave', admHoldCancel);
   logo.addEventListener('click', function(e){ e.preventDefault(); admLogoTap(); });
 }
+function admTogglePin() {
+  var input = document.getElementById('adm-pin-enter');
+  var eye = document.getElementById('adm-pin-eye');
+  if (!input || !eye) return;
+  var showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  eye.innerHTML = showing ? '&#128065;' : '&#128584;';
+}
 function admRenderGateStep() {
   var box = document.getElementById('admin-gate-body');
   box.innerHTML =
     '<h3>Acceso administrador</h3>' +
     '<p>Ingresa la clave compartida para cargar productos.</p>' +
-    '<input type="password" inputmode="text" maxlength="32" id="adm-pin-enter" placeholder="Clave">' +
+    '<div style="position:relative;">' +
+    '<input type="password" inputmode="text" maxlength="32" id="adm-pin-enter" placeholder="Clave" style="padding-right:2.4rem;">' +
+    '<button type="button" onclick="admTogglePin()" id="adm-pin-eye" title="Mostrar/ocultar clave" style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;opacity:0.6;padding:0.2rem;">&#128065;</button>' +
+    '</div>' +
     '<button class="btn-primary" onclick="admCheckPin()" type="button">Entrar</button>' +
     '<button class="admin-gate-link" onclick="admShowBootstrap()" type="button">¿Primera vez? Ver SQL de setup</button>';
   setTimeout(function() {

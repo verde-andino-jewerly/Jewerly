@@ -69,13 +69,20 @@
     font-weight: 400; font-size: 1.1rem; color: var(--text-2);
     margin-bottom: 1.5rem;
   }
+  .auth-pin-wrap { position: relative; }
   .auth-box input {
-    width: 100%; padding: 0.7rem; font-size: 1rem; text-align: center;
+    width: 100%; padding: 0.7rem 2.4rem 0.7rem 0.7rem; font-size: 1rem; text-align: center;
     background: var(--bg-alt); border: 1px solid var(--border-s);
     border-radius: 8px; color: var(--text); font-family: inherit;
     outline: none; letter-spacing: 0.15em;
   }
   .auth-box input:focus { border-color: var(--gold); }
+  .auth-pin-toggle {
+    position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%);
+    cursor: pointer; background: none; border: none; font-size: 1.1rem;
+    padding: 0.2rem; line-height: 1; opacity: 0.6;
+  }
+  .auth-pin-toggle:hover { opacity: 1; }
   .auth-box .btn-enter {
     width: 100%; margin-top: 1rem; padding: 0.65rem;
     background: var(--gold); color: #fff; border: none;
@@ -541,7 +548,10 @@
   <div class="auth-box">
     <img src="logo.webp" alt="Verde Andino Jewelry" class="logo">
     <h2>Panel de Herramientas</h2>
-    <input type="password" id="auth-pin" placeholder="Clave de acceso" autocomplete="off">
+    <div class="auth-pin-wrap">
+      <input type="password" id="auth-pin" placeholder="Clave de acceso" autocomplete="off">
+      <button type="button" class="auth-pin-toggle" onclick="authTogglePin()" id="auth-pin-eye" title="Mostrar/ocultar clave">&#128065;</button>
+    </div>
     <button class="btn-enter" onclick="authCheck()" type="button">Entrar</button>
     <div class="auth-error" id="auth-error"></div>
   </div>
@@ -708,7 +718,7 @@
             <label class="checkbox-label">
               <input type="checkbox" id="f-sin-soporte" onchange="toggleSinSoporte()">
               <span class="checkbox-visual"></span>
-              <span class="checkbox-text">Sin soporte (sin factura ni recibo)</span>
+              <span class="checkbox-text">Soporte (sin factura ni recibo)</span>
             </label>
           </div>
           <div class="field" id="f-nit-wrapper">
@@ -851,26 +861,42 @@
             <input type="text" id="f-contacto" placeholder="WhatsApp, email, etc.">
           </div>
           <div class="field">
+            <label class="checkbox-label">
+              <input type="checkbox" id="f-venta-manual" onchange="toggleVentaManual()">
+              <span class="checkbox-visual"></span>
+              <span class="checkbox-text">Venta manual (producto fuera de catálogo)</span>
+            </label>
+          </div>
+          <div class="field" id="f-producto-ven-wrapper">
             <label for="f-producto-ven">Producto</label>
             <select id="f-producto-ven" onchange="ventaProductoChanged()">
               <option value="">-- Selecciona producto --</option>
             </select>
           </div>
+          <div class="field" id="f-producto-manual-wrapper" style="display:none;">
+            <label for="f-producto-manual">Nombre / descripción del producto</label>
+            <input type="text" id="f-producto-manual" placeholder="Ej: Anillo esmeralda a medida">
+          </div>
           <div class="field">
             <label for="f-costo-ven">Costo unitario</label>
-            <input type="number" id="f-costo-ven" readonly>
+            <input type="number" id="f-costo-ven" readonly oninput="ventaCalcSugerido();ventaCalcGanancia();">
+          </div>
+          <div class="field" id="f-margen-ven-wrapper" style="display:none;">
+            <label for="f-margen-ven">Margen deseado (%)</label>
+            <input type="number" id="f-margen-ven" value="100" min="0" step="1" oninput="ventaCalcSugerido()">
+            <div id="precio-sugerido-hint" style="display:none; cursor:pointer; margin-top:6px; padding:8px 12px; border:1.5px solid var(--esm,#1f6f4a); border-radius:6px; background:var(--esm-bg,#e8f5ee); color:var(--esm,#1f6f4a); font-weight:600; font-size:0.85rem;"></div>
           </div>
           <div class="field">
             <label for="f-cantidad-ven">Cantidad</label>
-            <input type="number" id="f-cantidad-ven" value="1" min="1" step="0.01">
+            <input type="number" id="f-cantidad-ven" value="1" min="1" step="0.01" oninput="ventaCalcGanancia()">
           </div>
           <div class="field">
-            <label for="f-precio-ven">Precio unitario</label>
-            <input type="number" id="f-precio-ven" min="0" step="0.01" oninput="ventaCalcGanancia()">
+            <label for="f-precio-ven">Precio de venta</label>
+            <input type="number" id="f-precio-ven" readonly min="0" step="0.01" oninput="ventaCalcGanancia()">
           </div>
           <div class="field">
-            <label for="f-monto-ven">Monto total</label>
-            <input type="number" id="f-monto-ven" readonly>
+            <label for="f-monto-ven">Monto total a cobrar</label>
+            <input type="number" id="f-monto-ven" readonly style="background-color: #fff3cd; color: #8a6d00; font-weight: bold;">
           </div>
           <div class="field">
             <label for="f-ganancia-ven">Ganancia bruta</label>
@@ -1043,6 +1069,14 @@ function sha256(text) {
 document.getElementById('auth-pin').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') authCheck();
 });
+
+function authTogglePin() {
+  var input = document.getElementById('auth-pin');
+  var eye = document.getElementById('auth-pin-eye');
+  var showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  eye.innerHTML = showing ? '&#128065;' : '&#128584;';
+}
 
 function authCheck() {
   var pin = document.getElementById('auth-pin').value.trim();
@@ -1473,7 +1507,7 @@ function showAudit(id, ev) {
       return;
     }
     var html = '';
-    var labels = { fecha:'Fecha', categoria:'Categoria', descripcion:'Descripcion', proveedor:'Proveedor', monto:'Monto', cantidad:'Cantidad', unidad:'Unidad', enlace_producto:'Producto', nit_proveedor:'NIT proveedor', numero_factura:'No. factura', forma_pago:'Forma de pago', iva_monto:'IVA pagado', sin_soporte:'Sin soporte' };
+    var labels = { fecha:'Fecha', categoria:'Categoria', descripcion:'Descripcion', proveedor:'Proveedor', monto:'Monto', cantidad:'Cantidad', unidad:'Unidad', enlace_producto:'Producto', nit_proveedor:'NIT proveedor', numero_factura:'No. factura', forma_pago:'Forma de pago', iva_monto:'IVA pagado', sin_soporte:'Soporte' };
     var fields = ['fecha','categoria','descripcion','proveedor','monto','cantidad','unidad','enlace_producto','nit_proveedor','numero_factura','forma_pago','iva_monto','sin_soporte'];
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
@@ -1534,7 +1568,7 @@ function showAuditVenta(id, ev) {
     }
     var labels = {
       fecha:'Fecha', cliente_nombre:'Cliente', cliente_contacto:'Contacto',
-      producto_id:'Producto', cantidad_vendida:'Cantidad', precio_unitario:'Precio unitario',
+      producto_id:'Producto', cantidad_vendida:'Cantidad', precio_unitario:'Precio de venta',
       costo_unitario:'Costo unitario', estado:'Estado', metodo_pago:'Metodo de pago',
       tiene_factura:'Factura DIAN', numero_factura:'No. factura',
       transportadora:'Transportadora', numero_guia:'No. guia', notas:'Notas'
@@ -1613,8 +1647,8 @@ function renderFin() {
     if (e.link) descCell += ' <span class="link-tag">' + esc(e.link) + '</span>';
     if (e.comprobante) descCell += ' <span onclick="event.stopPropagation(); verComprobanteGasto(' + e.id + ')" title="Ver comprobante" style="cursor:pointer;">&#128206;</span>' +
       ' <span onclick="event.stopPropagation(); descargarComprobantePDF(' + e.id + ')" title="Descargar comprobante en PDF" style="cursor:pointer;">&#11015;&#65039;</span>';
-    if (e.sinSoporte) descCell += ' <span class="cat-badge" style="background:var(--red-bg,#fbedeb);color:var(--red,#b03a2e);" title="Sin factura ni recibo">sin soporte</span>';
-    var isEdited = e.updated_at && e.created_at && e.updated_at !== e.created_at;
+    if (e.sinSoporte) descCell += ' <span class="cat-badge" style="background:var(--red-bg,#fbedeb);color:var(--red,#b03a2e);" title="Sin factura ni recibo">soporte</span>';
+    var isEdited = e.cat !== 'Ingresos por Ventas' && e.updated_at && e.created_at && e.updated_at !== e.created_at;
     if (isEdited) descCell += ' <span class="edited-badge" onclick="showAudit(' + e.id + ', event)" title="Ver historial de cambios">&#9998; editado</span>';
     var locked = isLocked(e);
     var actionCell = locked
@@ -1687,7 +1721,7 @@ function renderFin() {
 /* ===== EXPORT ===== */
 function rowsForExport() {
   var headers = ['Fecha','Tipo','Categoria','Descripcion','Proveedor','NIT/Cedula proveedor',
-    'No. factura','Forma de pago','IVA pagado','Sin soporte','Cantidad','Unidad','Precio unitario',
+    'No. factura','Forma de pago','IVA pagado','Soporte','Cantidad','Unidad','Precio unitario',
     'Monto (COP)','Producto'];
   var out = [headers];
   var sorted = expenses.slice().sort(function(a,b) { return a.date.localeCompare(b.date); });
@@ -1847,7 +1881,16 @@ function blobToJpeg(blob) {
   });
 }
 
-function buildComprobantesPdf(pages) {
+var _logoJpegPromise = null;
+function getLogoJpeg() {
+  if (!_logoJpegPromise) {
+    _logoJpegPromise = fetch('logo.webp').then(function(r) { if (!r.ok) throw new Error('logo no disponible'); return r.blob(); })
+      .then(blobToJpeg).catch(function() { return null; });
+  }
+  return _logoJpegPromise;
+}
+
+function buildComprobantesPdf(pages, logoJpeg) {
   var enc = new TextEncoder();
   var chunks = []; var offsets = []; var pos = 0;
   function push(x) { var b = (typeof x === 'string') ? enc.encode(x) : x; chunks.push(b); pos += b.length; }
@@ -1855,34 +1898,85 @@ function buildComprobantesPdf(pages) {
   function endObj() { push('endobj\n'); }
 
   var numPages = pages.length;
-  var totalObjs = 3 + numPages * 3;
+  var hasLogo = !!logoJpeg;
+  var fixedObjs = hasLogo ? 5 : 4; // 1 catalog, 2 pages, 3 F1, 4 F2, [5 logo]
+  var pageStart = fixedObjs + 1;
+  var totalObjs = fixedObjs + numPages * 3;
 
   push('%PDF-1.4\n');
   startObj(1); push('<< /Type /Catalog /Pages 2 0 R >>\n'); endObj();
-  var kids = []; for (var i = 0; i < numPages; i++) kids.push((4 + i * 3) + ' 0 R');
+  var kids = []; for (var i = 0; i < numPages; i++) kids.push((pageStart + i * 3) + ' 0 R');
   startObj(2); push('<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + numPages + ' >>\n'); endObj();
   startObj(3); push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\n'); endObj();
+  startObj(4); push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\n'); endObj();
+  if (hasLogo) {
+    startObj(5);
+    push('<< /Type /XObject /Subtype /Image /Width ' + logoJpeg.width + ' /Height ' + logoJpeg.height + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + logoJpeg.bytes.length + ' >>\nstream\n');
+    push(logoJpeg.bytes); push('\nendstream\n');
+    endObj();
+  }
 
   var pageW = 612, pageH = 792, margin = 50;
+  var logoMaxH = 44, logoMaxW = 90;
+  var logoW = 0, logoH = 0;
+  if (hasLogo) {
+    var lscale = Math.min(logoMaxW / logoJpeg.width, logoMaxH / logoJpeg.height);
+    logoW = logoJpeg.width * lscale; logoH = logoJpeg.height * lscale;
+  }
+  var headerH = 60;
+
   for (var p = 0; p < numPages; p++) {
     var pg = pages[p];
-    var pageNum = 4 + p * 3, contentNum = 5 + p * 3, imageNum = 6 + p * 3;
-    var maxImgW = pageW - margin * 2, maxImgH = 380;
-    var scale = Math.min(maxImgW / pg.jpeg.width, maxImgH / pg.jpeg.height, 1);
-    var imgW = pg.jpeg.width * scale, imgH = pg.jpeg.height * scale;
-    var imgX = margin, imgY = margin;
-    var textTop = pageH - margin;
+    var pageNum = pageStart + p * 3, contentNum = pageNum + 1, imageNum = pageNum + 2;
+    var headerTop = pageH - margin;
+    var titleX = margin + (hasLogo ? logoW + 14 : 0);
 
-    var content = 'BT /F1 14 Tf 1 0 0 1 ' + margin + ' ' + textTop + ' Tm (' + pdfEscStr(pg.title) + ') Tj ET\n';
-    content += 'BT /F1 10 Tf\n';
-    for (var li = 0; li < pg.lines.length; li++) {
-      content += '1 0 0 1 ' + margin + ' ' + (textTop - 24 - li * 15) + ' Tm (' + pdfEscStr(pg.lines[li]) + ') Tj\n';
+    var rows = pg.rows;
+    var rowH = 20;
+    var tableX = margin, tableW = pageW - margin * 2;
+    var colW1 = 170, colW2 = tableW - colW1;
+    var tableTop = headerTop - headerH;
+    var tableH = rows.length * rowH;
+    var tableBottom = tableTop - tableH;
+
+    var imgAreaTop = tableBottom - 22;
+    var maxImgW = pageW - margin * 2, maxImgH = imgAreaTop - margin;
+    var scale = Math.min(maxImgW / pg.jpeg.width, maxImgH / pg.jpeg.height);
+    var imgW = pg.jpeg.width * scale, imgH = pg.jpeg.height * scale;
+    var imgX = margin + (maxImgW - imgW) / 2, imgY = margin + (maxImgH - imgH) / 2;
+
+    var content = '';
+    if (hasLogo) {
+      var logoY = headerTop - logoH;
+      content += 'q ' + logoW.toFixed(2) + ' 0 0 ' + logoH.toFixed(2) + ' ' + margin + ' ' + logoY.toFixed(2) + ' cm /ImLogo Do Q\n';
     }
-    content += 'ET\n';
+    content += 'BT /F2 14 Tf 1 0 0 1 ' + titleX + ' ' + (headerTop - 16) + ' Tm (' + pdfEscStr(pg.title) + ') Tj ET\n';
+    if (pg.subtitle) {
+      content += 'BT /F1 9 Tf 1 0 0 1 ' + titleX + ' ' + (headerTop - 32) + ' Tm (' + pdfEscStr(pg.subtitle) + ') Tj ET\n';
+    }
+
+    // Tabla: borde, divisor de columnas y lineas horizontales
+    content += '0.6 w\n';
+    content += tableX + ' ' + tableBottom + ' ' + tableW + ' ' + tableH + ' re S\n';
+    content += (tableX + colW1) + ' ' + tableTop + ' m ' + (tableX + colW1) + ' ' + tableBottom + ' l S\n';
+    for (var ri = 1; ri < rows.length; ri++) {
+      var ly = tableTop - ri * rowH;
+      content += tableX + ' ' + ly + ' m ' + (tableX + tableW) + ' ' + ly + ' l S\n';
+    }
+
+    // Texto de cada fila
+    for (var li = 0; li < rows.length; li++) {
+      var rowTop = tableTop - li * rowH;
+      var baseline = rowTop - rowH + 6;
+      content += 'BT /F2 9.5 Tf 1 0 0 1 ' + (tableX + 6) + ' ' + baseline + ' Tm (' + pdfEscStr(rows[li][0]) + ') Tj ET\n';
+      content += 'BT /F1 9.5 Tf 1 0 0 1 ' + (tableX + colW1 + 6) + ' ' + baseline + ' Tm (' + pdfEscStr(rows[li][1]) + ') Tj ET\n';
+    }
+
     content += 'q ' + imgW.toFixed(2) + ' 0 0 ' + imgH.toFixed(2) + ' ' + imgX.toFixed(2) + ' ' + imgY.toFixed(2) + ' cm /Im0 Do Q\n';
 
+    var xobjRes = '/Im0 ' + imageNum + ' 0 R' + (hasLogo ? ' /ImLogo 5 0 R' : '');
     startObj(pageNum);
-    push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pageW + ' ' + pageH + '] /Resources << /Font << /F1 3 0 R >> /XObject << /Im0 ' + imageNum + ' 0 R >> >> /Contents ' + contentNum + ' 0 R >>\n');
+    push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pageW + ' ' + pageH + '] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << ' + xobjRes + ' >> >> /Contents ' + contentNum + ' 0 R >>\n');
     endObj();
 
     var contentBytes = enc.encode(content);
@@ -1904,18 +1998,18 @@ function buildComprobantesPdf(pages) {
   return new Blob(chunks, { type: 'application/pdf' });
 }
 
-function comprobantePdfLines(e) {
+function comprobantePdfRows(e) {
   return [
-    'Fecha: ' + e.date,
-    'Categoria: ' + e.cat,
-    'Descripcion: ' + e.desc,
-    'Proveedor: ' + (e.prov || '-'),
-    'NIT/Cedula proveedor: ' + (e.nit || '-'),
-    'No. factura: ' + (e.numFactura || '-'),
-    'Forma de pago: ' + (e.formaPago || '-'),
-    'IVA pagado: ' + fmt(e.ivaMonto || 0),
-    'Monto: ' + fmt(e.amount),
-    'Sin soporte: ' + (e.sinSoporte ? 'Si' : 'No')
+    ['Fecha', e.date],
+    ['Categoria', e.cat],
+    ['Descripcion', e.desc],
+    ['Proveedor', e.prov || '-'],
+    ['NIT/Cedula proveedor', e.nit || '-'],
+    ['No. factura', e.numFactura || '-'],
+    ['Forma de pago', e.formaPago || '-'],
+    ['IVA pagado', fmt(e.ivaMonto || 0)],
+    ['Monto', fmt(e.amount)],
+    ['Soporte', e.sinSoporte ? 'Si' : 'No']
   ];
 }
 
@@ -1923,8 +2017,8 @@ function descargarComprobantePDF(id) {
   var e = expenses.find(function(x) { return x.id === id; });
   if (!e || !e.comprobante) return;
   toast('Generando PDF...');
-  fetchComprobanteBlob(e.comprobante).then(blobToJpeg).then(function(jpeg) {
-    var pdf = buildComprobantesPdf([{ title: 'Comprobante de gasto - Verde Andino Jewelry', lines: comprobantePdfLines(e), jpeg: jpeg }]);
+  Promise.all([fetchComprobanteBlob(e.comprobante).then(blobToJpeg), getLogoJpeg()]).then(function(res) {
+    var pdf = buildComprobantesPdf([{ title: 'Comprobante de gasto', subtitle: 'Verde Andino Jewelry', rows: comprobantePdfRows(e), jpeg: res[0] }], res[1]);
     download(pdf, 'comprobante-gasto-' + e.id + '.pdf');
   }).catch(function(err) { console.error(err); toast('Error al generar el PDF del comprobante'); });
 }
@@ -1933,12 +2027,15 @@ function descargarConsolidadoComprobantes() {
   var conFoto = expenses.filter(function(e) { return e.comprobante; }).slice().sort(function(a, b) { return a.date.localeCompare(b.date); });
   if (!conFoto.length) { toast('No hay comprobantes con foto para incluir'); return; }
   toast('Generando PDF consolidado...');
-  Promise.all(conFoto.map(function(e) {
-    return fetchComprobanteBlob(e.comprobante).then(blobToJpeg).then(function(jpeg) {
-      return { title: 'Comprobante de gasto - Verde Andino Jewelry', lines: comprobantePdfLines(e), jpeg: jpeg };
-    });
-  })).then(function(pages) {
-    var pdf = buildComprobantesPdf(pages);
+  Promise.all([
+    Promise.all(conFoto.map(function(e) {
+      return fetchComprobanteBlob(e.comprobante).then(blobToJpeg).then(function(jpeg) {
+        return { title: 'Comprobante de gasto', subtitle: 'Verde Andino Jewelry', rows: comprobantePdfRows(e), jpeg: jpeg };
+      });
+    })),
+    getLogoJpeg()
+  ]).then(function(res) {
+    var pdf = buildComprobantesPdf(res[0], res[1]);
     download(pdf, 'comprobantes-verde-andino-' + stamp() + '.pdf');
   }).catch(function(err) { console.error(err); toast('Error al generar el PDF consolidado'); });
 }
@@ -1946,7 +2043,8 @@ function descargarConsolidadoComprobantes() {
 /* ===== CONTROL DE VENTAS ===== */
 var ventas = [];
 var editingIdVenta = null;
-var nextVentaNumber = 1;
+var nextVentaNumberCatalogo = 1;
+var nextVentaNumberManual = 1;
 var filtrosVentas = { fechaDesde: '', fechaHasta: '', cliente: '', producto_id: '', estado: '' };
 
 function mapVentaRow(r) {
@@ -1966,9 +2064,67 @@ function venLoad() {
   fetch(SB_URL + '/rest/v1/ventas?select=*&order=fecha.desc,id.desc', { headers: sbHeaders() })
   .then(r => r.json()).then(rows => {
     ventas = rows.map(mapVentaRow);
-    nextVentaNumber = Math.max(...ventas.map(v => parseInt(v.numero.split('-')[1]) || 0), 0) + 1;
+    nextVentaNumberCatalogo = Math.max(...ventas.filter(v => v.numero.startsWith('C-'))
+      .map(v => parseInt(v.numero.split('-')[1]) || 0), 0) + 1;
+    nextVentaNumberManual = Math.max(...ventas.filter(v => v.numero.startsWith('M-'))
+      .map(v => parseInt(v.numero.split('-')[1]) || 0), 0) + 1;
     renderVentas();
   }).catch(e => { console.error('Error loading ventas:', e); toast('Error al cargar ventas'); });
+}
+
+function clearVentaCalculos() {
+  $('f-costo-ven').value = '';
+  $('f-precio-ven').value = '';
+  $('f-monto-ven').value = '';
+  $('f-ganancia-ven').value = '';
+  $('f-margen-ven').value = '100';
+  $('precio-sugerido-hint').textContent = '';
+  $('precio-sugerido-hint').style.display = 'none';
+  $('precio-sugerido-hint').onclick = null;
+}
+
+function ventaCalcSugerido() {
+  var costo = parseFloat($('f-costo-ven').value) || 0;
+  var margen = parseFloat($('f-margen-ven').value);
+  var hint = $('precio-sugerido-hint');
+  if (!costo || isNaN(margen)) { hint.style.display = 'none'; hint.textContent = ''; hint.onclick = null; return; }
+  var sugerido = Math.round(costo * (1 + margen / 100));
+  var margenBajo = margen < 20;
+  hint.style.display = 'block';
+  hint.style.borderColor = margenBajo ? '#c0392b' : 'var(--esm,#1f6f4a)';
+  hint.style.background = margenBajo ? '#fdecea' : 'var(--esm-bg,#e8f5ee)';
+  hint.style.color = margenBajo ? '#c0392b' : 'var(--esm,#1f6f4a)';
+  if (editingIdVenta) {
+    hint.style.cursor = 'default';
+    hint.textContent = (margenBajo ? '⚠️ Margen bajo (' + margen + '%, mínimo recomendado 20%). ' : '💡 ') +
+      'Precio sugerido (margen ' + margen + '%): ' + fmt(sugerido);
+    hint.onclick = null;
+    $('f-precio-ven').value = sugerido;
+    ventaCalcGanancia();
+  } else {
+    hint.style.cursor = 'pointer';
+    hint.textContent = (margenBajo ? '⚠️ Margen bajo (' + margen + '%, mínimo recomendado 20%). ' : '💡 ') +
+      'Precio sugerido (margen ' + margen + '%): ' + fmt(sugerido) + ' — clic para usar';
+    hint.onclick = function() { $('f-precio-ven').value = sugerido; ventaCalcGanancia(); };
+  }
+}
+
+function toggleVentaManual() {
+  var esManual = $('f-venta-manual').checked;
+  $('f-producto-ven-wrapper').style.display = esManual ? 'none' : '';
+  $('f-producto-manual-wrapper').style.display = esManual ? '' : 'none';
+  $('f-margen-ven-wrapper').style.display = esManual ? '' : 'none';
+  clearVentaCalculos();
+  if (esManual) {
+    $('f-producto-ven').value = '';
+    ventaProductoNombreActual = '';
+    $('f-costo-ven').removeAttribute('readonly');
+    $('f-precio-ven').setAttribute('readonly', 'readonly');
+  } else {
+    $('f-producto-manual').value = '';
+    $('f-costo-ven').setAttribute('readonly', 'readonly');
+    $('f-precio-ven').setAttribute('readonly', 'readonly');
+  }
 }
 
 function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -1979,7 +2135,9 @@ function saveVenta() {
   var fecha = $('f-fecha-ven').value;
   var cliente = $('f-cliente').value.trim();
   var contacto = $('f-contacto').value.trim();
-  var producto_id = $('f-producto-ven').value;
+  var esManual = $('f-venta-manual').checked;
+  var producto_id = esManual ? null : $('f-producto-ven').value;
+  var productoNombre = esManual ? $('f-producto-manual').value.trim() : ventaProductoNombreActual;
   var cantidad = parseFloat($('f-cantidad-ven').value);
   var precio = parseFloat($('f-precio-ven').value);
   var costo = parseFloat($('f-costo-ven').value);
@@ -1987,17 +2145,22 @@ function saveVenta() {
   var estado = $('f-estado-ven').value;
   var notas = $('f-notas-ven').value.trim();
 
-  if (!fecha || !cliente || !producto_id || isNaN(cantidad) || isNaN(precio)) {
-    toast('Completa: fecha, cliente, producto y precios'); return;
+  if (!fecha || !cliente || isNaN(cantidad) || isNaN(precio)) {
+    toast('Completa: fecha, cliente y precios'); return;
   }
+  if (esManual && !productoNombre) { toast('Completa el nombre del producto'); return; }
+  if (!esManual && !producto_id) { toast('Completa: fecha, cliente, producto y precios'); return; }
   if (fecha > new Date().toISOString().split('T')[0]) { toast('La fecha no puede ser futura'); return; }
   if (cantidad <= 0 || precio < 0) { toast('Cantidad y precio deben ser positivos'); return; }
+  if (isNaN(costo) || costo < 0) { toast('Completa el costo unitario'); return; }
   if (precio < costo) { toast('Precio no puede ser menor al costo (' + fmt(costo) + ')'); return; }
 
   var monto = cantidad * precio;
   var ganancia = monto - (cantidad * costo);
   var editingVenta = editingIdVenta ? ventas.find(v => v.id === editingIdVenta) : null;
-  var numero = editingVenta ? editingVenta.numero : 'V-' + String(nextVentaNumber).padStart(3, '0');
+  var numero = editingVenta ? editingVenta.numero :
+    (esManual ? 'M-' + String(nextVentaNumberManual).padStart(3, '0')
+              : 'C-' + String(nextVentaNumberCatalogo).padStart(3, '0'));
   var tieneFactura = $('f-tiene-factura').checked;
   var numeroFactura = $('f-numero-factura').value.trim();
   var transportadora = $('f-transportadora').value.trim();
@@ -2005,7 +2168,7 @@ function saveVenta() {
 
   window._ventaPendiente = {
     numero: numero, fecha: fecha, cliente: cliente, contacto: contacto, producto_id: producto_id,
-    producto_nombre: ventaProductoNombreActual,
+    producto_nombre: productoNombre, esManual: esManual,
     cantidad: cantidad, precio: precio, monto: monto, costo: costo, ganancia: ganancia,
     metodo: metodo, estado: estado, tieneFactura: tieneFactura, numeroFactura: numeroFactura,
     transportadora: transportadora, guia: guia, notas: notas, editingId: editingIdVenta,
@@ -2023,9 +2186,9 @@ function mostrarModalConfirmacionVenta() {
         <div class="confirm-row"><span class="label">Número de venta:</span><span class="value">${v.numero}</span></div>
         <div class="confirm-row"><span class="label">Fecha:</span><span class="value">${v.fecha}</span></div>
         <div class="confirm-row"><span class="label">Cliente:</span><span class="value">${esc(v.cliente)}</span></div>
-        <div class="confirm-row"><span class="label">Producto:</span><span class="value">${v.producto_id}</span></div>
+        <div class="confirm-row"><span class="label">Producto:</span><span class="value">${esc(v.producto_nombre || v.producto_id)}${v.esManual ? ' (manual)' : ''}</span></div>
         <div class="confirm-row"><span class="label">Cantidad:</span><span class="value">${v.cantidad}</span></div>
-        <div class="confirm-row"><span class="label">Precio unitario:</span><span class="value">${fmt(v.precio)}</span></div>
+        <div class="confirm-row"><span class="label">Precio de venta:</span><span class="value">${fmt(v.precio)}</span></div>
         <div class="confirm-row"><span class="label">Monto total:</span><span class="value" style="font-weight: bold;">${fmt(v.monto)}</span></div>
         <div class="confirm-row"><span class="label">Costo unitario:</span><span class="value">${fmt(v.costo)}</span></div>
         <div class="confirm-row" style="background: #d6eadf; border-radius: 4px; padding: 8px;">
@@ -2082,7 +2245,7 @@ function confirmarYGuardarVenta() {
       if (v.ingresoIdExistente && ventaActualizada) {
         var gastoBody = {
           fecha: v.fecha,
-          descripcion: 'Venta #' + v.numero + ': ' + v.producto_id + ' a ' + v.cliente,
+          descripcion: 'Venta #' + v.numero + ': ' + (v.producto_nombre || v.producto_id) + ' a ' + v.cliente,
           proveedor: v.cliente, monto: ventaActualizada.ganancia_bruta, enlace_producto: v.producto_id
         };
         fetch(SB_URL + '/rest/v1/gastos?id=eq.' + v.ingresoIdExistente, {
@@ -2098,7 +2261,7 @@ function confirmarYGuardarVenta() {
   } else {
     var ingresoBody = {
       fecha: v.fecha, categoria: 'Ingresos por Ventas',
-      descripcion: 'Venta #' + v.numero + ': ' + v.producto_id + ' a ' + v.cliente,
+      descripcion: 'Venta #' + v.numero + ': ' + (v.producto_nombre || v.producto_id) + ' a ' + v.cliente,
       proveedor: v.cliente, monto: v.ganancia, enlace_producto: v.producto_id
     };
     fetch(SB_URL + '/rest/v1/gastos', {
@@ -2119,7 +2282,7 @@ function confirmarYGuardarVenta() {
         if (!ventaCreada || !ventaCreada.id) { toast('Error: respuesta inesperada de Supabase'); return; }
         ventas.unshift(mapVentaRow(ventaCreada));
         expenses.unshift(mapGastoRow(ingresoCreado));
-        nextVentaNumber++;
+        if (v.esManual) nextVentaNumberManual++; else nextVentaNumberCatalogo++;
         toast('Venta registrada e ingreso creado en Control Financiero');
         cancelEditVenta(); renderVentas(); renderFin(); window._ventaPendiente = null;
       }).catch(e => {
@@ -2170,7 +2333,9 @@ function renderVentas() {
     var clienteCell = esc(v.cliente);
     var isEdited = v.updated_at && v.created_at && v.updated_at !== v.created_at;
     if (isEdited) clienteCell += ' <span class="edited-badge" onclick="showAuditVenta(' + v.id + ', event)" title="Ver historial de cambios">&#9998; editado</span>';
-    row.innerHTML = `<td>${esc(v.numero)}</td><td>${v.fecha}</td><td>${clienteCell}</td><td>${esc(v.producto_nombre)}</td>
+    var productoCell = esc(v.producto_nombre);
+    if (!v.producto_id) productoCell += ' <span class="cat-badge" style="background:var(--blue-bg,#e8f0fb);color:var(--blue,#2e5fa3);" title="Venta manual, fuera de catálogo">manual</span>';
+    row.innerHTML = `<td>${esc(v.numero)}</td><td>${v.fecha}</td><td>${clienteCell}</td><td>${productoCell}</td>
       <td>${fmtQty(v.cantidad)}</td><td>${fmt(v.precio_unitario)}</td><td>${fmt(v.monto_total)}</td>
       <td>${fmt(v.costo_unitario)}</td><td style="color: #1f6f4a; font-weight: bold;">${fmt(v.ganancia_bruta)}</td>
       <td>${esc(v.metodo_pago || '—')}</td><td>${v.tiene_factura ? esc(v.numero_factura) : '—'}</td>
@@ -2192,24 +2357,35 @@ function editVenta(id, ev) {
   $('f-fecha-ven').value = v.fecha;
   $('f-cliente').value = v.cliente;
   $('f-contacto').value = v.contacto;
-  var selProd = $('f-producto-ven');
-  if (v.producto_id && !Array.from(selProd.options).some(o => o.value === v.producto_id)) {
-    var opt = document.createElement('option');
-    opt.value = v.producto_id;
-    opt.textContent = v.producto_id + (v.producto_nombre ? ' — ' + v.producto_nombre : '') + ' (no publicado)';
-    selProd.appendChild(opt);
-  }
-  selProd.value = v.producto_id;
-  ventaProductoNombreActual = v.producto_nombre || '';
-  if (!ventaProductoNombreActual && v.producto_id) {
-    fetch(SB_URL + '/rest/v1/productos?id=eq.' + v.producto_id + '&select=descripcion', { headers: sbHeaders() })
-    .then(r => r.json()).then(rows => { if (rows.length > 0) ventaProductoNombreActual = rows[0].descripcion || ''; });
+  $('f-venta-manual').checked = !v.producto_id;
+  toggleVentaManual();
+  if (!v.producto_id) {
+    $('f-producto-manual').value = v.producto_nombre || '';
+  } else {
+    var selProd = $('f-producto-ven');
+    if (!Array.from(selProd.options).some(o => o.value === v.producto_id)) {
+      var opt = document.createElement('option');
+      opt.value = v.producto_id;
+      opt.textContent = v.producto_id + (v.producto_nombre ? ' — ' + v.producto_nombre : '') + ' (no publicado)';
+      selProd.appendChild(opt);
+    }
+    selProd.value = v.producto_id;
+    ventaProductoNombreActual = v.producto_nombre || '';
+    if (!ventaProductoNombreActual) {
+      fetch(SB_URL + '/rest/v1/productos?id=eq.' + v.producto_id + '&select=descripcion', { headers: sbHeaders() })
+      .then(r => r.json()).then(rows => { if (rows.length > 0) ventaProductoNombreActual = rows[0].descripcion || ''; });
+    }
   }
   $('f-cantidad-ven').value = v.cantidad;
   $('f-precio-ven').value = v.precio_unitario;
   $('f-costo-ven').value = v.costo_unitario;
   $('f-monto-ven').value = v.monto_total;
   $('f-ganancia-ven').value = v.ganancia_bruta;
+  if (!v.producto_id) {
+    var margenReal = v.costo_unitario > 0 ? Math.round(((v.precio_unitario - v.costo_unitario) / v.costo_unitario) * 100) : 100;
+    $('f-margen-ven').value = margenReal;
+    ventaCalcSugerido();
+  }
   $('f-metodo-ven').value = v.metodo_pago;
   $('f-estado-ven').value = v.estado;
   ventaEstadoChanged();
@@ -2236,6 +2412,7 @@ function cancelEditVenta() {
   $('f-estado-ven').value = 'pagado';
   ventaEstadoChanged();
   $('f-numero-factura-wrapper').style.display = 'none';
+  toggleVentaManual();
 }
 
 function renderSummaryVentas() {
@@ -2268,7 +2445,7 @@ var ventaProductoNombreActual = '';
 function ventaProductoChanged() {
   var producto_id = $('f-producto-ven').value;
   ventaProductoNombreActual = '';
-  if (!producto_id) { $('f-costo-ven').value = ''; $('f-precio-ven').value = ''; return; }
+  if (!producto_id) { clearVentaCalculos(); return; }
   fetch(SB_URL + '/rest/v1/productos?id=eq.' + producto_id + '&select=costo,precio,descripcion', { headers: sbHeaders() })
   .then(r => r.json()).then(rows => {
     if (rows.length > 0) {
@@ -2302,10 +2479,12 @@ function ventaEstadoChanged() {
   var estado = $('f-estado-ven').value;
   var transportWrapper = $('f-transportadora-wrapper');
   var guiaWrapper = $('f-guia-wrapper');
-  if (estado === 'enviado') {
+  var tieneEnvio = estado === 'enviado' || estado === 'entregado' ||
+    $('f-transportadora').value.trim() || $('f-guia').value.trim();
+  if (tieneEnvio) {
     transportWrapper.style.display = 'block';
     guiaWrapper.style.display = 'block';
-    $('f-transportadora').focus();
+    if (estado === 'enviado') $('f-transportadora').focus();
   } else {
     transportWrapper.style.display = 'none';
     guiaWrapper.style.display = 'none';
@@ -2314,7 +2493,7 @@ function ventaEstadoChanged() {
 
 function ventasExportRows() {
   var headers = ['Número','Fecha','Cliente','Contacto','ID producto','Producto','Cantidad',
-    'Precio unitario','Monto total','Costo unitario','Ganancia bruta','Método de pago',
+    'Precio de venta','Monto total','Costo unitario','Ganancia bruta','Método de pago',
     'Factura DIAN','No. factura','Transportadora','No. guía','Estado','Notas'];
   var rows = [headers];
   ventas.forEach(v => {
