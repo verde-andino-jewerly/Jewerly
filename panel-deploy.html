@@ -1893,10 +1893,16 @@ function saveExpense() {
     .then(function(rows) {
       var r = Array.isArray(rows) ? rows[0] : rows;
       expenses.push(mapGastoRow(r));
-      toast('Gasto registrado');
       renderFin(); clearForm();
-      if (cat === 'Joyas para reventa' && !link && qty > 0 && amount > 0) {
-        crearBorradorProducto(r.id, qty, amount);
+      if (cat === 'Joyas para reventa' && !link) {
+        if (qty > 0 && amount > 0) {
+          toast('Gasto registrado, creando borrador en el catálogo...');
+          crearBorradorProducto(r.id, qty, amount);
+        } else {
+          toast('Gasto registrado, pero sin "Cantidad comprada" no se creó el borrador automático en el catálogo. Cárgalo a mano en el publicador y enlázalo desde este gasto.');
+        }
+      } else {
+        toast('Gasto registrado');
       }
     }).catch(function(e) { toast('Error al guardar'); console.error(e); });
   }
@@ -2076,7 +2082,7 @@ function renderFin() {
     if (e.qty && u) {
       qtyCell = fmtQty(e.qty, u.u) + '<br><small>' + fmtShort(e.amount / e.qty) + '/' + u.u + '</small>';
     }
-    var descCell = esc(e.desc);
+    var descCell = esc(e.desc) + ' <span class="link-tag" style="background:var(--bg-alt);color:var(--text-3);" title="ID de este gasto, usado como origen en Inventario">#' + e.id + '</span>';
     if (e.link) descCell += ' <span class="link-tag">' + esc(e.link) + '</span>';
     if (e.comprobante) descCell += ' <span onclick="event.stopPropagation(); verComprobanteGasto(' + e.id + ')" title="Ver comprobante" style="cursor:pointer;">&#128206;</span>' +
       ' <span onclick="event.stopPropagation(); descargarComprobantePDF(' + e.id + ')" title="Descargar comprobante en PDF" style="cursor:pointer;">&#11015;&#65039;</span>';
@@ -3022,31 +3028,35 @@ function nextProductoId() {
 }
 
 function crearBorradorProducto(gastoId, qty, amount) {
-  var newId = nextProductoId();
   var costoUnitario = Math.round(amount / qty);
-  fetch(SB_URL + '/rest/v1/productos', {
-    method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
-    body: JSON.stringify({ id: newId, estado: 'borrador', costo: costoUnitario })
-  }).then(function(r) {
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-    return r.json();
-  }).then(function(rows) {
-    var created = Array.isArray(rows) ? rows[0] : rows;
-    productosCache.push(created);
-    return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + gastoId, {
-      method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
-      body: JSON.stringify({ enlace_producto: newId })
+  invLoadProductos().then(function() {
+    var newId = nextProductoId();
+    return fetch(SB_URL + '/rest/v1/productos', {
+      method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+      body: JSON.stringify({ id: newId, estado: 'borrador', costo: costoUnitario })
+    }).then(function(r) {
+      if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+      return r.json();
+    }).then(function(rows) {
+      var created = Array.isArray(rows) ? rows[0] : rows;
+      productosCache.push(created || { id: newId, estado: 'borrador', costo: costoUnitario });
+      return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + gastoId, {
+        method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+        body: JSON.stringify({ enlace_producto: newId })
+      });
+    }).then(function(r) {
+      if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+      return r.json();
+    }).then(function(rows) {
+      var updated = Array.isArray(rows) ? rows[0] : rows;
+      var idx = expenses.findIndex(function(e) { return e.id === gastoId; });
+      if (idx >= 0 && updated) expenses[idx] = mapGastoRow(updated);
+      toast('Se creó el borrador ' + newId + ' en el catálogo (costo ' + fmt(costoUnitario) + ') — complétalo en el publicador: foto, categoría, estilo, descripción y margen.');
+      renderFin(); renderInventario();
     });
-  }).then(function(r) { return r.json(); })
-  .then(function(rows) {
-    var updated = Array.isArray(rows) ? rows[0] : rows;
-    var idx = expenses.findIndex(function(e) { return e.id === gastoId; });
-    if (idx >= 0 && updated) expenses[idx] = mapGastoRow(updated);
-    toast('Se creó el borrador ' + newId + ' en el catálogo (costo ' + fmt(costoUnitario) + ') — complétalo en el publicador: foto, categoría, estilo, descripción y margen.');
-    renderFin(); renderInventario();
   }).catch(function(e) {
     console.error('Error al crear borrador de producto:', e);
-    toast('Gasto guardado, pero no se pudo crear el borrador en el catálogo automáticamente');
+    toast('Gasto guardado, pero no se pudo crear el borrador en el catálogo: ' + (e.message || 'error desconocido'));
   });
 }
 
