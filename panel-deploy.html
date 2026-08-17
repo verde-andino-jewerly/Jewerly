@@ -906,7 +906,7 @@
           <div class="field hidden" id="link-field">
             <label for="f-link">Producto en el catalogo</label>
             <input type="text" id="f-link" placeholder="Ej: VA-001">
-            <div class="hint">Opcional. Enlaza este gasto con la pieza que cargaste en el catalogo.</div>
+            <div class="hint">Dejalo <b>vacio</b> si es una pieza nueva: se crea solo el borrador en el catalogo con el costo ya calculado. Escribe un ID solo para reabastecer una pieza que ya existe.</div>
           </div>
           <div class="rate-badge" id="rate-badge">
             <span id="rate-label">Precio unitario</span>
@@ -1895,10 +1895,10 @@ function saveExpense() {
       var r = Array.isArray(rows) ? rows[0] : rows;
       expenses.push(mapGastoRow(r));
       renderFin(); clearForm();
-      if (cat === 'Joyas para reventa' && !link) {
+      if (cat === 'Joyas para reventa') {
         if (qty > 0 && amount > 0) {
-          toast('Gasto registrado, creando borrador en el catálogo...');
-          crearBorradorProducto(r.id, qty, amount);
+          toast('Gasto registrado, revisando el catálogo...');
+          crearBorradorProducto(r.id, qty, amount, link);
         } else {
           toast('Gasto registrado, pero sin "Cantidad comprada" no se creó el borrador automático en el catálogo. Cárgalo a mano en el publicador y enlázalo desde este gasto.');
         }
@@ -3029,10 +3029,16 @@ function nextProductoId() {
   return 'VA-' + String(max + 1).padStart(3, '0');
 }
 
-function crearBorradorProducto(gastoId, qty, amount) {
+function crearBorradorProducto(gastoId, qty, amount, linkEscrito) {
   var costoUnitario = Math.round(amount / qty);
   invLoadProductos().then(function() {
-    var newId = nextProductoId();
+    var idEscrito = (linkEscrito || '').trim();
+    var yaExiste = idEscrito && productosCache.some(function(p) { return p.id === idEscrito; });
+    // Reabastecimiento de una pieza que ya esta en el catalogo: no se crea nada nuevo.
+    if (yaExiste) { toast('Gasto registrado y enlazado a ' + idEscrito + ' (reabastecimiento).'); renderFin(); renderInventario(); return; }
+    // Si escribio un ID que no existe, se respeta ese ID en vez de inventar otro.
+    var newId = idEscrito || nextProductoId();
+    var yaEnlazado = !!idEscrito;
     return fetch(SB_URL + '/rest/v1/productos', {
       method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
       body: JSON.stringify({ id: newId, estado: 'borrador', costo: costoUnitario })
@@ -3042,13 +3048,14 @@ function crearBorradorProducto(gastoId, qty, amount) {
     }).then(function(rows) {
       var created = Array.isArray(rows) ? rows[0] : rows;
       productosCache.push(created || { id: newId, estado: 'borrador', costo: costoUnitario });
+      if (yaEnlazado) return null; // el gasto ya se guardo con ese ID escrito a mano
       return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + gastoId, {
         method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
         body: JSON.stringify({ enlace_producto: newId })
+      }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+        return r.json();
       });
-    }).then(function(r) {
-      if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-      return r.json();
     }).then(function(rows) {
       var updated = Array.isArray(rows) ? rows[0] : rows;
       var idx = expenses.findIndex(function(e) { return e.id === gastoId; });
