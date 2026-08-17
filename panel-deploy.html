@@ -1283,13 +1283,10 @@
       <div class="card">
         <div class="card-title"><span>Exportar</span></div>
         <div class="export-row">
-          <button class="btn-secondary" onclick="exportInvSaldosCSV()">📥 Saldos por ítem (CSV)</button>
-          <button class="btn-secondary" onclick="exportInvSaldosXLSX()">📥 Saldos por ítem (Excel)</button>
-          <button class="btn-secondary" onclick="exportInvMovCSV()">📥 Historial de movimientos (CSV)</button>
-          <button class="btn-secondary" onclick="exportInvMovXLSX()">📥 Historial de movimientos (Excel)</button>
-          <button class="btn-secondary" onclick="exportInvJoyasCSV()">📥 Joyas para reventa (CSV)</button>
-          <button class="btn-secondary" onclick="exportInvJoyasXLSX()">📥 Joyas para reventa (Excel)</button>
+          <button class="btn-secondary" onclick="exportInventarioCSV()">📥 Inventario completo (CSV)</button>
+          <button class="btn-secondary" onclick="exportInventarioXLSX()">📥 Inventario completo (Excel)</button>
         </div>
+        <div class="table-note">Un solo archivo con las tres tablas: material a granel, joyas para reventa e historial de movimientos. En Excel van en tres hojas separadas.</div>
       </div>
 
     </div>
@@ -3270,14 +3267,39 @@ function invRenderJoyas() {
   tbody.innerHTML = html;
 }
 
+function invJoyaLabel(productoId, fallback) {
+  var p = productosCache.find(function(x) { return x.id === productoId; });
+  var nombre = (p && p.descripcion) || fallback || '';
+  return nombre ? (productoId + ' — ' + nombre) : productoId;
+}
+
 function invMovimientosRows() {
   var rows = [];
   expenses.forEach(function(e) {
-    if (ITEM_INVENTARIO_CATS.indexOf(e.cat) < 0) return;
+    if (ITEM_INVENTARIO_CATS.indexOf(e.cat) >= 0) {
+      rows.push({
+        fecha: e.date, tipo: 'entrada', categoria: e.cat, item: e.itemInv || 'Sin especificar',
+        qty: e.qty || 0, qtyPiedras: e.qtyPiedras, unidad: (UNITS[e.cat] || {}).u || '',
+        valor: e.amount, origenLabel: 'gasto #' + e.id, origenIcon: '📋'
+      });
+    } else if (e.cat === 'Joyas para reventa' && e.link) {
+      // Compra de piezas terminadas para reventa: entra al inventario por unidades.
+      rows.push({
+        fecha: e.date, tipo: 'entrada', categoria: e.cat, item: invJoyaLabel(e.link, e.desc),
+        qty: e.qty || 0, qtyPiedras: null, unidad: 'u',
+        valor: e.amount, origenLabel: 'gasto #' + e.id, origenIcon: '📋'
+      });
+    }
+  });
+  // Salida de una joya para reventa: cada venta de catalogo descuenta unidades de esa pieza.
+  ventas.forEach(function(v) {
+    if (!v.producto_id) return;
     rows.push({
-      fecha: e.date, tipo: 'entrada', categoria: e.cat, item: e.itemInv || 'Sin especificar',
-      qty: e.qty || 0, qtyPiedras: e.qtyPiedras, unidad: (UNITS[e.cat] || {}).u || '',
-      valor: e.amount, origenLabel: 'gasto #' + e.id, origenIcon: '📋'
+      fecha: v.fecha, tipo: 'salida', categoria: 'Joyas para reventa',
+      item: invJoyaLabel(v.producto_id, v.producto_nombre),
+      qty: v.cantidad || 0, qtyPiedras: null, unidad: 'u',
+      valor: (v.cantidad || 0) * (v.costo_unitario || 0),
+      origenLabel: 'venta ' + v.numero, origenIcon: '💍'
     });
   });
   inventarioSalidas.forEach(function(s) {
@@ -3331,7 +3353,8 @@ function renderInventario() {
 }
 
 /* ---- Exportacion de Inventario ---- */
-function buildXLSXBlob(rows, sheetName, moneyCols) {
+// Arma la hoja de calculo de una tabla: fila 0 en negrita, columnas de moneyCols con formato $.
+function buildSheetXml(rows, moneyCols) {
   var sheet = '';
   for (var r = 0; r < rows.length; r++) {
     var cells = '';
@@ -3349,16 +3372,30 @@ function buildXLSXBlob(rows, sheetName, moneyCols) {
     sheet += '<row r="' + (r + 1) + '">' + cells + '</row>';
   }
   var cols = '<cols>';
-  for (var c2 = 1; c2 <= rows[0].length; c2++) cols += '<col min="' + c2 + '" max="' + c2 + '" width="14" customWidth="1"/>';
+  for (var c2 = 1; c2 <= rows[0].length; c2++) cols += '<col min="' + c2 + '" max="' + c2 + '" width="18" customWidth="1"/>';
   cols += '</cols>';
-  var files = [
-    { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>';
+}
+
+// Un solo archivo .xlsx con varias hojas: sheets = [{ name, rows, moneyCols }]
+function buildXLSXBlob(sheets) {
+  var overrides = '', sheetTags = '', rels = '', files = [];
+  for (var i = 0; i < sheets.length; i++) {
+    var n = i + 1;
+    overrides += '<Override PartName="/xl/worksheets/sheet' + n + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+    sheetTags += '<sheet name="' + xmlEsc(sheets[i].name) + '" sheetId="' + n + '" r:id="rId' + n + '"/>';
+    rels += '<Relationship Id="rId' + n + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + n + '.xml"/>';
+    files.push({ name: 'xl/worksheets/sheet' + n + '.xml', content: buildSheetXml(sheets[i].rows, sheets[i].moneyCols || []) });
+  }
+  // El id de estilos va despues de todas las hojas para no chocar con ellas.
+  rels += '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
+  files.unshift(
+    { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' + overrides + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
     { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + xmlEsc(sheetName) + '" sheetId="1" r:id="rId1"/></sheets></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
-    { name: 'xl/styles.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>' },
-    { name: 'xl/worksheets/sheet1.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>' }
-  ];
+    { name: 'xl/workbook.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + sheetTags + '</sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + rels + '</Relationships>' },
+    { name: 'xl/styles.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>' }
+  );
   return makeZip(files);
 }
 
@@ -3391,38 +3428,36 @@ function invJoyasExportRows() {
   return rows;
 }
 
-function exportInvSaldosCSV() {
-  var rows = invSaldosExportRows();
-  if (rows.length <= 1) { toast('Sin datos de inventario para exportar'); return; }
-  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
-  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'inventario-saldos-' + stamp() + '.csv');
+// Las tres tablas del inventario, en el orden en que se ven en pantalla.
+function invExportSheets() {
+  return [
+    { name: 'Material a granel', rows: invSaldosExportRows(), moneyCols: [5] },
+    { name: 'Joyas para reventa', rows: invJoyasExportRows(), moneyCols: [2] },
+    { name: 'Movimientos', rows: invMovExportRows(), moneyCols: [7] }
+  ];
 }
-function exportInvSaldosXLSX() {
-  var rows = invSaldosExportRows();
-  if (rows.length <= 1) { toast('Sin datos de inventario para exportar'); return; }
-  download(buildXLSXBlob(rows, 'Saldos', [5]), 'inventario-saldos-' + stamp() + '.xlsx');
+
+function invHayDatos(sheets) {
+  return sheets.some(function(s) { return s.rows.length > 1; });
 }
-function exportInvMovCSV() {
-  var rows = invMovExportRows();
-  if (rows.length <= 1) { toast('Sin movimientos para exportar'); return; }
-  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
-  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'inventario-movimientos-' + stamp() + '.csv');
+
+function exportInventarioCSV() {
+  var sheets = invExportSheets();
+  if (!invHayDatos(sheets)) { toast('Sin datos de inventario para exportar'); return; }
+  var lines = [];
+  sheets.forEach(function(s, i) {
+    if (i > 0) lines.push('', '');
+    lines.push(csvEsc(s.name.toUpperCase()));
+    if (s.rows.length <= 1) { lines.push('(sin registros)'); return; }
+    s.rows.forEach(function(r) { lines.push(r.map(csvEsc).join(',')); });
+  });
+  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'verde-andino-inventario-' + stamp() + '.csv');
 }
-function exportInvMovXLSX() {
-  var rows = invMovExportRows();
-  if (rows.length <= 1) { toast('Sin movimientos para exportar'); return; }
-  download(buildXLSXBlob(rows, 'Movimientos', [7]), 'inventario-movimientos-' + stamp() + '.xlsx');
-}
-function exportInvJoyasCSV() {
-  var rows = invJoyasExportRows();
-  if (rows.length <= 1) { toast('Sin joyas para reventa para exportar'); return; }
-  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
-  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'inventario-joyas-reventa-' + stamp() + '.csv');
-}
-function exportInvJoyasXLSX() {
-  var rows = invJoyasExportRows();
-  if (rows.length <= 1) { toast('Sin joyas para reventa para exportar'); return; }
-  download(buildXLSXBlob(rows, 'JoyasReventa', [2]), 'inventario-joyas-reventa-' + stamp() + '.xlsx');
+
+function exportInventarioXLSX() {
+  var sheets = invExportSheets();
+  if (!invHayDatos(sheets)) { toast('Sin datos de inventario para exportar'); return; }
+  download(buildXLSXBlob(sheets), 'verde-andino-inventario-' + stamp() + '.xlsx');
 }
 
 $('f-amount').addEventListener('input', updateRate);
