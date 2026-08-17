@@ -190,6 +190,14 @@
 
   /* ---- Inventario ---- */
   .inv-filters { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .fin-filters { display: flex; gap: 0.8rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: flex-end; }
+  .fin-filters label {
+    display: flex; flex-direction: column; gap: 0.25rem;
+    font-size: 0.72rem; font-weight: 600; color: var(--text-2);
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .fin-filters select { min-width: 170px; }
+  .fin-filters .inv-chip { height: 34px; }
   .inv-chip {
     padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--border-s);
     background: var(--bg-alt); color: var(--text-2); font-size: 0.76rem; font-weight: 600;
@@ -960,8 +968,17 @@
       </div>
 
       <div class="card">
-        <div class="card-title"><span>Historial de gastos</span></div>
+        <div class="card-title"><span>Historial de gastos</span><span class="text-2" id="fin-filter-count" style="font-size: 0.9em;"></span></div>
         <div class="loading" id="fin-loading"><div class="spinner"></div><br>Cargando gastos...</div>
+        <div class="fin-filters" id="fin-filters" style="display:none;">
+          <label>Periodo
+            <select id="fin-f-periodo" onchange="renderFin()"><option value="all">Todo el historial</option></select>
+          </label>
+          <label>Categoria
+            <select id="fin-f-cat" onchange="renderFin()"><option value="all">Todas</option></select>
+          </label>
+          <button type="button" class="inv-chip" id="fin-f-reset" onclick="finResetFiltros()" style="display:none;">Limpiar filtros</button>
+        </div>
         <div class="table-wrap" id="fin-table-wrap" style="display:none;">
           <table>
             <thead>
@@ -984,7 +1001,7 @@
       </div>
 
       <div class="card" id="summary-card" style="display:none;">
-        <div class="card-title"><span>Resumen</span></div>
+        <div class="card-title"><span>Resumen</span><span class="text-2" id="sum-periodo" style="font-size: 0.9em;">Todo el historial</span></div>
         <div class="split">
           <div class="inv">
             <div class="sl">Inversion en inventario</div>
@@ -1025,6 +1042,7 @@
           <span class="total-label">Total de gastos (egresos, sin incluir ingresos por ventas)</span>
           <span class="total-val" id="grand-total">$0.00</span>
         </div>
+        <div class="hint" style="margin-top:0.6rem;">💡 El resumen sigue el <b>periodo</b> elegido arriba. El filtro de categoria solo acota la tabla, no estas cifras.</div>
       </div>
 
       <div class="card" id="export-card" style="display:none;">
@@ -1034,6 +1052,7 @@
           <button class="btn-secondary" onclick="exportCSV()">Descargar CSV</button>
           <button class="btn-secondary" onclick="descargarConsolidadoComprobantes()">Descargar comprobantes (PDF)</button>
         </div>
+        <div class="table-note">Las descargas incluyen siempre el historial completo, sin los filtros de arriba.</div>
       </div>
     </div>
   </div>
@@ -1673,6 +1692,66 @@ function monthName(m) {
   return names[parseInt(p[1]) - 1] + ' ' + p[0];
 }
 
+/* ---- Filtros del historial de gastos ---- */
+var finFiltroPeriodo = 'all', finFiltroCat = 'all';
+
+// Primer dia del mes que abre una ventana de N meses contando el actual.
+function finCutoff(mesesAtras) {
+  var d = new Date(), y = d.getFullYear(), m = d.getMonth() - (mesesAtras - 1);
+  while (m < 0) { m += 12; y -= 1; }
+  return y + '-' + String(m + 1).padStart(2, '0') + '-01';
+}
+
+function finEnPeriodo(e) {
+  if (finFiltroPeriodo === 'all') return true;
+  if (finFiltroPeriodo === '3m') return e.date >= finCutoff(3);
+  if (finFiltroPeriodo === '6m') return e.date >= finCutoff(6);
+  return e.date.substring(0, 7) === finFiltroPeriodo;
+}
+
+function finPeriodoLabel() {
+  if (finFiltroPeriodo === 'all') return 'Todo el historial';
+  if (finFiltroPeriodo === '3m') return 'Ultimos 3 meses';
+  if (finFiltroPeriodo === '6m') return 'Ultimos 6 meses';
+  return monthName(finFiltroPeriodo);
+}
+
+// Reconstruye las dos listas con los periodos y categorias que existen en los datos,
+// conservando lo que el usuario tenga elegido aunque cambien los registros.
+function finSyncFiltros() {
+  var selP = $('fin-f-periodo'), selC = $('fin-f-cat');
+  if (!selP || !selC) return;
+  finFiltroPeriodo = selP.value || 'all';
+  finFiltroCat = selC.value || 'all';
+
+  var meses = {}, cats = {};
+  expenses.forEach(function(e) { meses[e.date.substring(0, 7)] = 1; cats[e.cat] = 1; });
+  var mKeys = Object.keys(meses).sort().reverse();
+
+  var hP = '<option value="all">Todo el historial</option>';
+  if (mKeys.length > 1) hP += '<option value="3m">Ultimos 3 meses</option><option value="6m">Ultimos 6 meses</option>';
+  mKeys.forEach(function(m) { hP += '<option value="' + m + '">' + monthName(m) + '</option>'; });
+  selP.innerHTML = hP;
+  selP.value = finFiltroPeriodo;
+  if (!selP.value) { selP.value = 'all'; finFiltroPeriodo = 'all'; }
+
+  var ordenadas = CAT_ORDER.filter(function(c) { return cats[c]; })
+    .concat(Object.keys(cats).filter(function(c) { return CAT_ORDER.indexOf(c) < 0; }).sort());
+  var hC = '<option value="all">Todas</option>';
+  ordenadas.forEach(function(c) { hC += '<option value="' + esc(c) + '">' + esc(c) + '</option>'; });
+  selC.innerHTML = hC;
+  selC.value = finFiltroCat;
+  if (!selC.value) { selC.value = 'all'; finFiltroCat = 'all'; }
+
+  $('fin-filters').style.display = expenses.length ? 'flex' : 'none';
+}
+
+function finResetFiltros() {
+  $('fin-f-periodo').value = 'all';
+  $('fin-f-cat').value = 'all';
+  renderFin();
+}
+
 function syncCat() {
   var cat = $('f-cat').value;
   var u = UNITS[cat];
@@ -2082,11 +2161,16 @@ function showAuditVenta(id, ev) {
 
 function renderFin() {
   var tbody = $('tbl-body');
-  var sorted = expenses.slice().sort(function(a, b) {
+  finSyncFiltros();
+  // El periodo acota tambien el resumen; la categoria solo filtra la tabla.
+  var delPeriodo = expenses.filter(finEnPeriodo);
+  var sorted = delPeriodo.filter(function(e) {
+    return finFiltroCat === 'all' || e.cat === finFiltroCat;
+  }).sort(function(a, b) {
     return b.date.localeCompare(a.date) || b.id - a.id;
   });
 
-  if (!sorted.length) {
+  if (!expenses.length) {
     tbody.innerHTML = '';
     $('empty-msg').style.display = 'block';
     $('table-note').style.display = 'none';
@@ -2094,10 +2178,16 @@ function renderFin() {
     $('export-card').style.display = 'none';
     return;
   }
-  $('empty-msg').style.display = 'none';
-  $('table-note').style.display = 'block';
+  var filtrando = finFiltroPeriodo !== 'all' || finFiltroCat !== 'all';
+  $('empty-msg').style.display = sorted.length ? 'none' : 'block';
+  $('empty-msg').textContent = filtrando ? 'Ningun gasto coincide con estos filtros' : 'No hay gastos registrados';
+  $('table-note').style.display = sorted.length ? 'block' : 'none';
   $('summary-card').style.display = 'block';
   $('export-card').style.display = 'block';
+  $('fin-f-reset').style.display = filtrando ? 'inline-block' : 'none';
+  $('fin-filter-count').textContent = filtrando
+    ? (sorted.length + (sorted.length === 1 ? ' gasto' : ' gastos') + ' de ' + expenses.length)
+    : '';
 
   var html = '';
   for (var i = 0; i < sorted.length; i++) {
@@ -2135,8 +2225,8 @@ function renderFin() {
 
   // Summary
   var cats = {}, months = {}, total = 0, invTotal = 0, opeTotal = 0, ingresosVentas = 0, ins = {};
-  for (var i = 0; i < expenses.length; i++) {
-    var e = expenses[i];
+  for (var i = 0; i < delPeriodo.length; i++) {
+    var e = delPeriodo[i];
     cats[e.cat] = (cats[e.cat] || 0) + e.amount;
     var mk = e.date.substring(0, 7);
     months[mk] = (months[mk] || 0) + e.amount;
@@ -2150,6 +2240,7 @@ function renderFin() {
   }
   var utilidad = ingresosVentas - opeTotal;
 
+  $('sum-periodo').textContent = finPeriodoLabel();
   $('split-inv').textContent = fmtShort(invTotal);
   $('split-ope').textContent = fmtShort(opeTotal);
   $('split-ing').textContent = fmtShort(ingresosVentas);
