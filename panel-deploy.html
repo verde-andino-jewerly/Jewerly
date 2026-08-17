@@ -905,8 +905,10 @@
           </div>
           <div class="field hidden" id="link-field">
             <label for="f-link">Producto en el catalogo</label>
-            <input type="text" id="f-link" placeholder="Ej: VA-001">
-            <div class="hint">Dejalo <b>vacio</b> si es una pieza nueva: se crea solo el borrador en el catalogo con el costo ya calculado. Escribe un ID solo para reabastecer una pieza que ya existe.</div>
+            <select id="f-link">
+              <option value="">Producto nuevo &mdash; crear borrador automaticamente</option>
+            </select>
+            <div class="hint">Elige una pieza del catalogo para reabastecerla, o deja "Producto nuevo" y el sistema genera el ID y el borrador con el costo ya calculado.</div>
           </div>
           <div class="rate-badge" id="rate-badge">
             <span id="rate-label">Precio unitario</span>
@@ -1693,7 +1695,33 @@ function syncCat() {
   if (cat !== 'Piedras') $('f-qty-piedras').value = '';
   $('link-field').classList.toggle('hidden', cat !== 'Joyas para reventa');
   if (cat !== 'Joyas para reventa') $('f-link').value = '';
+  else renderLinkOptions($('f-link').value);
   updateRate();
+}
+
+// Llena la lista desplegable "Producto en el catalogo" con las piezas ya cargadas.
+// El valor vacio significa "producto nuevo": el sistema genera el ID y el borrador.
+function renderLinkOptions(selected) {
+  var sel = $('f-link');
+  if (!sel) return;
+  var ids = productosCache
+    .map(function(p) { return p; })
+    .filter(function(p) { return p.id && p.id.indexOf('__auth_probe__') < 0; })
+    .sort(function(a, b) { return a.id.localeCompare(b.id); });
+  var html = '<option value="">Producto nuevo &mdash; crear borrador automaticamente</option>';
+  var found = false;
+  for (var i = 0; i < ids.length; i++) {
+    var p = ids[i];
+    if (p.id === selected) found = true;
+    var extra = [];
+    if (p.estado) extra.push(p.estado);
+    if (p.descripcion) extra.push(String(p.descripcion).substring(0, 34));
+    html += '<option value="' + esc(p.id) + '">' + esc(p.id + (extra.length ? ' · ' + extra.join(' · ') : '')) + '</option>';
+  }
+  // Un gasto viejo puede apuntar a un ID que ya no esta en el catalogo: se conserva para no perderlo.
+  if (selected && !found) html += '<option value="' + esc(selected) + '">' + esc(selected + ' · (ya no esta en el catalogo)') + '</option>';
+  sel.innerHTML = html;
+  sel.value = selected || '';
 }
 
 function updateRate() {
@@ -1809,7 +1837,7 @@ function startEdit(id) {
   $('f-desc').value = e.desc || ''; $('f-prov').value = e.prov || '';
   $('f-amount').value = e.amount;
   $('f-qty').value = (e.qty || e.qty === 0) ? e.qty : '';
-  $('f-link').value = e.link || ''; updateRate();
+  renderLinkOptions(e.link || ''); updateRate();
   $('f-item-inv').value = e.itemInv || '';
   $('f-qty-piedras').value = (e.qtyPiedras || e.qtyPiedras === 0) ? e.qtyPiedras : '';
   $('f-nit').value = e.nit || ''; $('f-numfactura').value = e.numFactura || '';
@@ -3017,7 +3045,11 @@ function mapSalidaRow(r) {
 function invLoadProductos() {
   return fetch(SB_URL + '/rest/v1/productos?select=id,descripcion,estado,costo', { headers: sbHeaders() })
     .then(function(r) { return r.json(); })
-    .then(function(rows) { productosCache = Array.isArray(rows) ? rows : []; });
+    .then(function(rows) {
+      productosCache = Array.isArray(rows) ? rows : [];
+      var sel = $('f-link');
+      if (sel) renderLinkOptions(sel.value);
+    });
 }
 
 function nextProductoId() {
@@ -3048,6 +3080,7 @@ function crearBorradorProducto(gastoId, qty, amount, linkEscrito) {
     }).then(function(rows) {
       var created = Array.isArray(rows) ? rows[0] : rows;
       productosCache.push(created || { id: newId, estado: 'borrador', costo: costoUnitario });
+      if ($('f-link')) renderLinkOptions($('f-link').value);
       if (yaEnlazado) return null; // el gasto ya se guardo con ese ID escrito a mano
       return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + gastoId, {
         method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
