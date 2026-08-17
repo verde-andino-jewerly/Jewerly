@@ -2461,8 +2461,13 @@ function admValidateForm() {
   if (!document.getElementById('f-ley').value) missing.push('Ley');
   if (!document.getElementById('f-color').value) missing.push('Color');
   if (!document.getElementById('f-genero').value) missing.push('Género');
+  if (!document.getElementById('f-desc').value.trim()) missing.push('Descripción (título en la vitrina)');
+  if (!document.getElementById('f-proveedor').value.trim()) missing.push('Proveedor');
   var costo = parseFloat(document.getElementById('f-costo').value) || 0;
   if (costo <= 0) missing.push('Costo (debe ser mayor a 0)');
+  var margenRaw = document.getElementById('f-margen').value.trim();
+  var margen = parseFloat(margenRaw);
+  if (!margenRaw || isNaN(margen) || margen <= 0) missing.push('Margen de ganancia (mínimo 20%)');
   return missing;
 }
 /* Muestra modal de campos faltantes */
