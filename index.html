@@ -692,7 +692,7 @@
     background: var(--text); color: var(--bg);
     padding: 0.7rem 1.3rem;
     font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase;
-    z-index: 300; opacity: 0; pointer-events: none;
+    z-index: 950; opacity: 0; pointer-events: none;
     transition: opacity 0.2s;
     box-shadow: 0 4px 20px rgba(0,0,0,0.25);
   }
@@ -1872,11 +1872,15 @@ function waCustom(e) {
   window.open('https://wa.me/' + WA_NUMBER + '?text=' + t, '_blank');
 }
 
+var toastTimer = null;
 function toast(msg) {
   var t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 2000);
+  // Los avisos largos necesitan mas tiempo en pantalla para alcanzar a leerse.
+  var ms = Math.min(7000, Math.max(2000, String(msg).length * 55));
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, ms);
 }
 
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
@@ -2615,11 +2619,31 @@ function admCheckGastoEnlazado(productId, cb) {
     .catch(function(e) { console.error('Error verificando gasto enlazado:', e); cb(false); });
 }
 
+/* Aviso de bloqueo: la pieza no tiene gasto de compra registrado en Finanzas */
+function admShowBloqueoPublicacion(id) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML =
+    '<div style="background:var(--bg);color:var(--text);max-width:480px;width:100%;padding:24px;border-radius:12px;border:2px solid var(--gold);">' +
+    '<h3 style="margin-top:0;color:#C0392B;">⚠️ Falta el gasto de compra</h3>' +
+    '<p style="margin:12px 0;color:var(--text-2);">No se puede publicar <b style="color:var(--text);">' + esc(id) + '</b> porque no tiene registrado el gasto de compra en Inventario.</p>' +
+    '<p style="margin:12px 0;color:var(--text-2);">Registra el gasto en <b>Finanzas</b> con la categoría <b>"Joyas para reventa"</b> y enlázalo a esta pieza. Con eso queda habilitada la publicación.</p>' +
+    '<button style="width:100%;padding:12px;background:var(--gold);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;margin-bottom:8px;" onclick="this.closest(\'div\').parentElement.remove(); admGuardarComoBorrador();">Guardar como Borrador mientras tanto</button>' +
+    '<button style="width:100%;padding:12px;background:transparent;color:var(--text-2);border:1px solid var(--text-3);border-radius:6px;font-weight:600;cursor:pointer;" onclick="this.closest(\'div\').parentElement.remove();">Volver a editar</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+}
+
+function admGuardarComoBorrador() {
+  admSetEstado('borrador');
+  admSaveProduct();
+}
+
 function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) {
   if (admEstado === 'publicado') {
     admCheckGastoEnlazado(id, function(tieneGasto) {
       if (!tieneGasto) {
-        toast('Producto en borrador, sin gasto registrado en Inventario — no se puede publicar "' + id + '". Registra o enlaza el gasto de compra en Finanzas (categoría "Joyas para reventa") para habilitar la publicación. Puedes guardarlo como Borrador u Oculto mientras tanto.');
+        admShowBloqueoPublicacion(id);
         return;
       }
       admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta);
