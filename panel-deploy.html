@@ -964,6 +964,7 @@
           <table>
             <thead>
               <tr>
+                <th title="Numero de gasto, usado como origen en Inventario">#</th>
                 <th>Fecha</th>
                 <th>Categoria</th>
                 <th>Descripcion</th>
@@ -2082,7 +2083,7 @@ function renderFin() {
     if (e.qty && u) {
       qtyCell = fmtQty(e.qty, u.u) + '<br><small>' + fmtShort(e.amount / e.qty) + '/' + u.u + '</small>';
     }
-    var descCell = esc(e.desc) + ' <span class="link-tag" style="background:var(--bg-alt);color:var(--text-3);" title="ID de este gasto, usado como origen en Inventario">#' + e.id + '</span>';
+    var descCell = esc(e.desc);
     if (e.link) descCell += ' <span class="link-tag">' + esc(e.link) + '</span>';
     if (e.comprobante) descCell += ' <span onclick="event.stopPropagation(); verComprobanteGasto(' + e.id + ')" title="Ver comprobante" style="cursor:pointer;">&#128206;</span>' +
       ' <span onclick="event.stopPropagation(); descargarComprobantePDF(' + e.id + ')" title="Descargar comprobante en PDF" style="cursor:pointer;">&#11015;&#65039;</span>';
@@ -2095,6 +2096,7 @@ function renderFin() {
       : '<button class="btn-del" onclick="delExpense(' + e.id + ', event)" title="Eliminar">&times;</button>';
     var rowClick = locked ? '' : 'onclick="startEdit(' + e.id + ')"';
     html += '<tr class="' + (editingId === e.id ? 'editing' : '') + '" ' + rowClick + '>' +
+      '<td style="white-space:nowrap;color:var(--text-3);font-variant-numeric:tabular-nums;" title="Numero de gasto, usado como origen en Inventario">#' + e.id + '</td>' +
       '<td style="white-space:nowrap">' + dp[2] + '/' + dp[1] + '/' + dp[0] + '</td>' +
       '<td><span class="cat-badge ' + catClass(e.cat) + '">' + esc(e.cat) + '</span></td>' +
       '<td>' + descCell + '</td>' +
@@ -2161,7 +2163,7 @@ function renderFin() {
 
 /* ===== EXPORT ===== */
 function rowsForExport() {
-  var headers = ['Fecha','Tipo','Categoria','Descripcion','Proveedor','NIT/Cedula proveedor',
+  var headers = ['No. gasto','Fecha','Tipo','Categoria','Descripcion','Proveedor','NIT/Cedula proveedor',
     'No. factura','Forma de pago','IVA pagado','Soporte','Item/tipo material','Cantidad de piedras',
     'Cantidad','Unidad','Precio unitario','Monto (COP)','Producto'];
   var out = [headers];
@@ -2169,7 +2171,7 @@ function rowsForExport() {
   for (var i = 0; i < sorted.length; i++) {
     var e = sorted[i], u = UNITS[e.cat];
     var tipo = e.cat === 'Ingresos por Ventas' ? 'Ingreso' : (isInv(e.cat) ? 'Inventario' : 'Operativo');
-    out.push([e.date, tipo, e.cat, e.desc, e.prov || '', e.nit || '', e.numFactura || '',
+    out.push([e.id, e.date, tipo, e.cat, e.desc, e.prov || '', e.nit || '', e.numFactura || '',
       e.formaPago || '', e.ivaMonto || '', e.sinSoporte ? 'Si' : 'No',
       e.itemInv || '', (e.qtyPiedras || e.qtyPiedras === 0) ? e.qtyPiedras : '',
       (e.qty || e.qty === 0) ? e.qty : '', u ? u.u : '',
@@ -2270,7 +2272,7 @@ function exportXLSX() {
       var val = rows[r][c], ref = colName(c+1) + (r+1);
       if (val === '' || val === null || val === undefined) continue;
       if (r > 0 && typeof val === 'number') {
-        var st = (c === 8 || c === 14 || c === 15) ? ' s="2"' : '';
+        var st = (c === 9 || c === 15 || c === 16) ? ' s="2"' : '';
         cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
       } else {
         var s = r === 0 ? ' s="1"' : '';
@@ -2279,7 +2281,7 @@ function exportXLSX() {
     }
     sheet += '<row r="' + (r+1) + '">' + cells + '</row>';
   }
-  var cols = '<cols><col min="1" max="1" width="11" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/><col min="4" max="4" width="34" customWidth="1"/><col min="5" max="5" width="22" customWidth="1"/><col min="6" max="6" width="18" customWidth="1"/><col min="7" max="7" width="16" customWidth="1"/><col min="8" max="8" width="16" customWidth="1"/><col min="9" max="9" width="12" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/><col min="11" max="11" width="20" customWidth="1"/><col min="12" max="12" width="14" customWidth="1"/><col min="13" max="13" width="10" customWidth="1"/><col min="14" max="14" width="8" customWidth="1"/><col min="15" max="15" width="15" customWidth="1"/><col min="16" max="16" width="16" customWidth="1"/><col min="17" max="17" width="12" customWidth="1"/></cols>';
+  var cols = '<cols><col min="1" max="1" width="9" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/><col min="5" max="5" width="34" customWidth="1"/><col min="6" max="6" width="22" customWidth="1"/><col min="7" max="7" width="18" customWidth="1"/><col min="8" max="8" width="16" customWidth="1"/><col min="9" max="9" width="16" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/><col min="11" max="11" width="12" customWidth="1"/><col min="12" max="12" width="20" customWidth="1"/><col min="13" max="13" width="14" customWidth="1"/><col min="14" max="14" width="10" customWidth="1"/><col min="15" max="15" width="8" customWidth="1"/><col min="16" max="16" width="15" customWidth="1"/><col min="17" max="17" width="16" customWidth="1"/><col min="18" max="18" width="12" customWidth="1"/></cols>';
   var files = [
     { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
     { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
