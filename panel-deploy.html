@@ -880,9 +880,17 @@
             <label for="f-amount">Monto (COP)</label>
             <input type="number" id="f-amount" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
           </div>
+          <div class="field hidden" id="item-inv-metal-field">
+            <label for="f-item-inv-metal">Ítem / tipo de material</label>
+            <select id="f-item-inv-metal">
+              <option value="Oro">Oro</option>
+              <option value="Plata">Plata</option>
+              <option value="Liga">Liga</option>
+            </select>
+          </div>
           <div class="field hidden" id="item-inv-field">
             <label for="f-item-inv">Ítem / tipo de material</label>
-            <input type="text" id="f-item-inv" placeholder="Ej: Oro 18K, Esmeralda, Caja kraft mediana">
+            <input type="text" id="f-item-inv" placeholder="Ej: Esmeralda, Caja kraft mediana">
             <div class="hint">Para agrupar el inventario por tipo. Opcional — si lo dejas vacío, queda como "Sin especificar".</div>
           </div>
           <div class="field hidden" id="qty-field">
@@ -1242,12 +1250,12 @@
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>Pieza</th><th style="text-align:right">Costo de compra</th><th>Vitrina</th><th>Venta</th></tr>
+              <tr><th>Pieza</th><th style="text-align:right">Costo promedio</th><th style="text-align:right">Compradas</th><th style="text-align:right">Vendidas</th><th style="text-align:right">Saldo</th><th>Vitrina</th></tr>
             </thead>
             <tbody id="tbl-body-inv-joyas"></tbody>
           </table>
         </div>
-        <div class="hint" style="margin-top:0.6rem;">💡 Cruza el gasto en Finanzas (costo), el estado en el publicador (Vitrina) y si ya existe una venta de catálogo con ese producto (Venta). Al venderse, la Vitrina pasa sola a "Oculto".</div>
+        <div class="hint" style="margin-top:0.6rem;">💡 Un mismo producto puede tener varias unidades compradas. Saldo = compradas − vendidas. Cuando se agota (saldo 0), la Vitrina pasa sola a "Oculto".</div>
       </div>
 
       <!-- HISTORIAL DE MOVIMIENTOS -->
@@ -1616,7 +1624,8 @@ var CAT_CLASS = {
 var UNITS = {
   'Metales': { u: 'g', label: 'Cantidad (g)', hint: 'Gramos comprados.', rate: 'Precio por gramo' },
   'Piedras': { u: 'ct', label: 'Cantidad (ct)', hint: 'Quilates comprados.', rate: 'Precio por quilate' },
-  'Empaque': { u: 'u', label: 'Cantidad (unidades)', hint: 'Unidades compradas.', rate: 'Precio por unidad' }
+  'Empaque': { u: 'u', label: 'Cantidad (unidades)', hint: 'Unidades compradas.', rate: 'Precio por unidad' },
+  'Joyas para reventa': { u: 'u', label: 'Cantidad comprada (unidades)', hint: 'Piezas de este modelo compradas en esta compra.', rate: 'Costo por unidad' }
 };
 var ITEM_INVENTARIO_CATS = ['Metales', 'Piedras', 'Empaque'];
 
@@ -1674,7 +1683,9 @@ function syncCat() {
   } else {
     $('qty-field').classList.add('hidden'); $('f-qty').value = '';
   }
-  var showItemInv = ITEM_INVENTARIO_CATS.indexOf(cat) >= 0;
+  var showItemInvMetal = cat === 'Metales';
+  var showItemInv = ITEM_INVENTARIO_CATS.indexOf(cat) >= 0 && !showItemInvMetal;
+  $('item-inv-metal-field').classList.toggle('hidden', !showItemInvMetal);
   $('item-inv-field').classList.toggle('hidden', !showItemInv);
   if (!showItemInv) $('f-item-inv').value = '';
   $('qty-piedras-field').classList.toggle('hidden', cat !== 'Piedras');
@@ -1758,7 +1769,7 @@ function verComprobante(path) {
 function clearForm() {
   $('f-desc').value = ''; $('f-prov').value = '';
   $('f-amount').value = ''; $('f-qty').value = ''; $('f-link').value = '';
-  $('f-item-inv').value = ''; $('f-qty-piedras').value = '';
+  $('f-item-inv').value = ''; $('f-item-inv-metal').selectedIndex = 0; $('f-qty-piedras').value = '';
   $('f-nit').value = ''; $('f-numfactura').value = ''; $('f-formapago').value = '';
   $('f-iva').value = ''; $('f-sin-soporte').checked = false;
   $('f-comprobante').value = ''; $('f-comprobante-hint').textContent = '';
@@ -1822,7 +1833,8 @@ function saveExpense() {
   var qty = (UNITS[cat] && qtyRaw !== '') ? (parseFloat(qtyRaw) || 0) : null;
   var unit = UNITS[cat] ? UNITS[cat].u : '';
   var link = (cat === 'Joyas para reventa') ? $('f-link').value.trim() : '';
-  var itemInv = (ITEM_INVENTARIO_CATS.indexOf(cat) >= 0) ? $('f-item-inv').value.trim() : '';
+  var itemInv = cat === 'Metales' ? $('f-item-inv-metal').value
+    : (ITEM_INVENTARIO_CATS.indexOf(cat) >= 0 ? $('f-item-inv').value.trim() : '');
   var qtyPiedrasRaw = $('f-qty-piedras').value;
   var qtyPiedras = (cat === 'Piedras' && qtyPiedrasRaw !== '') ? (parseInt(qtyPiedrasRaw, 10) || 0) : null;
 
@@ -2708,6 +2720,7 @@ function confirmarYGuardarVenta() {
         toast('Venta registrada e ingreso creado en Control Financiero');
         cancelEditVenta(); renderVentas(); renderFin(); window._ventaPendiente = null;
         if (v.esManual && salidaPendiente) registrarSalidasInventario(ventaCreada.id, v.fecha, v.cantidad, salidaPendiente);
+        if (!v.esManual && v.producto_id) invCheckAutoOcultar(v.producto_id);
       }).catch(e => {
         console.error(e); toast('Error al guardar venta: ' + e.message);
         fetch(SB_URL + '/rest/v1/gastos?id=eq.' + ingresoCreado.id, { method: 'DELETE', headers: sbHeaders() }).catch(function(){});
@@ -3098,16 +3111,48 @@ function invFilterMaterial(btn, cat) {
   invRenderMaterial();
 }
 
+function invCheckAutoOcultar(productoId) {
+  var producto = productosCache.find(function(p) { return p.id === productoId; });
+  if (!producto || producto.estado !== 'publicado') return;
+  var entradas = 0;
+  expenses.forEach(function(e) { if (e.cat === 'Joyas para reventa' && e.link === productoId) entradas += (e.qty || 0); });
+  if (entradas <= 0) return;
+  var vendidas = invJoyaVentasVendidas(productoId);
+  if (vendidas < entradas) return;
+  fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(productoId), {
+    method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify({ estado: 'oculto' })
+  }).then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(rows) {
+    var updated = Array.isArray(rows) ? rows[0] : rows;
+    if (updated) producto.estado = updated.estado || 'oculto'; else producto.estado = 'oculto';
+    renderInventario();
+    toast('Sin más stock: "' + productoId + '" se ocultó solo de la vitrina');
+  }).catch(function(e) { console.error('Error al auto-ocultar producto agotado:', e); });
+}
+
+function invJoyaVentasVendidas(productoId) {
+  return ventas.filter(function(v) { return v.producto_id === productoId; })
+    .reduce(function(a, v) { return a + (v.cantidad || 0); }, 0);
+}
+
 function invJoyasRows() {
-  var rows = [];
+  var map = {};
   expenses.forEach(function(e) {
     if (e.cat !== 'Joyas para reventa' || !e.link) return;
-    var producto = productosCache.find(function(p) { return p.id === e.link; });
-    var venta = ventas.find(function(v) { return v.producto_id === e.link; });
+    if (!map[e.link]) map[e.link] = { id: e.link, entradas: 0, amount: 0 };
+    map[e.link].entradas += (e.qty || 0);
+    map[e.link].amount += (e.amount || 0);
+  });
+  var rows = [];
+  Object.keys(map).forEach(function(id) {
+    var g = map[id];
+    var producto = productosCache.find(function(p) { return p.id === id; });
+    var vendidas = invJoyaVentasVendidas(id);
     rows.push({
-      id: e.link, nombre: (producto ? producto.descripcion : '(producto no encontrado)'),
-      costo: e.amount, estadoVitrina: producto ? producto.estado : null,
-      vendida: !!venta, numeroVenta: venta ? venta.numero : ''
+      id: id, nombre: producto ? producto.descripcion : '(producto no encontrado)',
+      entradas: g.entradas, vendidas: vendidas, saldo: g.entradas - vendidas,
+      costoProm: g.entradas > 0 ? (g.amount / g.entradas) : 0,
+      estadoVitrina: producto ? producto.estado : null
     });
   });
   rows.sort(function(a, b) { return a.id.localeCompare(b.id); });
@@ -3117,14 +3162,17 @@ function invJoyasRows() {
 function invRenderJoyas() {
   var rows = invJoyasRows();
   var tbody = $('tbl-body-inv-joyas');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-3);">Sin joyas para reventa enlazadas todavía</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);">Sin joyas para reventa enlazadas todavía</td></tr>'; return; }
   var html = '';
   rows.forEach(function(r) {
     var vitrinaCell = r.estadoVitrina ? '<span class="cat-badge badge-' + r.estadoVitrina + '">' + r.estadoVitrina + '</span>' : '<span class="cat-badge badge-sincosto">No encontrado en vitrina</span>';
-    var ventaCell = r.vendida ? '<span class="cat-badge badge-vendida">Vendida — ' + esc(r.numeroVenta) + '</span>' : '<span class="cat-badge badge-disponible">Disponible</span>';
+    var saldoCell = r.saldo > 0 ? ('<b style="color:var(--esm);">' + fmtQty(r.saldo) + ' u</b>') : '<b style="color:var(--red,#b03a2e);">Agotado</b>';
     html += '<tr><td><span class="item-name">' + esc(r.id) + ' — ' + esc(r.nombre) + '</span></td>' +
-      '<td style="text-align:right">' + fmt(r.costo) + '</td>' +
-      '<td>' + vitrinaCell + '</td><td>' + ventaCell + '</td></tr>';
+      '<td style="text-align:right">' + fmtShort(r.costoProm) + '/u</td>' +
+      '<td style="text-align:right">' + fmtQty(r.entradas) + ' u</td>' +
+      '<td style="text-align:right">' + fmtQty(r.vendidas) + ' u</td>' +
+      '<td style="text-align:right">' + saldoCell + '</td>' +
+      '<td>' + vitrinaCell + '</td></tr>';
   });
   tbody.innerHTML = html;
 }
@@ -3242,10 +3290,10 @@ function invMovExportRows() {
 }
 
 function invJoyasExportRows() {
-  var headers = ['ID producto', 'Nombre', 'Costo de compra', 'Estado vitrina', 'Estado venta', 'Numero de venta'];
+  var headers = ['ID producto', 'Nombre', 'Costo promedio', 'Compradas', 'Vendidas', 'Saldo', 'Estado vitrina'];
   var rows = [headers];
   invJoyasRows().forEach(function(r) {
-    rows.push([r.id, r.nombre, r.costo, r.estadoVitrina || '', r.vendida ? 'Vendida' : 'Disponible', r.numeroVenta || '']);
+    rows.push([r.id, r.nombre, Math.round(r.costoProm), r.entradas, r.vendidas, r.saldo, r.estadoVitrina || '']);
   });
   return rows;
 }
