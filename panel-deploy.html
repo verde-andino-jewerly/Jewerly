@@ -125,7 +125,98 @@
   .tab-content.active { display: block; }
 
   /* ===== CALCULADORA ===== */
-  #tab-calc .container { max-width: 440px; margin: 0 auto; }
+  #tab-calc .calc-layout { display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap; max-width: 900px; margin: 0 auto; }
+  #tab-calc .calc-layout .container { max-width: 400px; margin: 0; flex: 0 0 400px; }
+  #tab-calc .calcj-wrap { flex: 1 1 420px; min-width: 320px; }
+  @media (max-width: 860px) { #tab-calc .calc-layout .container { flex-basis: 100%; margin: 0 auto; } }
+
+  /* ---- Calculadora de Joya Personalizada ---- */
+  .calcj-section { padding: 1rem 0; }
+  .calcj-section:first-child { padding-top: 0; }
+  .calcj-section + .calcj-section { border-top: 1px solid var(--border-s); }
+  .calcj-section-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+  .calcj-ico {
+    width: 26px; height: 26px; border-radius: 50%; flex: none;
+    background: var(--gold-l); color: var(--gold);
+    display: flex; align-items: center; justify-content: center; font-size: 0.82rem;
+  }
+  .calcj-section.stones .calcj-ico, .calcj-section.labor .calcj-ico { background: var(--esm-l); color: var(--esm); }
+  .calcj-section-header h3 { font-size: 0.85rem; font-weight: 700; margin: 0; color: var(--text); }
+  .calcj-count { font-size: 0.68rem; color: var(--text-3); font-weight: 500; margin-left: auto; }
+  .calcj-hint { font-size: 0.68rem; color: var(--text-3); margin-top: 0.5rem; line-height: 1.4; }
+  .calcj-sub-result {
+    margin-top: 0.85rem; padding: 0.65rem 0.9rem; background: var(--gold-bg);
+    border-radius: 7px; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+  }
+  .calcj-sub-result .lab { font-size: 0.75rem; color: var(--text-2); font-weight: 600; }
+  .calcj-sub-result .val { font-size: 1.02rem; font-weight: 700; color: var(--gold); text-align: right; }
+  .calcj-sub-result .val .calcj-per-gram { font-size: 0.64rem; font-weight: 600; color: var(--text-3); margin-left: 0.25rem; }
+  .calcj-item-row {
+    display: grid; grid-template-columns: 1fr 70px 110px 32px; gap: 0.4rem;
+    margin-bottom: 0.5rem; align-items: center;
+  }
+  .calcj-item-row.two-col { grid-template-columns: 1fr 110px 32px; }
+  .calcj-item-row input {
+    width: 100%; padding: 0.5rem 0.6rem; font-size: 0.85rem; font-family: inherit;
+    color: var(--text); background: var(--bg-alt); border: 1px solid var(--border-s);
+    border-radius: 6px; outline: none; min-height: 38px;
+  }
+  .calcj-item-row input:focus { border-color: var(--gold); }
+  .calcj-btn-add-row {
+    background: none; border: 1.5px dashed var(--border); color: var(--text-2);
+    border-radius: 7px; padding: 0.5rem; width: 100%; cursor: pointer;
+    font-size: 0.8rem; font-weight: 600; margin-top: 0.2rem; font-family: inherit;
+  }
+  .calcj-section.stones .calcj-btn-add-row:hover,
+  .calcj-section.labor .calcj-btn-add-row:hover { border-color: var(--esm); color: var(--esm); }
+  .calcj-items-total { margin-top: 0.55rem; text-align: right; font-size: 0.78rem; color: var(--text-2); }
+  .calcj-items-total b { color: var(--esm); font-size: 0.95rem; }
+  .calcj-result-final { text-align: center; padding: 0.7rem 0 0.4rem; }
+  .calcj-result-final .lab {
+    font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-3); margin-bottom: 0.25rem;
+  }
+  .calcj-result-final .val { font-size: 1.9rem; font-weight: 700; color: var(--gold); }
+  .calcj-breakdown {
+    display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.9rem;
+    padding-top: 0.9rem; border-top: 1px solid var(--border-s);
+  }
+  .calcj-breakdown-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-2); }
+  .calcj-breakdown-row b { color: var(--text); font-weight: 600; }
+  .calcj-result-note {
+    margin-top: 0.85rem; padding: 0.55rem 0.75rem; background: var(--bg-alt);
+    border-radius: 6px; font-size: 0.7rem; color: var(--text-3); text-align: center;
+  }
+
+  /* ---- Inventario ---- */
+  .inv-filters { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .inv-chip {
+    padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--border-s);
+    background: var(--bg-alt); color: var(--text-2); font-size: 0.76rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .inv-chip.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+  .item-name { font-weight: 700; color: var(--text); }
+  .hint { font-size: 0.68rem; color: var(--text-3); line-height: 1.4; }
+  .inv-item-cat {
+    display: inline-block; font-size: 0.66rem; font-weight: 600; padding: 0.15rem 0.5rem;
+    border-radius: 5px; margin-top: 0.2rem; color: var(--text-2); background: var(--bg-alt);
+  }
+  .inv-sub { display: block; font-size: 0.7rem; color: var(--text-3); font-weight: 500; }
+  .inv-origen-tag {
+    display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.7rem; font-weight: 600;
+    color: var(--blue, #2e5fa3); background: var(--blue-bg, #e8f0fb); padding: 0.15rem 0.5rem; border-radius: 5px;
+  }
+  .inv-auto-tag { font-size: 0.65rem; color: var(--text-3); margin-top: 0.2rem; font-style: italic; }
+  .badge-entrada { background: var(--esm-l); color: var(--esm); }
+  .badge-salida { background: var(--red-bg, #fbedeb); color: var(--red, #b03a2e); }
+  .badge-publicado { background: var(--esm-l); color: var(--esm); }
+  .badge-oculto { background: var(--bg-alt); color: var(--text-3); }
+  .badge-borrador { background: var(--gold-l); color: var(--gold); }
+  .badge-disponible { background: var(--esm-l); color: var(--esm); }
+  .badge-vendida { background: var(--red-bg, #fbedeb); color: var(--red, #b03a2e); }
+  .badge-sincosto { background: var(--red-bg, #fbedeb); color: var(--red, #b03a2e); }
+
   .switch-container {
     display: flex; align-items: center; justify-content: center;
     gap: 0.75rem; margin-bottom: 1.5rem;
@@ -564,12 +655,14 @@
     <button class="nav-tab active" data-tab="calc" onclick="switchTab('calc')">Calculadora</button>
     <button class="nav-tab" data-tab="fin" onclick="switchTab('fin')">Finanzas</button>
     <button class="nav-tab" data-tab="ven" onclick="switchTab('ven')">Ventas</button>
+    <button class="nav-tab" data-tab="inv" onclick="switchTab('inv')">Inventario</button>
     <span class="nav-spacer"></span>
     <button class="btn-logout" onclick="authLogout()">Salir</button>
   </nav>
 
   <!-- TAB: CALCULADORA -->
   <div class="tab-content active" id="tab-calc">
+    <div class="calc-layout">
     <div class="container">
       <div class="switch-container">
         <span class="switch-label" id="label-silver" onclick="setMetal('silver')">Plata</span>
@@ -649,6 +742,96 @@
         </div>
       </div>
     </div>
+
+    <!-- CALCULADORA DE JOYA PERSONALIZADA -->
+    <div class="calcj-wrap">
+      <div class="card">
+        <div class="card-title">Calculadora de Joya Personalizada</div>
+
+        <div class="calcj-section metal">
+          <div class="calcj-section-header"><span class="calcj-ico">⚙️</span><h3>Metal</h3></div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Tipo de metal</label>
+              <select id="cj-tipo-metal" onchange="cjCalcular()">
+                <option value="gold">Oro</option>
+                <option value="silver">Plata</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Peso total de la pieza (g)</label>
+              <input type="number" id="cj-peso" min="0" step="0.01" placeholder="Ej: 8.00" oninput="cjCalcular()">
+            </div>
+            <div class="field" id="cj-wrap-karat">
+              <label>Ley deseada</label>
+              <select id="cj-karat" onchange="cjCalcular()">
+                <option value="24">24K - 999</option>
+                <option value="22">22K - 916</option>
+                <option value="18" selected>18K - 750</option>
+                <option value="14">14K - 585</option>
+                <option value="10">10K - 417</option>
+                <option value="9">9K - 375</option>
+              </select>
+            </div>
+            <div class="field" id="cj-wrap-ley" style="display:none;">
+              <label>Ley deseada</label>
+              <select id="cj-ley" onchange="cjCalcular()">
+                <option value="1000">1000 - Pura</option>
+                <option value="950">950</option>
+                <option value="925" selected>925 - Sterling</option>
+                <option value="900">900</option>
+                <option value="800">800</option>
+                <option value="720">720</option>
+              </select>
+            </div>
+          </div>
+          <div class="calcj-sub-result">
+            <span class="lab" id="cj-lab-puro">Metal puro (18K)</span>
+            <span class="val"><span id="cj-metal-puro">0.00</span> g <small class="calcj-per-gram" id="cj-precio-puro-inline">· $0/g</small></span>
+          </div>
+          <div class="calcj-sub-result">
+            <span class="lab">Liga</span>
+            <span class="val"><span id="cj-metal-liga">0.00</span> g <small class="calcj-per-gram" id="cj-precio-liga-inline">· $0/g</small></span>
+          </div>
+          <div class="calcj-hint">💡 Puro y liga usan hoy el mismo promedio de tus compras de Metales en Finanzas (no hay forma de diferenciarlos aún). Cuando construyamos el control de inventario, cada compra y cada salida por venta se registrará ahí con su costo real.</div>
+          <div class="calcj-sub-result">
+            <span class="lab">Costo de metal</span>
+            <span class="val"><span id="cj-costo-metal">$0</span> <small class="calcj-per-gram" id="cj-costo-metal-desglose">· $0 puro + $0 liga</small></span>
+          </div>
+        </div>
+
+        <div class="calcj-section stones">
+          <div class="calcj-section-header"><span class="calcj-ico">💎</span><h3>Piedras</h3><span class="calcj-count" id="cj-stone-count">0 piedras</span></div>
+          <div id="cj-stone-rows"></div>
+          <button type="button" class="calcj-btn-add-row" onclick="cjAddStone()">+ Agregar piedra</button>
+          <div class="calcj-items-total">Total piedras: <b id="cj-total-piedras">$0</b></div>
+        </div>
+
+        <div class="calcj-section labor">
+          <div class="calcj-section-header"><span class="calcj-ico">🛠️</span><h3>Mano de obra y otros costos</h3><span class="calcj-count" id="cj-labor-count">0 costos</span></div>
+          <div id="cj-labor-rows"></div>
+          <button type="button" class="calcj-btn-add-row" onclick="cjAddLabor()">+ Agregar costo</button>
+          <div class="calcj-items-total">Total mano de obra y otros: <b id="cj-total-labor">$0</b></div>
+        </div>
+
+        <div class="calcj-section result">
+          <div class="calcj-section-header"><span class="calcj-ico">✅</span><h3>Resultado</h3></div>
+          <div class="calcj-result-final">
+            <div class="lab">Costo unitario total</div>
+            <div class="val" id="cj-costo-total">$0</div>
+          </div>
+          <div class="calcj-breakdown">
+            <div class="calcj-breakdown-row"><span>Metal</span><b id="cj-b-metal">$0</b></div>
+            <div class="calcj-breakdown-row"><span>Piedras</span><b id="cj-b-piedras">$0</b></div>
+            <div class="calcj-breakdown-row"><span>Mano de obra y otros</span><b id="cj-b-labor">$0</b></div>
+          </div>
+          <button type="button" class="btn-add" id="cj-btn-cargar-ventas" onclick="cjCargarAVentas()" style="width:100%; margin-top:0.9rem;">→ Cargar costo unitario a Ventas (venta manual)</button>
+          <div class="calcj-result-note">El margen y el precio de venta se definen en el formulario de Ventas al registrar la pieza.</div>
+        </div>
+
+      </div>
+    </div>
+    </div>
   </div>
 
   <!-- TAB: FINANCIERO -->
@@ -697,10 +880,20 @@
             <label for="f-amount">Monto (COP)</label>
             <input type="number" id="f-amount" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
           </div>
+          <div class="field hidden" id="item-inv-field">
+            <label for="f-item-inv">Ítem / tipo de material</label>
+            <input type="text" id="f-item-inv" placeholder="Ej: Oro 18K, Esmeralda, Caja kraft mediana">
+            <div class="hint">Para agrupar el inventario por tipo. Opcional — si lo dejas vacío, queda como "Sin especificar".</div>
+          </div>
           <div class="field hidden" id="qty-field">
             <label for="f-qty" id="qty-label">Cantidad</label>
             <input type="number" id="f-qty" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
             <div class="hint" id="qty-hint"></div>
+          </div>
+          <div class="field hidden" id="qty-piedras-field">
+            <label for="f-qty-piedras">Cantidad de piedras</label>
+            <input type="number" id="f-qty-piedras" min="0" step="1" inputmode="numeric" placeholder="Ej: 3">
+            <div class="hint">Cuántas piedras individuales representa esta compra (aparte del peso en quilates).</div>
           </div>
           <div class="field hidden" id="link-field">
             <label for="f-link">Producto en el catalogo</label>
@@ -1019,6 +1212,78 @@
     </div>
   </div>
 
+  <!-- TAB: INVENTARIO -->
+  <div class="tab-content" id="tab-inv">
+    <div class="container" style="max-width: 980px; margin: 0 auto;">
+
+      <!-- MATERIAL A GRANEL -->
+      <div class="card">
+        <div class="card-title"><span>Material a granel — Metales, Piedras, Empaques</span></div>
+        <div class="inv-filters" id="inv-mat-filters">
+          <button class="inv-chip active" data-cat="all" onclick="invFilterMaterial(this,'all')">Todos</button>
+          <button class="inv-chip" data-cat="Metales" onclick="invFilterMaterial(this,'Metales')">Metales</button>
+          <button class="inv-chip" data-cat="Piedras" onclick="invFilterMaterial(this,'Piedras')">Piedras</button>
+          <button class="inv-chip" data-cat="Empaque" onclick="invFilterMaterial(this,'Empaque')">Empaques</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Ítem</th><th style="text-align:right">Saldo disponible</th><th style="text-align:right">Costo promedio</th></tr>
+            </thead>
+            <tbody id="tbl-body-inv-mat"></tbody>
+          </table>
+        </div>
+        <div class="hint" style="margin-top:0.6rem;">💡 Un renglón por ítem: cuánto queda y a cuánto sale en promedio. El detalle de cada movimiento está en el historial más abajo.</div>
+      </div>
+
+      <!-- JOYAS PARA REVENTA -->
+      <div class="card">
+        <div class="card-title"><span>Joyas para reventa</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Pieza</th><th style="text-align:right">Costo de compra</th><th>Vitrina</th><th>Venta</th></tr>
+            </thead>
+            <tbody id="tbl-body-inv-joyas"></tbody>
+          </table>
+        </div>
+        <div class="hint" style="margin-top:0.6rem;">💡 Cruza el gasto en Finanzas (costo), el estado en el publicador (Vitrina) y si ya existe una venta de catálogo con ese producto (Venta). Al venderse, la Vitrina pasa sola a "Oculto".</div>
+      </div>
+
+      <!-- HISTORIAL DE MOVIMIENTOS -->
+      <div class="card">
+        <div class="card-title"><span>Historial de movimientos</span><span class="text-2" id="inv-mov-count" style="font-size: 0.9em;"></span></div>
+        <div class="inv-filters" id="inv-mov-filters">
+          <button class="inv-chip active" data-tipo="all" onclick="invFilterMov(this,'all')">Todos</button>
+          <button class="inv-chip" data-tipo="entrada" onclick="invFilterMov(this,'entrada')">Entradas</button>
+          <button class="inv-chip" data-tipo="salida" onclick="invFilterMov(this,'salida')">Salidas</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Fecha</th><th>Tipo</th><th>Ítem</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Valor</th><th>Origen</th></tr>
+            </thead>
+            <tbody id="tbl-body-inv-mov"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- EXPORTAR -->
+      <div class="card">
+        <div class="card-title"><span>Exportar</span></div>
+        <div class="export-row">
+          <button class="btn-secondary" onclick="exportInvSaldosCSV()">📥 Saldos por ítem (CSV)</button>
+          <button class="btn-secondary" onclick="exportInvSaldosXLSX()">📥 Saldos por ítem (Excel)</button>
+          <button class="btn-secondary" onclick="exportInvMovCSV()">📥 Historial de movimientos (CSV)</button>
+          <button class="btn-secondary" onclick="exportInvMovXLSX()">📥 Historial de movimientos (Excel)</button>
+          <button class="btn-secondary" onclick="exportInvJoyasCSV()">📥 Joyas para reventa (CSV)</button>
+          <button class="btn-secondary" onclick="exportInvJoyasXLSX()">📥 Joyas para reventa (Excel)</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <footer>Verde Andino Jewelry</footer>
 </div>
 
@@ -1116,6 +1381,7 @@ function authUnlock() {
   finLoad();
   venLoad();
   loadProductosDropdown();
+  invLoad();
 }
 
 function authLogout() {
@@ -1190,9 +1456,154 @@ document.getElementById('silver-weight').addEventListener('input', calcSilver);
 document.getElementById('silver-purity').addEventListener('change', calcSilver);
 renderMetal();
 
+/* ===== CALCULADORA DE JOYA PERSONALIZADA ===== */
+function costoPromedioPonderado(categoria) {
+  var q = 0, a = 0;
+  for (var i = 0; i < expenses.length; i++) {
+    var e = expenses[i];
+    if (e.cat === categoria && e.qty) { q += e.qty; a += e.amount; }
+  }
+  return q > 0 ? a / q : 0;
+}
+
+var cjStones = [];
+var cjStoneIdCounter = 0;
+var cjLaborItems = [];
+var cjLaborIdCounter = 0;
+
+function cjToggleMetal() {
+  var isGold = $('cj-tipo-metal').value === 'gold';
+  $('cj-wrap-karat').style.display = isGold ? '' : 'none';
+  $('cj-wrap-ley').style.display = isGold ? 'none' : '';
+}
+
+function cjAddStone(desc, quilates, costo) {
+  var id = cjStoneIdCounter++;
+  cjStones.push({ id: id, desc: desc || '', quilates: quilates || '', costo: costo || 0 });
+  cjRenderStones();
+}
+function cjRemoveStone(id) {
+  cjStones = cjStones.filter(function(s) { return s.id !== id; });
+  cjRenderStones();
+}
+function cjUpdateStone(id, field, value) {
+  var s = cjStones.find(function(s) { return s.id === id; });
+  if (s) s[field] = field === 'costo' ? (parseFloat(value) || 0) : value;
+  cjCalcular();
+}
+function cjRenderStones() {
+  var html = '';
+  cjStones.forEach(function(s) {
+    html += '<div class="calcj-item-row">' +
+      '<input type="text" placeholder="Ej: Esmeralda" value="' + esc(s.desc) + '" oninput="cjUpdateStone(' + s.id + ',\'desc\',this.value)">' +
+      '<input type="text" placeholder="Ct" value="' + esc(s.quilates) + '" oninput="cjUpdateStone(' + s.id + ',\'quilates\',this.value)">' +
+      '<input type="number" placeholder="Costo" value="' + (s.costo || '') + '" oninput="cjUpdateStone(' + s.id + ',\'costo\',this.value)">' +
+      '<button type="button" class="btn-del" onclick="cjRemoveStone(' + s.id + ')" title="Eliminar">&times;</button>' +
+      '</div>';
+  });
+  $('cj-stone-rows').innerHTML = html;
+  $('cj-stone-count').textContent = cjStones.length + (cjStones.length === 1 ? ' piedra' : ' piedras');
+  cjCalcular();
+}
+
+function cjAddLabor(desc, costo) {
+  var id = cjLaborIdCounter++;
+  cjLaborItems.push({ id: id, desc: desc || '', costo: costo || 0 });
+  cjRenderLabor();
+}
+function cjRemoveLabor(id) {
+  cjLaborItems = cjLaborItems.filter(function(s) { return s.id !== id; });
+  cjRenderLabor();
+}
+function cjUpdateLabor(id, field, value) {
+  var s = cjLaborItems.find(function(s) { return s.id === id; });
+  if (s) s[field] = field === 'costo' ? (parseFloat(value) || 0) : value;
+  cjCalcular();
+}
+function cjRenderLabor() {
+  var html = '';
+  cjLaborItems.forEach(function(s) {
+    html += '<div class="calcj-item-row two-col">' +
+      '<input type="text" placeholder="Ej: Mano de obra, empaque..." value="' + esc(s.desc) + '" oninput="cjUpdateLabor(' + s.id + ',\'desc\',this.value)">' +
+      '<input type="number" placeholder="Costo" value="' + (s.costo || '') + '" oninput="cjUpdateLabor(' + s.id + ',\'costo\',this.value)">' +
+      '<button type="button" class="btn-del" onclick="cjRemoveLabor(' + s.id + ')" title="Eliminar">&times;</button>' +
+      '</div>';
+  });
+  $('cj-labor-rows').innerHTML = html;
+  $('cj-labor-count').textContent = cjLaborItems.length + (cjLaborItems.length === 1 ? ' costo' : ' costos');
+  cjCalcular();
+}
+
+function cjCalcular() {
+  cjToggleMetal();
+  var isGold = $('cj-tipo-metal').value === 'gold';
+  var peso = parseFloat($('cj-peso').value) || 0;
+  var precioGramo = costoPromedioPonderado('Metales');
+  var gramosPuros = 0, leyLabel = '';
+
+  if (isGold) {
+    var k = parseFloat($('cj-karat').value) || 0;
+    gramosPuros = peso * k / 24;
+    leyLabel = k + 'K';
+  } else {
+    var ley = parseFloat($('cj-ley').value) || 0;
+    gramosPuros = peso * ley / 1000;
+    leyLabel = ley;
+  }
+  var gramosLiga = Math.max(peso - gramosPuros, 0);
+
+  $('cj-lab-puro').textContent = 'Metal puro (' + leyLabel + ')';
+  $('cj-metal-puro').textContent = gramosPuros.toFixed(2);
+  $('cj-metal-liga').textContent = gramosLiga.toFixed(2);
+  $('cj-precio-puro-inline').textContent = '· ' + fmt(precioGramo) + '/g';
+  $('cj-precio-liga-inline').textContent = '· ' + fmt(precioGramo) + '/g';
+
+  var costoMetalPuro = gramosPuros * precioGramo;
+  var costoMetalLiga = gramosLiga * precioGramo;
+  var costoMetal = costoMetalPuro + costoMetalLiga;
+  $('cj-costo-metal').textContent = fmt(costoMetal);
+  $('cj-costo-metal-desglose').textContent = '· ' + fmt(costoMetalPuro) + ' puro + ' + fmt(costoMetalLiga) + ' liga';
+
+  var totalPiedras = cjStones.reduce(function(a, s) { return a + (s.costo || 0); }, 0);
+  $('cj-total-piedras').textContent = fmt(totalPiedras);
+
+  var totalLabor = cjLaborItems.reduce(function(a, s) { return a + (s.costo || 0); }, 0);
+  $('cj-total-labor').textContent = fmt(totalLabor);
+
+  var costoTotal = costoMetal + totalPiedras + totalLabor;
+  $('cj-costo-total').textContent = fmt(costoTotal);
+  $('cj-b-metal').textContent = fmt(costoMetal);
+  $('cj-b-piedras').textContent = fmt(totalPiedras);
+  $('cj-b-labor').textContent = fmt(totalLabor);
+  window._cjCostoTotal = costoTotal;
+}
+
+function cjCargarAVentas() {
+  var costo = window._cjCostoTotal || 0;
+  if (!costo) { toast('Completa los datos de la joya antes de cargarla a Ventas'); return; }
+  var isGold = $('cj-tipo-metal').value === 'gold';
+  var metalItem = isGold ? ('Oro ' + $('cj-karat').value + 'K') : ('Plata ' + $('cj-ley').value);
+  var gramosPuro = parseFloat($('cj-metal-puro').textContent) || 0;
+  var gramosLiga = parseFloat($('cj-metal-liga').textContent) || 0;
+  var piedrasSnapshot = cjStones.filter(function(s) { return s.desc && parseFloat(s.quilates) > 0; })
+    .map(function(s) { return { item: s.desc, quilates: parseFloat(s.quilates) || 0 }; });
+  switchTab('ven');
+  cancelEditVenta();
+  $('f-venta-manual').checked = true;
+  toggleVentaManual();
+  $('f-costo-ven').value = costo.toFixed(2);
+  ventaCalcSugerido();
+  ventaCalcGanancia();
+  window._cjSalidaPendiente = { metalCategoria: 'Metales', metalItem: metalItem, gramosPuro: gramosPuro, gramosLiga: gramosLiga, piedras: piedrasSnapshot };
+  toast('Costo cargado en Ventas — completa cliente, cantidad y margen');
+}
+
 /* ===== FINANCIERO — Supabase CRUD ===== */
 var expenses = [];
 var editingId = null;
+cjToggleMetal();
+cjRenderStones();
+cjRenderLabor();
 var INVENTARIO = ['Joyas para reventa', 'Piedras', 'Metales', 'Mano de obra'];
 var CAT_ORDER = ['Joyas para reventa', 'Piedras', 'Metales', 'Mano de obra',
                  'Herramientas', 'Empaque', 'Publicidad', 'Otros'];
@@ -1204,8 +1615,10 @@ var CAT_CLASS = {
 };
 var UNITS = {
   'Metales': { u: 'g', label: 'Cantidad (g)', hint: 'Gramos comprados.', rate: 'Precio por gramo' },
-  'Piedras': { u: 'ct', label: 'Cantidad (ct)', hint: 'Quilates comprados.', rate: 'Precio por quilate' }
+  'Piedras': { u: 'ct', label: 'Cantidad (ct)', hint: 'Quilates comprados.', rate: 'Precio por quilate' },
+  'Empaque': { u: 'u', label: 'Cantidad (unidades)', hint: 'Unidades compradas.', rate: 'Precio por unidad' }
 };
+var ITEM_INVENTARIO_CATS = ['Metales', 'Piedras', 'Empaque'];
 
 function $(id) { return document.getElementById(id); }
 
@@ -1219,6 +1632,8 @@ function mapGastoRow(r) {
     ivaMonto: r.iva_monto ? parseFloat(r.iva_monto) : 0,
     formaPago: r.forma_pago || '', comprobante: r.comprobante_url || '',
     sinSoporte: !!r.sin_soporte,
+    itemInv: r.item_inventario || '',
+    qtyPiedras: (r.cantidad_piedras || r.cantidad_piedras === 0) ? parseInt(r.cantidad_piedras, 10) : null,
     created_at: r.created_at, updated_at: r.updated_at
   };
 }
@@ -1259,6 +1674,11 @@ function syncCat() {
   } else {
     $('qty-field').classList.add('hidden'); $('f-qty').value = '';
   }
+  var showItemInv = ITEM_INVENTARIO_CATS.indexOf(cat) >= 0;
+  $('item-inv-field').classList.toggle('hidden', !showItemInv);
+  if (!showItemInv) $('f-item-inv').value = '';
+  $('qty-piedras-field').classList.toggle('hidden', cat !== 'Piedras');
+  if (cat !== 'Piedras') $('f-qty-piedras').value = '';
   $('link-field').classList.toggle('hidden', cat !== 'Joyas para reventa');
   if (cat !== 'Joyas para reventa') $('f-link').value = '';
   updateRate();
@@ -1338,6 +1758,7 @@ function verComprobante(path) {
 function clearForm() {
   $('f-desc').value = ''; $('f-prov').value = '';
   $('f-amount').value = ''; $('f-qty').value = ''; $('f-link').value = '';
+  $('f-item-inv').value = ''; $('f-qty-piedras').value = '';
   $('f-nit').value = ''; $('f-numfactura').value = ''; $('f-formapago').value = '';
   $('f-iva').value = ''; $('f-sin-soporte').checked = false;
   $('f-comprobante').value = ''; $('f-comprobante-hint').textContent = '';
@@ -1377,6 +1798,8 @@ function startEdit(id) {
   $('f-amount').value = e.amount;
   $('f-qty').value = (e.qty || e.qty === 0) ? e.qty : '';
   $('f-link').value = e.link || ''; updateRate();
+  $('f-item-inv').value = e.itemInv || '';
+  $('f-qty-piedras').value = (e.qtyPiedras || e.qtyPiedras === 0) ? e.qtyPiedras : '';
   $('f-nit').value = e.nit || ''; $('f-numfactura').value = e.numFactura || '';
   $('f-formapago').value = e.formaPago || ''; $('f-iva').value = e.ivaMonto || '';
   $('f-sin-soporte').checked = !!e.sinSoporte;
@@ -1399,6 +1822,9 @@ function saveExpense() {
   var qty = (UNITS[cat] && qtyRaw !== '') ? (parseFloat(qtyRaw) || 0) : null;
   var unit = UNITS[cat] ? UNITS[cat].u : '';
   var link = (cat === 'Joyas para reventa') ? $('f-link').value.trim() : '';
+  var itemInv = (ITEM_INVENTARIO_CATS.indexOf(cat) >= 0) ? $('f-item-inv').value.trim() : '';
+  var qtyPiedrasRaw = $('f-qty-piedras').value;
+  var qtyPiedras = (cat === 'Piedras' && qtyPiedrasRaw !== '') ? (parseInt(qtyPiedrasRaw, 10) || 0) : null;
 
   if (!date || !cat || !desc || isNaN(amount) || amount <= 0) {
     toast('Completa fecha, categoria, descripcion y monto');
@@ -1416,7 +1842,8 @@ function saveExpense() {
     fecha: date, categoria: cat, descripcion: desc, proveedor: prov,
     monto: amount, cantidad: qty, unidad: unit, enlace_producto: link,
     nit_proveedor: nit, numero_factura: numFactura, forma_pago: formaPago,
-    iva_monto: ivaMonto, comprobante_url: comprobante, sin_soporte: sinSoporte
+    iva_monto: ivaMonto, comprobante_url: comprobante, sin_soporte: sinSoporte,
+    item_inventario: itemInv || null, cantidad_piedras: qtyPiedras
   };
 
   if (editingId !== null) {
@@ -1438,6 +1865,7 @@ function saveExpense() {
           e.amount = amount; e.qty = qty; e.unit = unit; e.link = link;
           e.nit = nit; e.numFactura = numFactura; e.formaPago = formaPago;
           e.ivaMonto = ivaMonto; e.comprobante = comprobante; e.sinSoporte = sinSoporte;
+          e.itemInv = itemInv; e.qtyPiedras = qtyPiedras;
           if (updated) { e.updated_at = updated.updated_at; e.created_at = updated.created_at; }
         }
       }
@@ -1452,17 +1880,7 @@ function saveExpense() {
     }).then(function(r) { return r.json(); })
     .then(function(rows) {
       var r = Array.isArray(rows) ? rows[0] : rows;
-      expenses.push({
-        id: r.id, date: r.fecha, cat: r.categoria, desc: r.descripcion,
-        prov: r.proveedor || '', amount: parseFloat(r.monto),
-        qty: r.cantidad ? parseFloat(r.cantidad) : null,
-        unit: r.unidad || '', link: r.enlace_producto || '',
-        nit: r.nit_proveedor || '', numFactura: r.numero_factura || '',
-        ivaMonto: r.iva_monto ? parseFloat(r.iva_monto) : 0,
-        formaPago: r.forma_pago || '', comprobante: r.comprobante_url || '',
-        sinSoporte: !!r.sin_soporte,
-        created_at: r.created_at, updated_at: r.updated_at
-      });
+      expenses.push(mapGastoRow(r));
       toast('Gasto registrado');
       renderFin(); clearForm();
     }).catch(function(e) { toast('Error al guardar'); console.error(e); });
@@ -1716,13 +2134,15 @@ function renderFin() {
 
   $('grand-total').textContent = fmt(total);
   refreshProviders();
+  cjCalcular();
+  renderInventario();
 }
 
 /* ===== EXPORT ===== */
 function rowsForExport() {
   var headers = ['Fecha','Tipo','Categoria','Descripcion','Proveedor','NIT/Cedula proveedor',
-    'No. factura','Forma de pago','IVA pagado','Soporte','Cantidad','Unidad','Precio unitario',
-    'Monto (COP)','Producto'];
+    'No. factura','Forma de pago','IVA pagado','Soporte','Item/tipo material','Cantidad de piedras',
+    'Cantidad','Unidad','Precio unitario','Monto (COP)','Producto'];
   var out = [headers];
   var sorted = expenses.slice().sort(function(a,b) { return a.date.localeCompare(b.date); });
   for (var i = 0; i < sorted.length; i++) {
@@ -1730,6 +2150,7 @@ function rowsForExport() {
     var tipo = e.cat === 'Ingresos por Ventas' ? 'Ingreso' : (isInv(e.cat) ? 'Inventario' : 'Operativo');
     out.push([e.date, tipo, e.cat, e.desc, e.prov || '', e.nit || '', e.numFactura || '',
       e.formaPago || '', e.ivaMonto || '', e.sinSoporte ? 'Si' : 'No',
+      e.itemInv || '', (e.qtyPiedras || e.qtyPiedras === 0) ? e.qtyPiedras : '',
       (e.qty || e.qty === 0) ? e.qty : '', u ? u.u : '',
       (e.qty && u) ? Math.round(e.amount / e.qty) : '', e.amount, e.link || '']);
   }
@@ -1828,7 +2249,7 @@ function exportXLSX() {
       var val = rows[r][c], ref = colName(c+1) + (r+1);
       if (val === '' || val === null || val === undefined) continue;
       if (r > 0 && typeof val === 'number') {
-        var st = (c === 8 || c === 12 || c === 13) ? ' s="2"' : '';
+        var st = (c === 8 || c === 14 || c === 15) ? ' s="2"' : '';
         cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
       } else {
         var s = r === 0 ? ' s="1"' : '';
@@ -1837,7 +2258,7 @@ function exportXLSX() {
     }
     sheet += '<row r="' + (r+1) + '">' + cells + '</row>';
   }
-  var cols = '<cols><col min="1" max="1" width="11" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/><col min="4" max="4" width="34" customWidth="1"/><col min="5" max="5" width="22" customWidth="1"/><col min="6" max="6" width="18" customWidth="1"/><col min="7" max="7" width="16" customWidth="1"/><col min="8" max="8" width="16" customWidth="1"/><col min="9" max="9" width="12" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/><col min="11" max="11" width="10" customWidth="1"/><col min="12" max="12" width="8" customWidth="1"/><col min="13" max="13" width="15" customWidth="1"/><col min="14" max="14" width="16" customWidth="1"/><col min="15" max="15" width="12" customWidth="1"/></cols>';
+  var cols = '<cols><col min="1" max="1" width="11" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/><col min="4" max="4" width="34" customWidth="1"/><col min="5" max="5" width="22" customWidth="1"/><col min="6" max="6" width="18" customWidth="1"/><col min="7" max="7" width="16" customWidth="1"/><col min="8" max="8" width="16" customWidth="1"/><col min="9" max="9" width="12" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/><col min="11" max="11" width="20" customWidth="1"/><col min="12" max="12" width="14" customWidth="1"/><col min="13" max="13" width="10" customWidth="1"/><col min="14" max="14" width="8" customWidth="1"/><col min="15" max="15" width="15" customWidth="1"/><col min="16" max="16" width="16" customWidth="1"/><col min="17" max="17" width="12" customWidth="1"/></cols>';
   var files = [
     { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
     { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
@@ -2280,11 +2701,13 @@ function confirmarYGuardarVenta() {
       }).then(rows => {
         var ventaCreada = Array.isArray(rows) ? rows[0] : rows;
         if (!ventaCreada || !ventaCreada.id) { toast('Error: respuesta inesperada de Supabase'); return; }
+        var salidaPendiente = window._cjSalidaPendiente;
         ventas.unshift(mapVentaRow(ventaCreada));
         expenses.unshift(mapGastoRow(ingresoCreado));
         if (v.esManual) nextVentaNumberManual++; else nextVentaNumberCatalogo++;
         toast('Venta registrada e ingreso creado en Control Financiero');
         cancelEditVenta(); renderVentas(); renderFin(); window._ventaPendiente = null;
+        if (v.esManual && salidaPendiente) registrarSalidasInventario(ventaCreada.id, v.fecha, v.cantidad, salidaPendiente);
       }).catch(e => {
         console.error(e); toast('Error al guardar venta: ' + e.message);
         fetch(SB_URL + '/rest/v1/gastos?id=eq.' + ingresoCreado.id, { method: 'DELETE', headers: sbHeaders() }).catch(function(){});
@@ -2306,6 +2729,7 @@ function delVenta(id, ev) {
   .then(r => {
     if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
     ventas = ventas.filter(x => x.id !== id);
+    inventarioSalidas = inventarioSalidas.filter(x => x.ventaId !== id);
     renderVentas();
     if (v.ingreso_id) {
       return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + v.ingreso_id, { method: 'DELETE', headers: sbHeaders() })
@@ -2325,7 +2749,7 @@ function renderVentas() {
   tbody.innerHTML = '';
   if (ventas.length === 0) {
     tbody.innerHTML = '<tr><td colspan="15" style="text-align: center; color: var(--text-3);">Sin ventas registradas</td></tr>';
-    renderSummaryVentas(); return;
+    renderSummaryVentas(); renderInventario(); return;
   }
   ventas.forEach(v => {
     var row = document.createElement('tr');
@@ -2346,6 +2770,7 @@ function renderVentas() {
     tbody.appendChild(row);
   });
   renderSummaryVentas();
+  renderInventario();
 }
 
 function editVenta(id, ev) {
@@ -2402,6 +2827,7 @@ function editVenta(id, ev) {
 
 function cancelEditVenta() {
   editingIdVenta = null;
+  window._cjSalidaPendiente = null;
   $('form-title-ven').textContent = 'Registrar venta';
   $('edit-flag-ven').style.display = 'none';
   $('btn-cancel-ven').style.display = 'none';
@@ -2545,6 +2971,317 @@ function exportVentasXLSX() {
     { name: 'xl/worksheets/sheet1.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>' }
   ];
   download(makeZip(files), 'ventas_' + stamp() + '.xlsx');
+}
+
+/* ===== CONTROL DE INVENTARIO ===== */
+var inventarioSalidas = [];
+var productosCache = [];
+var invMatFilterCat = 'all';
+var invMovFilterTipo = 'all';
+
+function invItemKey(cat, item) { return cat + '|' + (item || 'Sin especificar'); }
+
+function mapSalidaRow(r) {
+  return {
+    id: r.id, fecha: r.fecha, categoria: r.categoria, item: r.item || '',
+    cantidad: parseFloat(r.cantidad), unidad: r.unidad || '',
+    cantidadPiedras: (r.cantidad_piedras || r.cantidad_piedras === 0) ? parseInt(r.cantidad_piedras, 10) : null,
+    ventaId: r.venta_id, notas: r.notas || ''
+  };
+}
+
+function invLoadProductos() {
+  return fetch(SB_URL + '/rest/v1/productos?select=id,descripcion,estado,costo', { headers: sbHeaders() })
+    .then(function(r) { return r.json(); })
+    .then(function(rows) { productosCache = Array.isArray(rows) ? rows : []; });
+}
+
+function invLoadSalidas() {
+  return fetch(SB_URL + '/rest/v1/inventario_salidas?select=*', { headers: sbHeaders() })
+    .then(function(r) { return r.json(); })
+    .then(function(rows) { inventarioSalidas = (Array.isArray(rows) ? rows : []).map(mapSalidaRow); });
+}
+
+function invLoad() {
+  Promise.all([invLoadProductos(), invLoadSalidas()]).then(function() {
+    renderInventario();
+  }).catch(function(e) { console.error('Error cargando inventario:', e); toast('Error al cargar inventario'); });
+}
+
+function registrarSalidasInventario(ventaId, fecha, cantidadVenta, p) {
+  var mult = cantidadVenta || 1;
+  var rows = [];
+  if (p.gramosPuro > 0) rows.push({ fecha: fecha, categoria: p.metalCategoria, item: p.metalItem, cantidad: p.gramosPuro * mult, unidad: 'g', venta_id: ventaId, notas: 'Metal puro' });
+  if (p.gramosLiga > 0) rows.push({ fecha: fecha, categoria: p.metalCategoria, item: p.metalItem, cantidad: p.gramosLiga * mult, unidad: 'g', venta_id: ventaId, notas: 'Liga' });
+  (p.piedras || []).forEach(function(s) {
+    if (s.quilates > 0) rows.push({ fecha: fecha, categoria: 'Piedras', item: s.item, cantidad: s.quilates * mult, unidad: 'ct', cantidad_piedras: 1 * mult, venta_id: ventaId });
+  });
+  if (!rows.length) return;
+  fetch(SB_URL + '/rest/v1/inventario_salidas', {
+    method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(rows)
+  }).then(function(r) { return r.json(); })
+  .then(function(created) {
+    var arr = Array.isArray(created) ? created : [created];
+    inventarioSalidas = inventarioSalidas.concat(arr.map(mapSalidaRow));
+    renderInventario();
+  }).catch(function(e) { console.error('Error registrando salidas de inventario:', e); toast('Venta guardada, pero no se pudo actualizar el Inventario'); });
+}
+
+function invEntradasMap() {
+  var map = {};
+  expenses.forEach(function(e) {
+    if (ITEM_INVENTARIO_CATS.indexOf(e.cat) < 0) return;
+    var key = invItemKey(e.cat, e.itemInv);
+    if (!map[key]) map[key] = { categoria: e.cat, item: e.itemInv || 'Sin especificar', qty: 0, qtyPiedras: 0, amount: 0 };
+    map[key].qty += (e.qty || 0);
+    map[key].qtyPiedras += (e.qtyPiedras || 0);
+    map[key].amount += (e.amount || 0);
+  });
+  return map;
+}
+
+function invSalidasMap() {
+  var map = {};
+  inventarioSalidas.forEach(function(s) {
+    if (s.categoria === 'Joyas para reventa') return;
+    var key = invItemKey(s.categoria, s.item);
+    if (!map[key]) map[key] = { qty: 0, qtyPiedras: 0 };
+    map[key].qty += (s.cantidad || 0);
+    map[key].qtyPiedras += (s.cantidadPiedras || 0);
+  });
+  return map;
+}
+
+function invSaldosRows() {
+  var entradas = invEntradasMap(), salidas = invSalidasMap();
+  var rows = [];
+  Object.keys(entradas).forEach(function(key) {
+    var e = entradas[key], s = salidas[key] || { qty: 0, qtyPiedras: 0 };
+    var u = UNITS[e.categoria];
+    rows.push({
+      categoria: e.categoria, item: e.item, unidad: u ? u.u : '',
+      saldoQty: e.qty - s.qty, saldoPiedras: e.categoria === 'Piedras' ? (e.qtyPiedras - s.qtyPiedras) : null,
+      costoProm: e.qty > 0 ? (e.amount / e.qty) : 0
+    });
+  });
+  rows.sort(function(a, b) { return a.categoria === b.categoria ? a.item.localeCompare(b.item) : a.categoria.localeCompare(b.categoria); });
+  return rows;
+}
+
+function invFmtSaldo(row) {
+  if (row.categoria === 'Piedras') {
+    var n = row.saldoPiedras;
+    var label = (n === null) ? '' : (n + (n === 1 ? ' piedra' : ' piedras'));
+    return (label ? label + ' — ' : '') + fmtQty(row.saldoQty, 'ct') + ' ct';
+  }
+  return fmtQty(row.saldoQty, row.unidad) + ' ' + row.unidad;
+}
+
+function invRenderMaterial() {
+  var rows = invSaldosRows();
+  if (invMatFilterCat !== 'all') rows = rows.filter(function(r) { return r.categoria === invMatFilterCat; });
+  var tbody = $('tbl-body-inv-mat');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-3);">Sin datos de inventario todavía</td></tr>'; return; }
+  var html = '';
+  rows.forEach(function(r) {
+    html += '<tr><td><span class="item-name">' + esc(r.item) + '</span><span class="inv-item-cat">' + esc(r.categoria) + '</span></td>' +
+      '<td style="text-align:right">' + invFmtSaldo(r) + '</td>' +
+      '<td style="text-align:right">' + fmtShort(r.costoProm) + '/' + esc(r.unidad) + '</td></tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function invFilterMaterial(btn, cat) {
+  invMatFilterCat = cat;
+  document.querySelectorAll('#inv-mat-filters .inv-chip').forEach(function(c) { c.classList.remove('active'); });
+  btn.classList.add('active');
+  invRenderMaterial();
+}
+
+function invJoyasRows() {
+  var rows = [];
+  expenses.forEach(function(e) {
+    if (e.cat !== 'Joyas para reventa' || !e.link) return;
+    var producto = productosCache.find(function(p) { return p.id === e.link; });
+    var venta = ventas.find(function(v) { return v.producto_id === e.link; });
+    rows.push({
+      id: e.link, nombre: (producto ? producto.descripcion : '(producto no encontrado)'),
+      costo: e.amount, estadoVitrina: producto ? producto.estado : null,
+      vendida: !!venta, numeroVenta: venta ? venta.numero : ''
+    });
+  });
+  rows.sort(function(a, b) { return a.id.localeCompare(b.id); });
+  return rows;
+}
+
+function invRenderJoyas() {
+  var rows = invJoyasRows();
+  var tbody = $('tbl-body-inv-joyas');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-3);">Sin joyas para reventa enlazadas todavía</td></tr>'; return; }
+  var html = '';
+  rows.forEach(function(r) {
+    var vitrinaCell = r.estadoVitrina ? '<span class="cat-badge badge-' + r.estadoVitrina + '">' + r.estadoVitrina + '</span>' : '<span class="cat-badge badge-sincosto">No encontrado en vitrina</span>';
+    var ventaCell = r.vendida ? '<span class="cat-badge badge-vendida">Vendida — ' + esc(r.numeroVenta) + '</span>' : '<span class="cat-badge badge-disponible">Disponible</span>';
+    html += '<tr><td><span class="item-name">' + esc(r.id) + ' — ' + esc(r.nombre) + '</span></td>' +
+      '<td style="text-align:right">' + fmt(r.costo) + '</td>' +
+      '<td>' + vitrinaCell + '</td><td>' + ventaCell + '</td></tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function invMovimientosRows() {
+  var rows = [];
+  expenses.forEach(function(e) {
+    if (ITEM_INVENTARIO_CATS.indexOf(e.cat) < 0) return;
+    rows.push({
+      fecha: e.date, tipo: 'entrada', categoria: e.cat, item: e.itemInv || 'Sin especificar',
+      qty: e.qty || 0, qtyPiedras: e.qtyPiedras, unidad: (UNITS[e.cat] || {}).u || '',
+      valor: e.amount, origenLabel: 'gasto #' + e.id, origenIcon: '📋'
+    });
+  });
+  inventarioSalidas.forEach(function(s) {
+    var venta = ventas.find(function(v) { return v.id === s.ventaId; });
+    var entradas = invEntradasMap();
+    var e = entradas[invItemKey(s.categoria, s.item)];
+    var costoProm = e && e.qty > 0 ? (e.amount / e.qty) : 0;
+    rows.push({
+      fecha: s.fecha, tipo: 'salida', categoria: s.categoria, item: s.item || 'Sin especificar',
+      qty: s.cantidad, qtyPiedras: s.cantidadPiedras, unidad: s.unidad,
+      valor: s.cantidad * costoProm, origenLabel: venta ? ('venta ' + venta.numero) : ('venta #' + s.ventaId), origenIcon: '💍'
+    });
+  });
+  rows.sort(function(a, b) { return b.fecha.localeCompare(a.fecha); });
+  return rows;
+}
+
+function invRenderMovimientos() {
+  var rows = invMovimientosRows();
+  if (invMovFilterTipo !== 'all') rows = rows.filter(function(r) { return r.tipo === invMovFilterTipo; });
+  var tbody = $('tbl-body-inv-mov');
+  $('inv-mov-count').textContent = rows.length + (rows.length === 1 ? ' registro' : ' registros');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);">Sin movimientos todavía</td></tr>'; return; }
+  var html = '';
+  rows.forEach(function(r) {
+    var qtyLabel = (r.categoria === 'Piedras' && (r.qtyPiedras || r.qtyPiedras === 0))
+      ? (r.qtyPiedras + (r.qtyPiedras === 1 ? ' piedra' : ' piedras') + '<span class="inv-sub">' + fmtQty(r.qty, 'ct') + ' ct</span>')
+      : (fmtQty(r.qty, r.unidad) + ' ' + r.unidad);
+    html += '<tr><td>' + r.fecha.split('-').reverse().join('/') + '</td>' +
+      '<td><span class="cat-badge badge-' + r.tipo + '">' + (r.tipo === 'entrada' ? 'Entrada' : 'Salida') + '</span></td>' +
+      '<td><span class="item-name">' + esc(r.item) + '</span><span class="inv-item-cat">' + esc(r.categoria) + '</span></td>' +
+      '<td style="text-align:right">' + qtyLabel + '</td>' +
+      '<td style="text-align:right">' + fmt(r.valor) + '</td>' +
+      '<td><span class="inv-origen-tag">' + r.origenIcon + ' ' + esc(r.origenLabel) + '</span></td></tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function invFilterMov(btn, tipo) {
+  invMovFilterTipo = tipo;
+  document.querySelectorAll('#inv-mov-filters .inv-chip').forEach(function(c) { c.classList.remove('active'); });
+  btn.classList.add('active');
+  invRenderMovimientos();
+}
+
+function renderInventario() {
+  if (!$('tbl-body-inv-mat')) return;
+  invRenderMaterial();
+  invRenderJoyas();
+  invRenderMovimientos();
+}
+
+/* ---- Exportacion de Inventario ---- */
+function buildXLSXBlob(rows, sheetName, moneyCols) {
+  var sheet = '';
+  for (var r = 0; r < rows.length; r++) {
+    var cells = '';
+    for (var c = 0; c < rows[r].length; c++) {
+      var val = rows[r][c], ref = colName(c + 1) + (r + 1);
+      if (val === '' || val === null || val === undefined) continue;
+      if (r > 0 && typeof val === 'number') {
+        var st = moneyCols.indexOf(c) >= 0 ? ' s="2"' : '';
+        cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
+      } else {
+        var s = r === 0 ? ' s="1"' : '';
+        cells += '<c r="' + ref + '" t="inlineStr"' + s + '><is><t>' + xmlEsc(val) + '</t></is></c>';
+      }
+    }
+    sheet += '<row r="' + (r + 1) + '">' + cells + '</row>';
+  }
+  var cols = '<cols>';
+  for (var c2 = 1; c2 <= rows[0].length; c2++) cols += '<col min="' + c2 + '" max="' + c2 + '" width="14" customWidth="1"/>';
+  cols += '</cols>';
+  var files = [
+    { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+    { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + xmlEsc(sheetName) + '" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'xl/styles.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>' },
+    { name: 'xl/worksheets/sheet1.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>' }
+  ];
+  return makeZip(files);
+}
+
+function invSaldosExportRows() {
+  var headers = ['Categoria', 'Item', 'Saldo cantidad', 'Unidad', 'Saldo piedras', 'Costo promedio'];
+  var rows = [headers];
+  invSaldosRows().forEach(function(r) {
+    rows.push([r.categoria, r.item, Math.round(r.saldoQty * 100) / 100, r.unidad, (r.saldoPiedras === null ? '' : r.saldoPiedras), Math.round(r.costoProm)]);
+  });
+  return rows;
+}
+
+function invMovExportRows() {
+  var headers = ['Fecha', 'Tipo', 'Categoria', 'Item', 'Cantidad', 'Unidad', 'Cantidad piedras', 'Valor', 'Origen'];
+  var rows = [headers];
+  invMovimientosRows().forEach(function(r) {
+    rows.push([r.fecha, r.tipo === 'entrada' ? 'Entrada' : 'Salida', r.categoria, r.item,
+      Math.round(r.qty * 100) / 100, r.unidad, (r.qtyPiedras === null || r.qtyPiedras === undefined ? '' : r.qtyPiedras),
+      Math.round(r.valor), r.origenLabel]);
+  });
+  return rows;
+}
+
+function invJoyasExportRows() {
+  var headers = ['ID producto', 'Nombre', 'Costo de compra', 'Estado vitrina', 'Estado venta', 'Numero de venta'];
+  var rows = [headers];
+  invJoyasRows().forEach(function(r) {
+    rows.push([r.id, r.nombre, r.costo, r.estadoVitrina || '', r.vendida ? 'Vendida' : 'Disponible', r.numeroVenta || '']);
+  });
+  return rows;
+}
+
+function exportInvSaldosCSV() {
+  var rows = invSaldosExportRows();
+  if (rows.length <= 1) { toast('Sin datos de inventario para exportar'); return; }
+  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
+  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'inventario-saldos-' + stamp() + '.csv');
+}
+function exportInvSaldosXLSX() {
+  var rows = invSaldosExportRows();
+  if (rows.length <= 1) { toast('Sin datos de inventario para exportar'); return; }
+  download(buildXLSXBlob(rows, 'Saldos', [5]), 'inventario-saldos-' + stamp() + '.xlsx');
+}
+function exportInvMovCSV() {
+  var rows = invMovExportRows();
+  if (rows.length <= 1) { toast('Sin movimientos para exportar'); return; }
+  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
+  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'inventario-movimientos-' + stamp() + '.csv');
+}
+function exportInvMovXLSX() {
+  var rows = invMovExportRows();
+  if (rows.length <= 1) { toast('Sin movimientos para exportar'); return; }
+  download(buildXLSXBlob(rows, 'Movimientos', [7]), 'inventario-movimientos-' + stamp() + '.xlsx');
+}
+function exportInvJoyasCSV() {
+  var rows = invJoyasExportRows();
+  if (rows.length <= 1) { toast('Sin joyas para reventa para exportar'); return; }
+  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
+  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'inventario-joyas-reventa-' + stamp() + '.csv');
+}
+function exportInvJoyasXLSX() {
+  var rows = invJoyasExportRows();
+  if (rows.length <= 1) { toast('Sin joyas para reventa para exportar'); return; }
+  download(buildXLSXBlob(rows, 'JoyasReventa', [2]), 'inventario-joyas-reventa-' + stamp() + '.xlsx');
 }
 
 $('f-amount').addEventListener('input', updateRate);

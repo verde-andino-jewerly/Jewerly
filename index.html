@@ -2607,7 +2607,29 @@ function admSaveProduct() {
   });
 }
 
+function admCheckGastoEnlazado(productId, cb) {
+  fetch(SB_URL + '/rest/v1/gastos?select=id&categoria=eq.' + encodeURIComponent('Joyas para reventa') + '&enlace_producto=eq.' + encodeURIComponent(productId) + '&limit=1', {
+    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
+  }).then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(rows) { cb(Array.isArray(rows) && rows.length > 0); })
+    .catch(function(e) { console.error('Error verificando gasto enlazado:', e); cb(false); });
+}
+
 function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) {
+  if (admEstado === 'publicado') {
+    admCheckGastoEnlazado(id, function(tieneGasto) {
+      if (!tieneGasto) {
+        toast('No se puede publicar "' + id + '": registra primero el gasto de compra en Finanzas (categoría "Joyas para reventa", enlazado a este producto). Puedes guardarlo como Borrador u Oculto mientras tanto.');
+        return;
+      }
+      admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta);
+    });
+    return;
+  }
+  admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta);
+}
+
+function admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta) {
 
   var isEdit = !!admEditingId;
 
