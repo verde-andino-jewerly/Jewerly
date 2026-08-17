@@ -1895,6 +1895,9 @@ function saveExpense() {
       expenses.push(mapGastoRow(r));
       toast('Gasto registrado');
       renderFin(); clearForm();
+      if (cat === 'Joyas para reventa' && !link && qty > 0 && amount > 0) {
+        crearBorradorProducto(r.id, qty, amount);
+      }
     }).catch(function(e) { toast('Error al guardar'); console.error(e); });
   }
 }
@@ -3007,6 +3010,44 @@ function invLoadProductos() {
   return fetch(SB_URL + '/rest/v1/productos?select=id,descripcion,estado,costo', { headers: sbHeaders() })
     .then(function(r) { return r.json(); })
     .then(function(rows) { productosCache = Array.isArray(rows) ? rows : []; });
+}
+
+function nextProductoId() {
+  var max = 0;
+  productosCache.forEach(function(p) {
+    var m = p.id.match(/VA-(\d+)/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return 'VA-' + String(max + 1).padStart(3, '0');
+}
+
+function crearBorradorProducto(gastoId, qty, amount) {
+  var newId = nextProductoId();
+  var costoUnitario = Math.round(amount / qty);
+  fetch(SB_URL + '/rest/v1/productos', {
+    method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+    body: JSON.stringify({ id: newId, estado: 'borrador', costo: costoUnitario })
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+    return r.json();
+  }).then(function(rows) {
+    var created = Array.isArray(rows) ? rows[0] : rows;
+    productosCache.push(created);
+    return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + gastoId, {
+      method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+      body: JSON.stringify({ enlace_producto: newId })
+    });
+  }).then(function(r) { return r.json(); })
+  .then(function(rows) {
+    var updated = Array.isArray(rows) ? rows[0] : rows;
+    var idx = expenses.findIndex(function(e) { return e.id === gastoId; });
+    if (idx >= 0 && updated) expenses[idx] = mapGastoRow(updated);
+    toast('Se creó el borrador ' + newId + ' en el catálogo (costo ' + fmt(costoUnitario) + ') — complétalo en el publicador: foto, categoría, estilo, descripción y margen.');
+    renderFin(); renderInventario();
+  }).catch(function(e) {
+    console.error('Error al crear borrador de producto:', e);
+    toast('Gasto guardado, pero no se pudo crear el borrador en el catálogo automáticamente');
+  });
 }
 
 function invLoadSalidas() {

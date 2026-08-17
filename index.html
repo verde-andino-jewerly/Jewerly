@@ -2619,7 +2619,7 @@ function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) 
   if (admEstado === 'publicado') {
     admCheckGastoEnlazado(id, function(tieneGasto) {
       if (!tieneGasto) {
-        toast('No se puede publicar "' + id + '": registra primero el gasto de compra en Finanzas (categoría "Joyas para reventa", enlazado a este producto). Puedes guardarlo como Borrador u Oculto mientras tanto.');
+        toast('Producto en borrador, sin gasto registrado en Inventario — no se puede publicar "' + id + '". Registra o enlaza el gasto de compra en Finanzas (categoría "Joyas para reventa") para habilitar la publicación. Puedes guardarlo como Borrador u Oculto mientras tanto.');
         return;
       }
       admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta);
