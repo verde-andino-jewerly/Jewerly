@@ -882,6 +882,7 @@
             <div class="calcj-breakdown-row"><span>Piedras</span><b id="cj-b-piedras">$0</b></div>
             <div class="calcj-breakdown-row"><span>Mano de obra y otros</span><b id="cj-b-labor">$0</b></div>
           </div>
+          <div id="cj-aviso-stock" style="display:none; background:#fef9e7; color:#a56a15; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <div id="cj-aviso-material" style="display:none; background:#fdecea; color:#c0392b; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <button type="button" class="btn-add" id="cj-btn-cargar-ventas" onclick="cjCargarAVentas()" style="width:100%; margin-top:0.9rem;">→ Cargar costo unitario a Ventas (venta manual)</button>
           <div class="calcj-result-note">El margen y el precio de venta se definen en el formulario de Ventas al registrar la pieza.</div>
@@ -1352,6 +1353,7 @@
           </table>
         </div>
         <div class="hint" style="margin-top:0.6rem;">💡 Un renglón por ítem: cuánto queda y a cuánto sale en promedio. El detalle de cada movimiento está en el historial más abajo.</div>
+        <div class="hint" style="margin-top:0.4rem;">📉 <b>Mínimo</b>: cuánto quieres tener siempre disponible de ese ítem. Cuando el saldo baje de ese número, el renglón se marca y aparece un aviso de reposición arriba. Déjalo vacío o en 0 si no quieres que te avise de ese material.</div>
       </div>
 
       <!-- JOYAS PARA REVENTA -->
@@ -1580,6 +1582,27 @@ function costoPromedioItem(categoria, item) {
   return (e && e.qty > 0) ? (e.amount / e.qty) : 0;
 }
 
+// Saldo disponible de un item. Devuelve null si el item no existe en el inventario.
+function invSaldoDe(categoria, item) {
+  var rows = invSaldosRows();
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].categoria === categoria && rows[i].item === item) return rows[i].saldoQty;
+  }
+  return null;
+}
+
+// Busca un item de inventario por nombre sin importar mayusculas ni espacios,
+// porque en la calculadora las piedras se escriben a mano.
+function invBuscarItem(categoria, nombre) {
+  var n = String(nombre || '').trim().toLowerCase();
+  if (!n) return null;
+  var rows = invSaldosRows();
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].categoria === categoria && rows[i].item.trim().toLowerCase() === n) return rows[i];
+  }
+  return null;
+}
+
 function costoPromedioPonderado(categoria) {
   var q = 0, a = 0;
   for (var i = 0; i < expenses.length; i++) {
@@ -1693,6 +1716,32 @@ function cjCalcular() {
     ? '· ' + fmt(precioLiga) + '/g (Liga)'
     : '· sin compras de Liga';
   $('cj-precio-liga-inline').style.color = precioLiga > 0 ? '' : '#c0392b';
+
+  // Aparte de que el material exista registrado, hay que ver si ALCANZA.
+  // Esto solo avisa, no bloquea: es legitimo cotizar una pieza antes de comprar el material.
+  var insuficientes = [];
+  function chequearSaldo(cat, item, necesita, unidad) {
+    if (necesita <= 0) return;
+    var saldo = invSaldoDe(cat, item);
+    if (saldo === null) return; // sin compras registradas: ya lo cubre el aviso rojo
+    if (necesita > saldo + 0.0001) {
+      insuficientes.push(item + ': necesitas ' + fmtQty(necesita) + ' ' + unidad + ' y tienes ' + fmtQty(saldo) + ' ' + unidad);
+    }
+  }
+  chequearSaldo('Metales', itemPuro, gramosPuros, 'g');
+  chequearSaldo('Metales', 'Liga', gramosLiga, 'g');
+  cjStones.forEach(function(s) {
+    var ct = parseFloat(s.quilates) || 0;
+    if (ct <= 0 || !s.desc) return;
+    var row = invBuscarItem('Piedras', s.desc);
+    if (row) chequearSaldo('Piedras', row.item, ct, 'ct');
+  });
+  var avisoStock = $('cj-aviso-stock');
+  if (insuficientes.length) {
+    avisoStock.style.display = 'block';
+    avisoStock.innerHTML = '📉 <b>No alcanza el material en inventario.</b> ' + insuficientes.map(esc).join(' · ') +
+      '. Puedes cotizar igual, pero hay que comprar antes de fabricar.';
+  } else { avisoStock.style.display = 'none'; }
 
   var aviso = $('cj-aviso-material');
   var btnCargar = $('cj-btn-cargar-ventas');
