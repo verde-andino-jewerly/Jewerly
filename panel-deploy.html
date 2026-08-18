@@ -350,6 +350,30 @@
   .audit-diff .field-name {
     font-weight: 600; color: var(--text-2); text-transform: capitalize; min-width: 90px;
   }
+  /* Ficha tecnica de una joya personalizada */
+  .ficha-sec {
+    font-size: 0.66rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--gold);
+    margin: 1rem 0 0.4rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border);
+  }
+  .ficha-sec:first-child { margin-top: 0; }
+  .ficha-row {
+    display: flex; justify-content: space-between; gap: 1rem;
+    padding: 0.28rem 0; font-size: 0.8rem;
+  }
+  .ficha-row .fl { color: var(--text-2); }
+  .ficha-row .fv { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .ficha-row.sub .fl { padding-left: 0.7rem; color: var(--text-3); font-size: 0.76rem; }
+  .ficha-row.tot {
+    border-top: 1px solid var(--border); margin-top: 0.35rem;
+    padding-top: 0.5rem; font-weight: 700;
+  }
+  .ficha-aviso {
+    background: var(--red-bg, #fbedeb); color: var(--red, #b03a2e);
+    border-radius: 7px; padding: 0.6rem 0.75rem; font-size: 0.76rem;
+    line-height: 1.45; margin-bottom: 0.9rem;
+  }
+  .ficha-vacio { color: var(--text-3); font-size: 0.78rem; padding: 0.28rem 0; }
   .audit-diff .old-val { color: #e74c3c; text-decoration: line-through; margin-right: 0.5rem; }
   .audit-diff .new-val { color: var(--esm); }
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
@@ -918,6 +942,13 @@
             </select>
             <div class="hint">Elige una pieza del catalogo para reabastecerla, o deja "Producto nuevo" y el sistema genera el ID y el borrador con el costo ya calculado.</div>
           </div>
+          <div class="field hidden" id="link-venta-field">
+            <label for="f-link-venta">Venta relacionada</label>
+            <select id="f-link-venta">
+              <option value="">(ninguna)</option>
+            </select>
+            <div class="hint">Opcional. Enlaza este trabajo con la venta de la joya personalizada en la que se consumio, para poder verlo desde su ficha tecnica.</div>
+          </div>
           <div class="rate-badge" id="rate-badge">
             <span id="rate-label">Precio unitario</span>
             <b id="rate-val">$0</b>
@@ -1317,7 +1348,7 @@
 <div class="audit-overlay" id="audit-overlay" onclick="closeAudit()">
   <div class="audit-modal" onclick="event.stopPropagation()">
     <div class="audit-header">
-      <span class="audit-title">Historial de cambios</span>
+      <span class="audit-title" id="audit-title">Historial de cambios</span>
       <button class="btn-del" onclick="closeAudit()" title="Cerrar">&times;</button>
     </div>
     <div class="audit-body" id="audit-body"></div>
@@ -1622,6 +1653,28 @@ function cjCargarAVentas() {
   ventaCalcSugerido();
   ventaCalcGanancia();
   window._cjSalidaPendiente = { metalCategoria: 'Metales', metalItem: metalItem, gramosPuro: gramosPuro, gramosLiga: gramosLiga, piedras: piedrasSnapshot };
+
+  // Ficha tecnica congelada: el precio por gramo es el promedio ponderado de HOY,
+  // y cada compra nueva de metal lo mueve, asi que despues ya no se puede reconstruir.
+  var precioGramo = costoPromedioPonderado('Metales');
+  var costoMetal = (gramosPuro + gramosLiga) * precioGramo;
+  var totalPiedras = cjStones.reduce(function(a, s) { return a + (s.costo || 0); }, 0);
+  var totalLabor = cjLaborItems.reduce(function(a, s) { return a + (s.costo || 0); }, 0);
+  window._cjFichaPendiente = {
+    metal: {
+      tipo: isGold ? 'Oro' : 'Plata',
+      ley: isGold ? ($('cj-karat').value + 'K') : $('cj-ley').value,
+      item: metalItem,
+      pesoTotal: parseFloat($('cj-peso').value) || 0,
+      gramosPuro: gramosPuro, gramosLiga: gramosLiga,
+      precioGramo: precioGramo, costo: costoMetal
+    },
+    piedras: cjStones.filter(function(s) { return s.desc || s.costo; })
+      .map(function(s) { return { nombre: s.desc || 'Sin nombre', quilates: parseFloat(s.quilates) || 0, costo: s.costo || 0 }; }),
+    labor: cjLaborItems.filter(function(s) { return s.desc || s.costo; })
+      .map(function(s) { return { nombre: s.desc || 'Sin nombre', costo: s.costo || 0 }; }),
+    totales: { metal: costoMetal, piedras: totalPiedras, labor: totalLabor, costoUnitario: costo }
+  };
   toast('Costo cargado en Ventas — completa cliente, cantidad y margen');
 }
 
@@ -1662,6 +1715,7 @@ function mapGastoRow(r) {
     sinSoporte: !!r.sin_soporte,
     itemInv: r.item_inventario || '',
     qtyPiedras: (r.cantidad_piedras || r.cantidad_piedras === 0) ? parseInt(r.cantidad_piedras, 10) : null,
+    linkVenta: r.enlace_venta || null,
     created_at: r.created_at, updated_at: r.updated_at
   };
 }
@@ -1772,7 +1826,26 @@ function syncCat() {
   $('link-field').classList.toggle('hidden', cat !== 'Joyas para reventa');
   if (cat !== 'Joyas para reventa') $('f-link').value = '';
   else renderLinkOptions($('f-link').value);
+  $('link-venta-field').classList.toggle('hidden', cat !== 'Mano de obra');
+  if (cat !== 'Mano de obra') $('f-link-venta').value = '';
+  else renderLinkVentaOptions($('f-link-venta').value);
   updateRate();
+}
+
+// Lista de ventas para enlazar un gasto de mano de obra con la pieza en que se consumio.
+function renderLinkVentaOptions(selected) {
+  var sel = $('f-link-venta');
+  if (!sel) return;
+  var html = '<option value="">(ninguna)</option>';
+  var found = false;
+  ventas.forEach(function(v) {
+    if (String(v.id) === String(selected)) found = true;
+    html += '<option value="' + v.id + '">' + esc(v.numero + ' · ' + v.fecha + ' · ' + v.cliente) + '</option>';
+  });
+  // Un gasto puede apuntar a una venta ya borrada: se conserva la opcion para no perder el dato.
+  if (selected && !found) html += '<option value="' + esc(selected) + '">' + esc('Venta #' + selected + ' · (ya no existe)') + '</option>';
+  sel.innerHTML = html;
+  sel.value = selected ? String(selected) : '';
 }
 
 // Llena la lista desplegable "Producto en el catalogo" con las piezas ya cargadas.
@@ -1873,7 +1946,7 @@ function verComprobante(path) {
 
 function clearForm() {
   $('f-desc').value = ''; $('f-prov').value = '';
-  $('f-amount').value = ''; $('f-qty').value = ''; $('f-link').value = '';
+  $('f-amount').value = ''; $('f-qty').value = ''; $('f-link').value = ''; $('f-link-venta').value = '';
   $('f-item-inv').value = ''; $('f-item-inv-metal').selectedIndex = 0; $('f-qty-piedras').value = '';
   $('f-nit').value = ''; $('f-numfactura').value = ''; $('f-formapago').value = '';
   $('f-iva').value = ''; $('f-sin-soporte').checked = false;
@@ -1913,7 +1986,7 @@ function startEdit(id) {
   $('f-desc').value = e.desc || ''; $('f-prov').value = e.prov || '';
   $('f-amount').value = e.amount;
   $('f-qty').value = (e.qty || e.qty === 0) ? e.qty : '';
-  renderLinkOptions(e.link || ''); updateRate();
+  renderLinkOptions(e.link || ''); renderLinkVentaOptions(e.linkVenta || ''); updateRate();
   $('f-item-inv').value = e.itemInv || '';
   $('f-qty-piedras').value = (e.qtyPiedras || e.qtyPiedras === 0) ? e.qtyPiedras : '';
   $('f-nit').value = e.nit || ''; $('f-numfactura').value = e.numFactura || '';
@@ -1938,6 +2011,8 @@ function saveExpense() {
   var qty = (UNITS[cat] && qtyRaw !== '') ? (parseFloat(qtyRaw) || 0) : null;
   var unit = UNITS[cat] ? UNITS[cat].u : '';
   var link = (cat === 'Joyas para reventa') ? $('f-link').value.trim() : '';
+  var linkVentaRaw = (cat === 'Mano de obra') ? $('f-link-venta').value.trim() : '';
+  var linkVenta = linkVentaRaw ? parseInt(linkVentaRaw, 10) : null;
   var itemInv = cat === 'Metales' ? $('f-item-inv-metal').value
     : (ITEM_INVENTARIO_CATS.indexOf(cat) >= 0 ? $('f-item-inv').value.trim() : '');
   var qtyPiedrasRaw = $('f-qty-piedras').value;
@@ -1960,7 +2035,8 @@ function saveExpense() {
     monto: amount, cantidad: qty, unidad: unit, enlace_producto: link,
     nit_proveedor: nit, numero_factura: numFactura, forma_pago: formaPago,
     iva_monto: ivaMonto, comprobante_url: comprobante, sin_soporte: sinSoporte,
-    item_inventario: itemInv || null, cantidad_piedras: qtyPiedras
+    item_inventario: itemInv || null, cantidad_piedras: qtyPiedras,
+    enlace_venta: (linkVenta && !isNaN(linkVenta)) ? linkVenta : null
   };
 
   if (editingId !== null) {
@@ -1983,6 +2059,7 @@ function saveExpense() {
           e.nit = nit; e.numFactura = numFactura; e.formaPago = formaPago;
           e.ivaMonto = ivaMonto; e.comprobante = comprobante; e.sinSoporte = sinSoporte;
           e.itemInv = itemInv; e.qtyPiedras = qtyPiedras;
+          e.linkVenta = (linkVenta && !isNaN(linkVenta)) ? linkVenta : null;
           if (updated) { e.updated_at = updated.updated_at; e.created_at = updated.created_at; }
         }
       }
@@ -2040,6 +2117,7 @@ function esc(s) {
 function showAudit(id, ev) {
   if (ev) ev.stopPropagation();
   var overlay = $('audit-overlay');
+  $('audit-title').textContent = 'Historial de cambios';
   overlay.classList.add('open');
   $('audit-body').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   fetch(SB_URL + '/rest/v1/gastos_audit?gasto_id=eq.' + id + '&order=timestamp.desc', {
@@ -2097,9 +2175,85 @@ function closeAudit() {
   $('audit-overlay').classList.remove('open');
 }
 
+function fichaRow(label, valor, clase) {
+  return '<div class="ficha-row ' + (clase || '') + '"><span class="fl">' + esc(label) + '</span><span class="fv">' + valor + '</span></div>';
+}
+
+/* Ficha tecnica congelada de una joya personalizada (venta manual desde la calculadora) */
+function showFichaVenta(id, ev) {
+  if (ev) ev.stopPropagation();
+  var v = ventas.find(function(x) { return x.id === id; });
+  if (!v || !v.costo_detalle) { toast('Esta venta no tiene ficha técnica'); return; }
+  var d = v.costo_detalle, m = d.metal || {}, t = d.totales || {};
+  $('audit-title').textContent = 'Ficha técnica · ' + v.numero;
+  $('audit-overlay').classList.add('open');
+
+  var h = '';
+  // La ficha describe el calculo original; si el costo se toco a mano despues, hay que decirlo.
+  if (t.costoUnitario && Math.abs(t.costoUnitario - v.costo_unitario) > 1) {
+    h += '<div class="ficha-aviso">El costo se ajustó manualmente después del cálculo: de ' +
+      fmt(t.costoUnitario) + ' a ' + fmt(v.costo_unitario) + '. La ficha refleja el cálculo original.</div>';
+  }
+
+  h += '<div class="ficha-sec">Metal</div>';
+  h += fichaRow('Tipo y ley', esc((m.tipo || '—') + (m.ley ? ' · ' + m.ley : '')));
+  h += fichaRow('Peso total de la pieza', fmtQty(m.pesoTotal || 0, 'g') + ' g');
+  h += fichaRow('Metal puro', fmtQty(m.gramosPuro || 0, 'g') + ' g', 'sub');
+  h += fichaRow('Liga', fmtQty(m.gramosLiga || 0, 'g') + ' g', 'sub');
+  h += fichaRow('Precio por gramo aplicado', fmt(m.precioGramo || 0) + '/g');
+  h += fichaRow('Costo de metal', fmt(t.metal || 0), 'tot');
+
+  h += '<div class="ficha-sec">Piedras</div>';
+  if ((d.piedras || []).length) {
+    d.piedras.forEach(function(p) {
+      h += fichaRow(p.nombre + ' · ' + fmtQty(p.quilates || 0, 'ct') + ' ct', fmt(p.costo || 0), 'sub');
+    });
+    h += fichaRow('Costo de piedras', fmt(t.piedras || 0), 'tot');
+  } else { h += '<div class="ficha-vacio">Sin piedras registradas</div>'; }
+
+  h += '<div class="ficha-sec">Mano de obra y otros costos</div>';
+  if ((d.labor || []).length) {
+    d.labor.forEach(function(l) { h += fichaRow(l.nombre, fmt(l.costo || 0), 'sub'); });
+    h += fichaRow('Costo de mano de obra', fmt(t.labor || 0), 'tot');
+  } else { h += '<div class="ficha-vacio">Sin costos de mano de obra registrados</div>'; }
+
+  h += '<div class="ficha-sec">Costo unitario calculado</div>';
+  h += fichaRow('Metal', fmt(t.metal || 0), 'sub');
+  h += fichaRow('Piedras', fmt(t.piedras || 0), 'sub');
+  h += fichaRow('Mano de obra', fmt(t.labor || 0), 'sub');
+  h += fichaRow('Total por pieza', fmt(t.costoUnitario || 0), 'tot');
+  if (d.calculadoEl) h += '<div class="ficha-vacio">Calculado el ' + esc(d.calculadoEl.split('-').reverse().join('/')) + '</div>';
+
+  h += '<div class="ficha-sec">Gastos enlazados en Finanzas</div>';
+  h += '<div id="ficha-gastos"><div class="ficha-vacio">Consultando…</div></div>';
+  $('audit-body').innerHTML = h;
+
+  // Lo realmente pagado, para contrastarlo contra lo calculado.
+  fetch(SB_URL + '/rest/v1/gastos?select=id,fecha,categoria,descripcion,monto&enlace_venta=eq.' + id + '&order=fecha.asc', {
+    headers: sbHeaders()
+  }).then(function(r) { return r.ok ? r.json() : []; })
+  .then(function(rows) {
+    var cont = $('ficha-gastos');
+    if (!cont) return;
+    if (!rows.length) { cont.innerHTML = '<div class="ficha-vacio">Ningún gasto de Finanzas está enlazado a esta venta todavía.</div>'; return; }
+    var gh = '', suma = 0;
+    rows.forEach(function(g) {
+      suma += parseFloat(g.monto) || 0;
+      gh += fichaRow('#' + g.id + ' · ' + g.categoria + ' · ' + g.descripcion, fmt(parseFloat(g.monto) || 0), 'sub');
+    });
+    gh += fichaRow('Total pagado y enlazado', fmt(suma), 'tot');
+    cont.innerHTML = gh;
+  }).catch(function(e) {
+    console.error('Error consultando gastos enlazados:', e);
+    var cont = $('ficha-gastos');
+    if (cont) cont.innerHTML = '<div class="ficha-vacio">No se pudieron consultar los gastos enlazados.</div>';
+  });
+}
+
 function showAuditVenta(id, ev) {
   if (ev) ev.stopPropagation();
   var overlay = $('audit-overlay');
+  $('audit-title').textContent = 'Historial de cambios';
   overlay.classList.add('open');
   $('audit-body').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   fetch(SB_URL + '/rest/v1/ventas_audit?venta_id=eq.' + id + '&order=timestamp.desc', {
@@ -2200,6 +2354,10 @@ function renderFin() {
     }
     var descCell = esc(e.desc);
     if (e.link) descCell += ' <span class="link-tag">' + esc(e.link) + '</span>';
+    if (e.linkVenta) {
+      var vEnl = ventas.find(function(x) { return x.id === e.linkVenta; });
+      descCell += ' <span class="link-tag" title="Gasto enlazado a esta venta">' + esc(vEnl ? vEnl.numero : ('venta #' + e.linkVenta)) + '</span>';
+    }
     if (e.comprobante) descCell += ' <span onclick="event.stopPropagation(); verComprobanteGasto(' + e.id + ')" title="Ver comprobante" style="cursor:pointer;">&#128206;</span>' +
       ' <span onclick="event.stopPropagation(); descargarComprobantePDF(' + e.id + ')" title="Descargar comprobante en PDF" style="cursor:pointer;">&#11015;&#65039;</span>';
     if (e.sinSoporte) descCell += ' <span class="cat-badge" style="background:var(--red-bg,#fbedeb);color:var(--red,#b03a2e);" title="Sin factura ni recibo">soporte</span>';
@@ -2281,7 +2439,7 @@ function renderFin() {
 function rowsForExport() {
   var headers = ['No. gasto','Fecha','Tipo','Categoria','Descripcion','Proveedor','NIT/Cedula proveedor',
     'No. factura','Forma de pago','IVA pagado','Soporte','Item/tipo material','Cantidad de piedras',
-    'Cantidad','Unidad','Precio unitario','Monto (COP)','Producto'];
+    'Cantidad','Unidad','Precio unitario','Monto (COP)','Producto','Venta relacionada'];
   var out = [headers];
   var sorted = expenses.slice().sort(function(a,b) { return a.date.localeCompare(b.date); });
   for (var i = 0; i < sorted.length; i++) {
@@ -2291,7 +2449,8 @@ function rowsForExport() {
       e.formaPago || '', e.ivaMonto || '', e.sinSoporte ? 'Si' : 'No',
       e.itemInv || '', (e.qtyPiedras || e.qtyPiedras === 0) ? e.qtyPiedras : '',
       (e.qty || e.qty === 0) ? e.qty : '', u ? u.u : '',
-      (e.qty && u) ? Math.round(e.amount / e.qty) : '', e.amount, e.link || '']);
+      (e.qty && u) ? Math.round(e.amount / e.qty) : '', e.amount, e.link || '',
+      e.linkVenta ? ((ventas.find(function(x) { return x.id === e.linkVenta; }) || {}).numero || ('venta #' + e.linkVenta)) : '']);
   }
   return out;
 }
@@ -2397,7 +2556,7 @@ function exportXLSX() {
     }
     sheet += '<row r="' + (r+1) + '">' + cells + '</row>';
   }
-  var cols = '<cols><col min="1" max="1" width="9" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/><col min="5" max="5" width="34" customWidth="1"/><col min="6" max="6" width="22" customWidth="1"/><col min="7" max="7" width="18" customWidth="1"/><col min="8" max="8" width="16" customWidth="1"/><col min="9" max="9" width="16" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/><col min="11" max="11" width="12" customWidth="1"/><col min="12" max="12" width="20" customWidth="1"/><col min="13" max="13" width="14" customWidth="1"/><col min="14" max="14" width="10" customWidth="1"/><col min="15" max="15" width="8" customWidth="1"/><col min="16" max="16" width="15" customWidth="1"/><col min="17" max="17" width="16" customWidth="1"/><col min="18" max="18" width="12" customWidth="1"/></cols>';
+  var cols = '<cols><col min="1" max="1" width="9" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/><col min="5" max="5" width="34" customWidth="1"/><col min="6" max="6" width="22" customWidth="1"/><col min="7" max="7" width="18" customWidth="1"/><col min="8" max="8" width="16" customWidth="1"/><col min="9" max="9" width="16" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/><col min="11" max="11" width="12" customWidth="1"/><col min="12" max="12" width="20" customWidth="1"/><col min="13" max="13" width="14" customWidth="1"/><col min="14" max="14" width="10" customWidth="1"/><col min="15" max="15" width="8" customWidth="1"/><col min="16" max="16" width="15" customWidth="1"/><col min="17" max="17" width="16" customWidth="1"/><col min="18" max="18" width="12" customWidth="1"/><col min="19" max="19" width="16" customWidth="1"/></cols>';
   var files = [
     { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
     { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
@@ -2616,7 +2775,8 @@ function mapVentaRow(r) {
     ganancia_bruta: parseFloat(r.ganancia_bruta), metodo_pago: r.metodo_pago || '', estado: r.estado,
     tiene_factura: r.tiene_factura, numero_factura: r.numero_factura,
     transportadora: r.transportadora || '', numero_guia: r.numero_guia || '', notas: r.notas || '',
-    ingreso_id: r.ingreso_id, created_at: r.created_at, updated_at: r.updated_at
+    ingreso_id: r.ingreso_id, costo_detalle: r.costo_detalle || null,
+    created_at: r.created_at, updated_at: r.updated_at
   };
 }
 
@@ -2629,6 +2789,10 @@ function venLoad() {
     nextVentaNumberManual = Math.max(...ventas.filter(v => v.numero.startsWith('M-'))
       .map(v => parseInt(v.numero.split('-')[1]) || 0), 0) + 1;
     renderVentas();
+    // Finanzas muestra el numero de venta en los gastos enlazados y la lista del formulario
+    // se arma con estas ventas: ambos necesitan repintarse cuando terminan de cargar.
+    if (expenses.length) renderFin();
+    if ($('f-link-venta') && $('f-cat').value === 'Mano de obra') renderLinkVentaOptions($('f-link-venta').value);
   }).catch(e => { console.error('Error loading ventas:', e); toast('Error al cargar ventas'); });
 }
 
@@ -2834,6 +2998,10 @@ function confirmarYGuardarVenta() {
     }).then(ingresoRows => {
       var ingresoCreado = Array.isArray(ingresoRows) ? ingresoRows[0] : ingresoRows;
       ventaBody.ingreso_id = ingresoCreado.id;
+      // La ficha tecnica solo se guarda al crear; al editar queda congelada.
+      if (v.esManual && window._cjFichaPendiente) {
+        ventaBody.costo_detalle = Object.assign({}, window._cjFichaPendiente, { calculadoEl: v.fecha });
+      }
       fetch(SB_URL + '/rest/v1/ventas', {
         method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ventaBody)
       }).then(r => {
@@ -2901,13 +3069,17 @@ function renderVentas() {
     if (isEdited) clienteCell += ' <span class="edited-badge" onclick="showAuditVenta(' + v.id + ', event)" title="Ver historial de cambios">&#9998; editado</span>';
     var productoCell = esc(v.producto_nombre);
     if (!v.producto_id) productoCell += ' <span class="cat-badge" style="background:var(--blue-bg,#e8f0fb);color:var(--blue,#2e5fa3);" title="Venta manual, fuera de catálogo">manual</span>';
+    // Solo las ventas que vinieron de la Calculadora de Joya Personalizada tienen ficha.
+    var fichaBtn = v.costo_detalle
+      ? '<button class="btn-small" onclick="showFichaVenta(' + v.id + ', event)" title="Ficha técnica de la pieza">🔍</button>'
+      : '';
     row.innerHTML = `<td>${esc(v.numero)}</td><td>${v.fecha}</td><td>${clienteCell}</td><td>${productoCell}</td>
       <td>${fmtQty(v.cantidad)}</td><td>${fmt(v.precio_unitario)}</td><td>${fmt(v.monto_total)}</td>
       <td>${fmt(v.costo_unitario)}</td><td style="color: #1f6f4a; font-weight: bold;">${fmt(v.ganancia_bruta)}</td>
       <td>${esc(v.metodo_pago || '—')}</td><td>${v.tiene_factura ? esc(v.numero_factura) : '—'}</td>
       <td><span class="badge badge-${v.estado}">${v.estado}</span></td>
       <td>${esc(v.transportadora || '—')}</td><td>${esc(v.numero_guia || '—')}</td>
-      <td><button class="btn-small" onclick="showAuditVenta(${v.id}, event)" title="Historial de cambios">🕘</button>
+      <td>${fichaBtn}<button class="btn-small" onclick="showAuditVenta(${v.id}, event)" title="Historial de cambios">🕘</button>
       <button class="btn-small" onclick="delVenta(${v.id}, event)">🗑️</button></td>`;
     tbody.appendChild(row);
   });
@@ -2970,6 +3142,7 @@ function editVenta(id, ev) {
 function cancelEditVenta() {
   editingIdVenta = null;
   window._cjSalidaPendiente = null;
+  window._cjFichaPendiente = null;
   $('form-title-ven').textContent = 'Registrar venta';
   $('edit-flag-ven').style.display = 'none';
   $('btn-cancel-ven').style.display = 'none';
