@@ -2817,6 +2817,8 @@ function confirmarYGuardarVenta() {
         }).catch(function(e) { console.error('Error al sincronizar ingreso vinculado:', e); toast('Venta actualizada, pero no se pudo sincronizar el ingreso en Finanzas'); });
       }
       toast('Venta actualizada'); cancelEditVenta(); renderVentas(); window._ventaPendiente = null;
+      // Editar la cantidad puede agotar el stock igual que una venta nueva.
+      if (!v.esManual && v.producto_id) invCheckAutoOcultar(v.producto_id);
     }).catch(e => { console.error(e); toast('Error al guardar: ' + e.message); });
   } else {
     var ingresoBody = {

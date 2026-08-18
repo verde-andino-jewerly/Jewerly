@@ -2451,10 +2451,13 @@ function admGetStones() {
   return result;
 }
 /* Valida todos los campos del formulario y devuelve list de campos faltantes */
+// Los campos completos solo se exigen para publicar. Un borrador o una pieza
+// oculta se pueden guardar a medias y terminarse despues.
 function admValidateForm() {
   var missing = [];
-  if (!admPhotoDataUrl) missing.push('Fotografía (obligatoria)');
   if (!document.getElementById('f-id').value.trim()) missing.push('ID del producto');
+  if (admEstado !== 'publicado') return missing;
+  if (!admPhotoDataUrl) missing.push('Fotografía (obligatoria)');
   if (!document.getElementById('f-cat').value) missing.push('Categoría');
   if (!document.getElementById('f-estilo').value) missing.push('Estilo');
   if (!document.getElementById('f-metal').value) missing.push('Metal');
@@ -2594,12 +2597,15 @@ function admSaveProduct() {
   var margen = parseFloat(document.getElementById('f-margen').value) || 0;
   var precioOferta = parseFloat(document.getElementById('f-precio-oferta').value) || null;
 
-  if (margen < 20) { toast('El margen mínimo es 20% para cubrir costos operativos'); return; }
+  // Las reglas de precio solo aplican al publicar: un borrador puede ir sin costo ni margen.
+  // El margen minimo lo exige tambien la base de datos en cuanto hay un costo cargado.
+  var esPublicado = admEstado === 'publicado';
+  if (costo > 0 && margen < 20) { toast('El margen mínimo es 20% para cubrir costos operativos'); return; }
   if (precioOferta !== null && precioOferta <= 0) { toast('Precio de oferta debe ser > 0'); return; }
 
   // Calcular precio en servidor (Edge Function)
   sbCalculatePrice(costo, margen, function(precio) {
-    if (!precio || precio <= 0) { toast('El precio calculado es 0. Revisa costo y margen.'); return; }
+    if (esPublicado && (!precio || precio <= 0)) { toast('El precio calculado es 0. Revisa costo y margen.'); return; }
     if (precioOferta !== null) {
       var minOferta = Math.round(costo * 1.12);
       if (precioOferta < minOferta) {
