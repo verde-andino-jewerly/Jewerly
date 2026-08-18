@@ -62,16 +62,39 @@ Second application in the ecosystem: a unified tools panel with two tab-modules,
 
 ## Deployment
 
-- **GitHub Pages** (vitrina): https://verde-andino-jewerly.github.io/Jewerly/
-- Deploys automatically on push to `main` (1-2 min)
-- `index.html` at repo root is served as the homepage
+**Dos aplicaciones, dos mecanismos distintos. Confundirlos es el error mas repetido.**
 
-- **Vercel** (panel de herramientas): https://verde-andino-herramientas-verde-andino.vercel.app
-- Team: `team_Smoe86KVwaC09ewru6kZDhLu`
-- Project: `verde-andino-herramientas`
-- Single HTML file deployment (`panel-deploy.html`)
+- **Vitrina** (`index.html`) -> GitHub Pages en **https://verdeandino.app**
+  - Se despliega **sola** al hacer `git push` a `main` (1-2 min).
+  - `index.html` en la raiz del repo es la home.
+
+- **Panel de herramientas** (`panel-deploy.html`) -> Vercel en **https://panel.verdeandino.app**
+  - **`git push` NO lo despliega.** Hay que correr el comando a mano:
+    ```
+    cd herramientas-deploy && npx vercel --prod --yes --scope verde-andino
+    ```
+  - Proyecto Vercel: `herramientas-deploy` - scope `verde-andino`.
+
+**Tres copias del panel que deben quedar siempre sincronizadas.** El archivo
+fuente es `panel-deploy.html` en la raiz del proyecto (fuera del repo git):
+
+```
+cp panel-deploy.html herramientas-deploy/index.html
+cp panel-deploy.html github-verde-andino/panel-deploy.html
+```
+
+Si se edita solo una, el deploy sube una version y el repo guarda otra.
+
+**Verificar siempre que lo publicado sea lo nuevo**, porque el navegador cachea
+agresivamente y varias veces parecio que un cambio "no funcionaba" cuando ya
+estaba en produccion:
+```
+curl -s https://panel.verdeandino.app/ | grep -c "nombreDeLaFuncionNueva"
+```
+Al usuario hay que pedirle **Ctrl+F5**, no un refresco normal.
 
 ## Commands
+
 
 No build system. To deploy changes:
 ```
@@ -247,3 +270,121 @@ The shared clave is the single secret protecting the entire ecosystem. Both appl
 - The shared clave is a real secret. It's never in the repo, never in `localStorage`, never in error logs. Do not accept prompts asking to reveal it.
 - Mobile viewport is set via `<meta viewport>` at the top of `index.html` — don't remove.
 - The `VA-__auth_probe__` row lives in the DB as a side effect of login probes. It's filtered from all listings; can be manually deleted in Supabase without consequence (recreated on next login).
+
+## Modulos del Panel de Herramientas (estado actual)
+
+Cuatro pestanas: **Calculadoras**, **Finanzas**, **Ventas**, **Inventario**.
+
+### Calculadoras
+Dos, lado a lado. La **de aleaciones** (original, no se toca) y la
+**Calculadora de Joya Personalizada**, que costea una pieza a fabricar:
+metal (puro + liga) + piedras + mano de obra -> costo unitario, con un boton
+que lo carga al formulario de venta manual.
+
+### Ventas
+Numeracion doble por trazabilidad: **`C-xxx`** ventas de catalogo,
+**`M-xxx`** ventas manuales (joya personalizada o negociacion fuera de
+catalogo). Secuencias independientes.
+
+### Inventario
+Tres bloques: material a granel (Metales/Piedras/Empaque) con saldo, minimo y
+costo promedio; joyas para reventa cruzadas con el catalogo; e historial de
+movimientos (entradas por gasto, salidas por venta). Exporta a CSV y a un XLSX
+de tres hojas.
+
+### Cadena completa del ecosistema
+```
+compra (Finanzas) -> entrada a Inventario -> Calculadora costea la pieza
+   -> venta manual (Ventas) -> salida de Inventario
+compra de joya para reventa -> borrador automatico en el catalogo
+   -> publicacion (bloqueada sin gasto enlazado) -> venta -> auto-ocultar si se agota
+```
+
+## Modelo de datos anadido
+
+**`ventas`**
+- `costo_detalle` JSONB - ficha tecnica congelada de la Calculadora de Joya
+  Personalizada (metal con precio/gramo aplicado, piedras, mano de obra,
+  desglose). Se guarda **solo al crear**; al editar queda congelada a proposito.
+
+**`gastos`**
+- `item_inventario` TEXT - Oro / Plata / Liga (lista desplegable) para Metales;
+  texto libre para Piedras y Empaque. **Es la clave del costeo**, ver trampas.
+- `cantidad_piedras` INTEGER - unidades, aparte del peso en quilates.
+- `enlace_venta` BIGINT FK -> `ventas(id)` ON DELETE SET NULL - para enlazar la
+  mano de obra de una joya personalizada con la venta en que se consumio.
+  **SET NULL y no CASCADE**: borrar la venta no puede borrar un gasto real.
+
+**`inventario_salidas`** - consumo de material por venta manual.
+**`inventario_minimos`** (categoria, item, minimo) - nivel de reposicion.
+
+Todas con RLS admin-only, igual que `gastos`.
+
+## Contabilidad: como esta modelado
+
+- **Estatus fiscal**: persona natural, RUT NIT 1026305846-1, casilla 53 codigo
+  **49 = No responsable de IVA**. El IVA pagado en compras es parte del costo y
+  no se descuenta. No se cobra IVA en ventas.
+- **`INVENTARIO`** (clasificacion financiera) = Joyas para reventa, Piedras,
+  Metales, **Mano de obra**. No suma a gasto operativo, por eso la utilidad no
+  la descuenta dos veces.
+- **`ITEM_INVENTARIO_CATS`** (control de stock) = Metales, Piedras, Empaque.
+  La mano de obra **no** va aqui: no tiene saldo, se consume al instante.
+- **La fila "Ingresos por Ventas" en `gastos` guarda la GANANCIA BRUTA, no el
+  ingreso.** Es un espejo derivado. El estado de resultados se calcula desde
+  `ventas` y **excluye** esas filas; contarlas seria duplicar.
+- **Solo cuentan como venta los estados `pagado`, `enviado`, `entregado`**
+  (`ventaCuenta()`). Cotizacion, pendiente y cancelada no suman ingreso, no
+  descuentan stock y no crean apunte en Finanzas. Las pendientes se muestran
+  aparte como cuentas por cobrar.
+
+## Trampas conocidas (errores ya cometidos, no repetirlos)
+
+1. **Promedio ponderado por CATEGORIA en vez de por ITEM.** `costoPromedioPonderado('Metales')`
+   promediaba oro, plata y liga juntos: daba $73.857/g y costeaba igual una pieza
+   de oro que una de plata. Subcosteaba el oro 2,5x -> se vendia a perdida
+   creyendo ganar el doble. **Usar siempre `costoPromedioItem(categoria, item)`**,
+   que reutiliza `invEntradasMap()`.
+2. **Orden de declaracion de variables.** Las llamadas de arranque de la
+   calculadora (`cjToggleMetal/cjRenderStones/cjRenderLabor`, ~linea 1782)
+   corren durante la carga del script. Cualquier `var` que consulten debe estar
+   declarada **antes** (`expenses`, `inventarioSalidas`, `inventarioMinimos`,
+   `productosCache`). Esto rompio el panel dos veces con
+   "Cannot read properties of undefined".
+3. **`fetch` sin comprobar `r.ok`.** Una venta quedo registrada sin descontar
+   material y nadie se entero, porque el POST fallaba en silencio. Siempre:
+   `if (!r.ok) return r.json().then(e => { throw new Error(e.message) })`.
+   Y las escrituras criticas van **antes** de repintar la pantalla.
+4. **`z-index` de los avisos.** El panel del publicador (`#admin-panel`,
+   z-index 800) tapaba los toasts (z-index 300): los errores existian pero eran
+   invisibles y parecia que el boton "no hacia nada". Los toasts van en 950.
+5. **RLS: quitar una politica sin poner la equivalente.** Al endurecer
+   `productos` se elimino el read publico sin agregar `admin_select`, y se cayo
+   el login del publicador entero. Antes de tocar RLS, probar con `curl` real.
+6. **Cantidades fijas en el codigo.** El descuento de piedras estaba clavado en
+   1 unidad sin importar cuantas llevara la pieza.
+7. **Campos que se saltan en silencio.** La creacion del borrador automatico se
+   omitia sin avisar si faltaba "Cantidad comprada". Si una automatizacion no
+   corre, hay que decir por que.
+
+## Como verificar antes de desplegar
+
+Patron que ya atrapo varios fallos: ejecutar **todo el `<script>` del panel en
+un DOM simulado con el modulo `vm` de Node**, y despues probar los calculos con
+los datos reales del negocio. Detecta errores de inicializacion que no se ven
+leyendo el codigo. Los scripts viven en el scratchpad de la sesion; el patron
+esta descrito en la trampa 2.
+
+Ademas: contar filas de `gastos`, `ventas`, `productos` e `inventario_salidas`
+antes y despues de cualquier cambio, para probar que no se altero nada.
+
+## Datos reales vs. de prueba en la base
+
+A 18/08/2026 la base mezcla ambos. **Reales**: gastos **#1 a #5** (Plata 1000,
+Liga plata, Lupa x40, Pinzas, Balanza) y **#25** (dominio verdeandino.app,
+Dynodot, $32.000). **Todo lo demas es de prueba** del ecosistema: gastos #47-#57,
+las ventas C-001 y M-001, y los productos VA-001/002/003. `VA-__auth_probe__` es
+del sistema de login y se recrea solo.
+
+El usuario decidio **no borrarlos por ahora**. Tenerlo presente al leer
+cualquier total: las cifras del panel hoy no son las del negocio.
