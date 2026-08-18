@@ -152,16 +152,30 @@
   .calcj-sub-result .val { font-size: 1.02rem; font-weight: 700; color: var(--gold); text-align: right; }
   .calcj-sub-result .val .calcj-per-gram { font-size: 0.64rem; font-weight: 600; color: var(--text-3); margin-left: 0.25rem; }
   .calcj-item-row {
-    display: grid; grid-template-columns: 1fr 70px 110px 32px; gap: 0.4rem;
-    margin-bottom: 0.5rem; align-items: center;
+    display: grid; grid-template-columns: 1fr 52px 62px 100px 32px; gap: 0.4rem;
+    margin-bottom: 0.5rem; align-items: start;
   }
+  .calcj-item-row > input, .calcj-item-row > button { align-self: start; }
   .calcj-item-row.two-col { grid-template-columns: 1fr 110px 32px; }
+  .calcj-col-heads {
+    display: grid; grid-template-columns: 1fr 52px 62px 100px 32px; gap: 0.4rem;
+    margin-bottom: 0.3rem;
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-3); font-weight: 600;
+  }
+  .calcj-col-heads span { text-align: center; }
+  .calcj-col-heads span:first-child { text-align: left; }
   .calcj-item-row input {
     width: 100%; padding: 0.5rem 0.6rem; font-size: 0.85rem; font-family: inherit;
     color: var(--text); background: var(--bg-alt); border: 1px solid var(--border-s);
     border-radius: 6px; outline: none; min-height: 38px;
   }
-  .calcj-item-row input:focus { border-color: var(--gold); }
+  .calcj-item-row select {
+    width: 100%; padding: 0.5rem 0.6rem; font-size: 0.85rem; font-family: inherit;
+    color: var(--text); background: var(--bg-alt); border: 1px solid var(--border-s);
+    border-radius: 6px; outline: none; min-height: 38px;
+  }
+  .calcj-item-row input:focus, .calcj-item-row select:focus { border-color: var(--gold); }
   .calcj-btn-add-row {
     background: none; border: 1.5px dashed var(--border); color: var(--text-2);
     border-radius: 7px; padding: 0.5rem; width: 100%; cursor: pointer;
@@ -859,6 +873,7 @@
 
         <div class="calcj-section stones">
           <div class="calcj-section-header"><span class="calcj-ico">💎</span><h3>Piedras</h3><span class="calcj-count" id="cj-stone-count">0 piedras</span></div>
+          <div class="calcj-col-heads"><span>Piedra</span><span>Cant.</span><span>Quilates</span><span>Costo</span><span></span></div>
           <div id="cj-stone-rows"></div>
           <button type="button" class="calcj-btn-add-row" onclick="cjAddStone()">+ Agregar piedra</button>
           <div class="calcj-items-total">Total piedras: <b id="cj-total-piedras">$0</b></div>
@@ -1612,7 +1627,13 @@ function costoPromedioPonderado(categoria) {
   return q > 0 ? a / q : 0;
 }
 
+var CJ_PIEDRA_LIBRE = '__otra__';
 var cjStones = [];
+// El placeholder de "otra piedra" no es un nombre: no debe llegar a inventario ni a la ficha.
+function cjNombrePiedra(s) {
+  var n = String(s.desc || '').trim();
+  return (n && n !== CJ_PIEDRA_LIBRE) ? n : '';
+}
 var cjStoneIdCounter = 0;
 var cjLaborItems = [];
 var cjLaborIdCounter = 0;
@@ -1625,7 +1646,7 @@ function cjToggleMetal() {
 
 function cjAddStone(desc, quilates, costo) {
   var id = cjStoneIdCounter++;
-  cjStones.push({ id: id, desc: desc || '', quilates: quilates || '', costo: costo || 0 });
+  cjStones.push({ id: id, desc: desc || '', cantidad: 1, quilates: quilates || '', costo: costo || 0 });
   cjRenderStones();
 }
 function cjRemoveStone(id) {
@@ -1634,22 +1655,53 @@ function cjRemoveStone(id) {
 }
 function cjUpdateStone(id, field, value) {
   var s = cjStones.find(function(s) { return s.id === id; });
-  if (s) s[field] = field === 'costo' ? (parseFloat(value) || 0) : value;
+  if (!s) return;
+  if (field === 'select') {
+    // Cambiar la piedra elegida sí re-dibuja: hay que mostrar u ocultar el campo libre.
+    s.desc = value;
+    cjRenderStones();
+    return;
+  }
+  if (field === 'costo') s.costo = parseFloat(value) || 0;
+  else if (field === 'cantidad') s.cantidad = Math.max(1, parseInt(value, 10) || 1);
+  else s[field] = value;
+  // Los demas campos no re-dibujan: eso le quitaria el foco mientras se escribe.
+  if (field === 'cantidad') cjActualizarConteoPiedras();
   cjCalcular();
 }
 function cjRenderStones() {
+  // La piedra se ELIGE del inventario: asi el descuento de existencias siempre
+  // cruza, sin depender de como se escriba el nombre.
+  var registradas = invSaldosRows().filter(function(r) { return r.categoria === 'Piedras'; });
   var html = '';
   cjStones.forEach(function(s) {
-    html += '<div class="calcj-item-row">' +
-      '<input type="text" placeholder="Ej: Esmeralda" value="' + esc(s.desc) + '" oninput="cjUpdateStone(' + s.id + ',\'desc\',this.value)">' +
-      '<input type="text" placeholder="Ct" value="' + esc(s.quilates) + '" oninput="cjUpdateStone(' + s.id + ',\'quilates\',this.value)">' +
-      '<input type="number" placeholder="Costo" value="' + (s.costo || '') + '" oninput="cjUpdateStone(' + s.id + ',\'costo\',this.value)">' +
+    var esLibre = s.desc === CJ_PIEDRA_LIBRE || (s.desc && !registradas.some(function(r) { return r.item === s.desc; }));
+    var opts = '<option value="">— elige la piedra —</option>';
+    registradas.forEach(function(r) {
+      opts += '<option value="' + esc(r.item) + '"' + (s.desc === r.item ? ' selected' : '') + '>' +
+        esc(r.item) + ' (' + (r.saldoPiedras !== null ? r.saldoPiedras + ' u · ' : '') + fmtQty(r.saldoQty) + ' ct)</option>';
+    });
+    opts += '<option value="' + CJ_PIEDRA_LIBRE + '"' + (esLibre ? ' selected' : '') + '>Otra piedra (sin registrar)</option>';
+    var celdaNombre = '<div>' +
+      '<select onchange="cjUpdateStone(' + s.id + ',\'select\',this.value)">' + opts + '</select>' +
+      (esLibre ? '<input type="text" style="margin-top:0.3rem;" placeholder="Nombre de la piedra" value="' +
+        esc(s.desc === CJ_PIEDRA_LIBRE ? '' : s.desc) + '" oninput="cjUpdateStone(' + s.id + ',\'desc\',this.value)">' : '') +
+      '</div>';
+    html += '<div class="calcj-item-row">' + celdaNombre +
+      '<input type="number" min="1" step="1" placeholder="1" title="Cuántas piedras de este tipo lleva la joya" value="' + (s.cantidad || '') + '" oninput="cjUpdateStone(' + s.id + ',\'cantidad\',this.value)">' +
+      '<input type="text" placeholder="Ct" title="Quilates en total, sumando todas las piedras de este renglón" value="' + esc(s.quilates) + '" oninput="cjUpdateStone(' + s.id + ',\'quilates\',this.value)">' +
+      '<input type="number" placeholder="Costo" title="Costo total de este renglón" value="' + (s.costo || '') + '" oninput="cjUpdateStone(' + s.id + ',\'costo\',this.value)">' +
       '<button type="button" class="btn-del" onclick="cjRemoveStone(' + s.id + ')" title="Eliminar">&times;</button>' +
       '</div>';
   });
   $('cj-stone-rows').innerHTML = html;
-  $('cj-stone-count').textContent = cjStones.length + (cjStones.length === 1 ? ' piedra' : ' piedras');
+  cjActualizarConteoPiedras();
   cjCalcular();
+}
+
+function cjActualizarConteoPiedras() {
+  var total = cjStones.reduce(function(a, s) { return a + (parseInt(s.cantidad, 10) || 1); }, 0);
+  $('cj-stone-count').textContent = cjStones.length ? (total + (total === 1 ? ' piedra' : ' piedras')) : '0 piedras';
 }
 
 function cjAddLabor(desc, costo) {
@@ -1732,9 +1784,16 @@ function cjCalcular() {
   chequearSaldo('Metales', 'Liga', gramosLiga, 'g');
   cjStones.forEach(function(s) {
     var ct = parseFloat(s.quilates) || 0;
-    if (ct <= 0 || !s.desc) return;
-    var row = invBuscarItem('Piedras', s.desc);
-    if (row) chequearSaldo('Piedras', row.item, ct, 'ct');
+    if (ct <= 0 || !cjNombrePiedra(s)) return;
+    var row = invBuscarItem('Piedras', cjNombrePiedra(s));
+    if (!row) return;
+    chequearSaldo('Piedras', row.item, ct, 'ct');
+    // Las piedras se controlan por unidades ademas de por quilates.
+    var unidades = parseInt(s.cantidad, 10) || 1;
+    if (row.saldoPiedras !== null && unidades > row.saldoPiedras) {
+      insuficientes.push(row.item + ': necesitas ' + unidades + (unidades === 1 ? ' piedra' : ' piedras') +
+        ' y tienes ' + row.saldoPiedras);
+    }
   });
   var avisoStock = $('cj-aviso-stock');
   if (insuficientes.length) {
@@ -1787,8 +1846,17 @@ function cjCargarAVentas() {
   var metalItem = isGold ? ('Oro ' + $('cj-karat').value + 'K') : ('Plata ' + $('cj-ley').value);
   var gramosPuro = parseFloat($('cj-metal-puro').textContent) || 0;
   var gramosLiga = parseFloat($('cj-metal-liga').textContent) || 0;
-  var piedrasSnapshot = cjStones.filter(function(s) { return s.desc && parseFloat(s.quilates) > 0; })
-    .map(function(s) { return { item: s.desc, quilates: parseFloat(s.quilates) || 0 }; });
+  var piedrasSnapshot = cjStones.filter(function(s) { return cjNombrePiedra(s) && parseFloat(s.quilates) > 0; })
+    .map(function(s) {
+      // Al elegirse del desplegable el nombre ya es el del inventario; invBuscarItem
+      // queda como red de seguridad para las piedras escritas a mano.
+      var reg = invBuscarItem('Piedras', cjNombrePiedra(s));
+      return {
+        item: reg ? reg.item : cjNombrePiedra(s),
+        quilates: parseFloat(s.quilates) || 0,
+        cantidad: parseInt(s.cantidad, 10) || 1
+      };
+    });
   switchTab('ven');
   cancelEditVenta();
   $('f-venta-manual').checked = true;
@@ -1816,8 +1884,8 @@ function cjCargarAVentas() {
       itemPuro: itemPuro, precioGramoPuro: precioPuro, precioGramoLiga: precioLiga,
       costo: costoMetal
     },
-    piedras: cjStones.filter(function(s) { return s.desc || s.costo; })
-      .map(function(s) { return { nombre: s.desc || 'Sin nombre', quilates: parseFloat(s.quilates) || 0, costo: s.costo || 0 }; }),
+    piedras: cjStones.filter(function(s) { return cjNombrePiedra(s) || s.costo; })
+      .map(function(s) { return { nombre: cjNombrePiedra(s) || 'Sin nombre', cantidad: parseInt(s.cantidad, 10) || 1, quilates: parseFloat(s.quilates) || 0, costo: s.costo || 0 }; }),
     labor: cjLaborItems.filter(function(s) { return s.desc || s.costo; })
       .map(function(s) { return { nombre: s.desc || 'Sin nombre', costo: s.costo || 0 }; }),
     totales: { metal: costoMetal, piedras: totalPiedras, labor: totalLabor, costoUnitario: costo }
@@ -1827,6 +1895,11 @@ function cjCargarAVentas() {
 
 /* ===== FINANCIERO — Supabase CRUD ===== */
 var expenses = [];
+// Declarados aca, antes de las llamadas de arranque de la calculadora: esas ya
+// consultan los saldos de inventario y con `var` sin asignar reventarian.
+var inventarioSalidas = [];
+var inventarioMinimos = {};
+var productosCache = [];
 var editingId = null;
 cjToggleMetal();
 cjRenderStones();
@@ -2357,7 +2430,8 @@ function showFichaVenta(id, ev) {
   h += '<div class="ficha-sec">Piedras</div>';
   if ((d.piedras || []).length) {
     d.piedras.forEach(function(p) {
-      h += fichaRow(p.nombre + ' · ' + fmtQty(p.quilates || 0, 'ct') + ' ct', fmt(p.costo || 0), 'sub');
+      var cant = p.cantidad ? (p.cantidad + (p.cantidad === 1 ? ' piedra · ' : ' piedras · ')) : '';
+      h += fichaRow(p.nombre + ' · ' + cant + fmtQty(p.quilates || 0, 'ct') + ' ct', fmt(p.costo || 0), 'sub');
     });
     h += fichaRow('Costo de piedras', fmt(t.piedras || 0), 'tot');
   } else { h += '<div class="ficha-vacio">Sin piedras registradas</div>'; }
@@ -3664,9 +3738,6 @@ function exportVentasXLSX() {
 }
 
 /* ===== CONTROL DE INVENTARIO ===== */
-var inventarioSalidas = [];
-var inventarioMinimos = {};
-var productosCache = [];
 var invMatFilterCat = 'all';
 var invMovFilterTipo = 'all';
 
@@ -3772,7 +3843,7 @@ function registrarSalidasInventario(ventaId, fecha, cantidadVenta, p) {
   if (p.gramosPuro > 0) rows.push({ fecha: fecha, categoria: p.metalCategoria, item: p.metalItem, cantidad: p.gramosPuro * mult, unidad: 'g', venta_id: ventaId, notas: 'Metal puro' });
   if (p.gramosLiga > 0) rows.push({ fecha: fecha, categoria: p.metalCategoria, item: p.metalItem, cantidad: p.gramosLiga * mult, unidad: 'g', venta_id: ventaId, notas: 'Liga' });
   (p.piedras || []).forEach(function(s) {
-    if (s.quilates > 0) rows.push({ fecha: fecha, categoria: 'Piedras', item: s.item, cantidad: s.quilates * mult, unidad: 'ct', cantidad_piedras: 1 * mult, venta_id: ventaId });
+    if (s.quilates > 0) rows.push({ fecha: fecha, categoria: 'Piedras', item: s.item, cantidad: s.quilates * mult, unidad: 'ct', cantidad_piedras: (s.cantidad || 1) * mult, venta_id: ventaId });
   });
   if (!rows.length) return;
   fetch(SB_URL + '/rest/v1/inventario_salidas', {
