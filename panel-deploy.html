@@ -509,6 +509,9 @@
   .summary-label { color: var(--text-2); }
   .summary-val { font-weight: 600; font-variant-numeric: tabular-nums; }
   /* Estado de resultados y soporte fiscal */
+  .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+  @media (max-width: 620px) { .cfg-grid { grid-template-columns: 1fr; } }
+  .cat-badge.cb-retiro { background: #ede7f6; color: #5e35b1; }
   .pyg { margin-bottom: 1.25rem; }
   .pyg h4 {
     font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
@@ -897,6 +900,8 @@
             <div class="calcj-breakdown-row"><span>Piedras</span><b id="cj-b-piedras">$0</b></div>
             <div class="calcj-breakdown-row"><span>Mano de obra y otros</span><b id="cj-b-labor">$0</b></div>
           </div>
+          <div id="cj-merma-info" style="display:none; color:var(--text-3); font-size:0.72rem; margin-top:0.6rem;"></div>
+          <div id="cj-aviso-reposicion" style="display:none; background:#fef9e7; color:#a56a15; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <div id="cj-aviso-stock" style="display:none; background:#fef9e7; color:#a56a15; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <div id="cj-aviso-material" style="display:none; background:#fdecea; color:#c0392b; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <button type="button" class="btn-add" id="cj-btn-cargar-ventas" onclick="cjCargarAVentas()" style="width:100%; margin-top:0.9rem;">→ Cargar costo unitario a Ventas (venta manual)</button>
@@ -938,6 +943,9 @@
                 <option value="Empaque">Empaque</option>
                 <option value="Publicidad">Publicidad</option>
                 <option value="Otros">Otros</option>
+              </optgroup>
+              <optgroup label="No es gasto — reparte utilidad">
+                <option value="Retiro de utilidades">Retiro de utilidades</option>
               </optgroup>
             </select>
           </div>
@@ -1040,6 +1048,40 @@
         </div>
       </div>
 
+      <div class="card" id="config-card">
+        <div class="card-title"><span>Configuración del negocio</span></div>
+        <div class="cfg-grid">
+          <div class="field">
+            <label for="cfg-gasto-mes">Gasto operativo al mes</label>
+            <input type="number" id="cfg-gasto-mes" min="0" step="1000" placeholder="400000">
+            <div class="hint">Publicidad, empaque, envíos, dominio, herramientas. Lo que gastas aunque no vendas.</div>
+          </div>
+          <div class="field">
+            <label for="cfg-piezas-mes">Piezas que esperas vender al mes</label>
+            <input type="number" id="cfg-piezas-mes" min="0.01" step="1" placeholder="8">
+            <div class="hint">Sé realista: si pones de más, el cargo por pieza queda bajo y no cubres la operación.</div>
+          </div>
+          <div class="field">
+            <label for="cfg-utilidad">Utilidad que quieres ganar (%)</label>
+            <input type="number" id="cfg-utilidad" min="0" step="1" placeholder="0">
+            <div class="hint">Encima de cubrir costos. En 0 el mínimo solo evita perder, no deja ganancia.</div>
+          </div>
+          <div class="field">
+            <label for="cfg-merma">Merma de metal (%)</label>
+            <input type="number" id="cfg-merma" min="0" max="99" step="0.5" placeholder="5">
+            <div class="hint">Metal que se pierde en fundida, limado y pulido. Lo pagaste, tiene que estar en el costo.</div>
+          </div>
+        </div>
+        <div class="btn-row"><button class="btn-add" onclick="cfgGuardar()">Guardar configuración</button></div>
+        <div class="pyg" style="margin-top:1rem;">
+          <h4>Lo que esto significa</h4>
+          <div class="pyg-row"><span>Cargo operativo por pieza</span><b id="cfg-cargo">$0</b></div>
+          <div class="pyg-row"><span>Utilidad bruta mínima al mes (punto de equilibrio)</span><b id="cfg-equilibrio">$0</b></div>
+          <div id="cfg-tabla"></div>
+          <div class="hint" style="margin-top:0.6rem;">💡 El margen mínimo cambia según el costo de la pieza: una de bajo costo necesita un porcentaje alto para cubrir su parte de la operación, una costosa necesita mucho menos. Por eso un porcentaje único no protege el negocio.</div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-title"><span>Historial de gastos</span><span class="text-2" id="fin-filter-count" style="font-size: 0.9em;"></span></div>
         <div class="loading" id="fin-loading"><div class="spinner"></div><br>Cargando gastos...</div>
@@ -1106,6 +1148,15 @@
           <div class="pyg-row tot" id="pyg-op-box"><span>Utilidad operativa</span><b id="pyg-op">$0</b></div>
           <div class="pyg-row cxc" id="pyg-cxc-box" style="display:none;"><span>Cuentas por cobrar (ventas pendientes)</span><b id="pyg-cxc">$0</b></div>
           <div class="hint" style="margin-top:0.6rem;">💡 Solo cuentan las ventas Pagadas, Enviadas o Entregadas. Las cotizaciones y canceladas no suman; las pendientes se muestran aparte como plata por cobrar.</div>
+        </div>
+
+        <div class="pyg" id="acum-block">
+          <h4>Desde el inicio del negocio</h4>
+          <div class="pyg-row"><span>Utilidad operativa acumulada</span><b id="acum-utilidad">$0</b></div>
+          <div class="pyg-row sub"><span>menos Retiros del dueño</span><b id="acum-retiros">$0</b></div>
+          <div class="pyg-row tot" id="acum-ret-box"><span>Utilidad retenida en el negocio</span><b id="acum-retenida">$0</b></div>
+          <div class="pyg-row cxc"><span>De eso, inmovilizado en inventario</span><b id="acum-inventario">$0</b></div>
+          <div class="hint" id="acum-hint" style="margin-top:0.6rem;"></div>
         </div>
 
         <div class="pyg" id="soportes-block">
@@ -1510,6 +1561,7 @@ function authCheck() {
 function authUnlock() {
   document.getElementById('auth-gate').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  cfgLoad();
   finLoad();
   venLoad();
   loadProductosDropdown();
@@ -1595,6 +1647,18 @@ renderMetal();
 function costoPromedioItem(categoria, item) {
   var e = invEntradasMap()[invItemKey(categoria, item)];
   return (e && e.qty > 0) ? (e.amount / e.qty) : 0;
+}
+
+// Ultimo precio pagado por un item. Si subio frente al promedio, costear al
+// promedio deja la venta sin plata suficiente para reponer el material.
+function ultimoPrecioItem(categoria, item) {
+  var mejor = null;
+  expenses.forEach(function(e) {
+    if (e.cat !== categoria || !e.qty || e.qty <= 0) return;
+    if ((e.itemInv || 'Sin especificar') !== item) return;
+    if (!mejor || e.date > mejor.date || (e.date === mejor.date && e.id > mejor.id)) mejor = e;
+  });
+  return mejor ? (mejor.amount / mejor.qty) : null;
 }
 
 // Saldo disponible de un item. Devuelve null si el item no existe en el inventario.
@@ -1752,6 +1816,10 @@ function cjCalcular() {
     leyLabel = ley;
   }
   var gramosLiga = Math.max(peso - gramosPuros, 0);
+  // Se compra mas metal del que queda en la pieza: la merma se pierde al fabricar.
+  var fm = mermaFactor();
+  var consumoPuro = gramosPuros * fm;
+  var consumoLiga = gramosLiga * fm;
 
   $('cj-lab-puro').textContent = 'Metal puro (' + leyLabel + ')';
   $('cj-metal-puro').textContent = gramosPuros.toFixed(2);
@@ -1780,8 +1848,8 @@ function cjCalcular() {
       insuficientes.push(item + ': necesitas ' + fmtQty(necesita) + ' ' + unidad + ' y tienes ' + fmtQty(saldo) + ' ' + unidad);
     }
   }
-  chequearSaldo('Metales', itemPuro, gramosPuros, 'g');
-  chequearSaldo('Metales', 'Liga', gramosLiga, 'g');
+  chequearSaldo('Metales', itemPuro, consumoPuro, 'g');
+  chequearSaldo('Metales', 'Liga', consumoLiga, 'g');
   cjStones.forEach(function(s) {
     var ct = parseFloat(s.quilates) || 0;
     if (ct <= 0 || !cjNombrePiedra(s)) return;
@@ -1818,9 +1886,33 @@ function cjCalcular() {
     btnCargar.style.cursor = '';
   }
 
-  var costoMetalPuro = gramosPuros * precioPuro;
-  var costoMetalLiga = gramosLiga * precioLiga;
+  var costoMetalPuro = consumoPuro * precioPuro;
+  var costoMetalLiga = consumoLiga * precioLiga;
   var costoMetal = costoMetalPuro + costoMetalLiga;
+  var elMerma = $('cj-merma-info');
+  if (elMerma) {
+    var mp = parseFloat(configNegocio.merma_pct) || 0;
+    elMerma.style.display = mp > 0 ? 'block' : 'none';
+    elMerma.textContent = 'Merma ' + mp + '%: la pieza pesa ' + fmtQty(peso) + ' g pero consume ' +
+      fmtQty(consumoPuro + consumoLiga) + ' g de material.';
+  }
+  // Descapitalizacion: el promedio historico puede quedar por debajo del precio de reposicion.
+  var repo = [];
+  [[itemPuro, precioPuro, gramosPuros], ['Liga', precioLiga, gramosLiga]].forEach(function(x) {
+    if (x[2] <= 0 || x[1] <= 0) return;
+    var ult = ultimoPrecioItem('Metales', x[0]);
+    if (ult && ult > x[1] * 1.05) {
+      repo.push(x[0] + ': promedio ' + fmt(x[1]) + '/g pero la última compra fue a ' + fmt(ult) + '/g');
+    }
+  });
+  var avisoRepo = $('cj-aviso-reposicion');
+  if (avisoRepo) {
+    if (repo.length) {
+      avisoRepo.style.display = 'block';
+      avisoRepo.innerHTML = '📈 <b>El material subió de precio.</b> ' + repo.map(esc).join(' · ') +
+        '. Si cobras con el costo promedio, la venta no alcanza para reponer el mismo material.';
+    } else { avisoRepo.style.display = 'none'; }
+  }
   $('cj-costo-metal').textContent = fmt(costoMetal);
   $('cj-costo-metal-desglose').textContent = '· ' + fmt(costoMetalPuro) + ' puro + ' + fmt(costoMetalLiga) + ' liga';
 
@@ -1844,8 +1936,10 @@ function cjCargarAVentas() {
   if ($('cj-btn-cargar-ventas').disabled) { toast('Falta registrar la compra de ese material en Finanzas'); return; }
   var isGold = $('cj-tipo-metal').value === 'gold';
   var metalItem = isGold ? ('Oro ' + $('cj-karat').value + 'K') : ('Plata ' + $('cj-ley').value);
-  var gramosPuro = parseFloat($('cj-metal-puro').textContent) || 0;
-  var gramosLiga = parseFloat($('cj-metal-liga').textContent) || 0;
+  // Del inventario sale el metal consumido (con merma), no el que queda en la pieza.
+  var fm = mermaFactor();
+  var gramosPuro = (parseFloat($('cj-metal-puro').textContent) || 0) * fm;
+  var gramosLiga = (parseFloat($('cj-metal-liga').textContent) || 0) * fm;
   var piedrasSnapshot = cjStones.filter(function(s) { return cjNombrePiedra(s) && parseFloat(s.quilates) > 0; })
     .map(function(s) {
       // Al elegirse del desplegable el nombre ya es el del inventario; invBuscarItem
@@ -1882,6 +1976,8 @@ function cjCargarAVentas() {
       pesoTotal: parseFloat($('cj-peso').value) || 0,
       gramosPuro: gramosPuro, gramosLiga: gramosLiga,
       itemPuro: itemPuro, precioGramoPuro: precioPuro, precioGramoLiga: precioLiga,
+      mermaPct: parseFloat(configNegocio.merma_pct) || 0,
+      gramosConsumidoPuro: gramosPuro, gramosConsumidoLiga: gramosLiga,
       costo: costoMetal
     },
     piedras: cjStones.filter(function(s) { return cjNombrePiedra(s) || s.costo; })
@@ -1895,6 +1991,7 @@ function cjCargarAVentas() {
 
 /* ===== FINANCIERO — Supabase CRUD ===== */
 var expenses = [];
+var configNegocio = { gasto_operativo_mensual: 0, piezas_mes: 1, utilidad_objetivo: 0, merma_pct: 0 };
 // Declarados aca, antes de las llamadas de arranque de la calculadora: esas ya
 // consultan los saldos de inventario y con `var` sin asignar reventarian.
 var inventarioSalidas = [];
@@ -1905,13 +2002,17 @@ cjToggleMetal();
 cjRenderStones();
 cjRenderLabor();
 var INVENTARIO = ['Joyas para reventa', 'Piedras', 'Metales', 'Mano de obra'];
+// Un retiro de utilidades NO es un gasto: es plata que sale del negocio hacia el
+// dueno. No puede sumar a gasto operativo ni restar de la utilidad del periodo.
+var CAT_RETIRO = 'Retiro de utilidades';
 var CAT_ORDER = ['Joyas para reventa', 'Piedras', 'Metales', 'Mano de obra',
-                 'Herramientas', 'Empaque', 'Publicidad', 'Otros'];
+                 'Herramientas', 'Empaque', 'Publicidad', 'Otros', CAT_RETIRO];
 var CAT_CLASS = {
   'Joyas para reventa': 'cb-joyas', 'Piedras': 'cb-piedras',
   'Metales': 'cb-metales', 'Mano de obra': 'cb-taller',
   'Herramientas': 'cb-herr', 'Empaque': 'cb-emp',
-  'Publicidad': 'cb-pub', 'Otros': 'cb-otros'
+  'Publicidad': 'cb-pub', 'Otros': 'cb-otros',
+  'Retiro de utilidades': 'cb-retiro'
 };
 var UNITS = {
   'Metales': { u: 'g', label: 'Cantidad (g)', hint: 'Gramos comprados.', rate: 'Precio por gramo' },
@@ -1920,6 +2021,97 @@ var UNITS = {
   'Joyas para reventa': { u: 'u', label: 'Cantidad comprada (unidades)', hint: 'Piezas de este modelo compradas en esta compra.', rate: 'Costo por unidad' }
 };
 var ITEM_INVENTARIO_CATS = ['Metales', 'Piedras', 'Empaque'];
+
+/* ===== CONFIGURACION DEL NEGOCIO =====
+   El margen solo cubre el material. Los gastos operativos (publicidad, empaque,
+   envios, herramientas) hay que repartirlos entre las piezas que se venden, o el
+   margen "minimo" se vuelve una perdida en las piezas de bajo costo. */
+
+function cargoOperativoPorPieza() {
+  var p = parseFloat(configNegocio.piezas_mes) || 0;
+  if (p <= 0) return 0;
+  return (parseFloat(configNegocio.gasto_operativo_mensual) || 0) / p;
+}
+
+// Margen minimo (sobre costo) para que la pieza cubra su parte de la operacion.
+// Con costo bajo el porcentaje se dispara: por eso un 20% fijo no protege nada.
+function margenMinimoReal(costoMaterial) {
+  var c = parseFloat(costoMaterial) || 0;
+  if (c <= 0) return 0;
+  var objetivo = parseFloat(configNegocio.utilidad_objetivo) || 0;
+  return (cargoOperativoPorPieza() / c) * 100 + objetivo;
+}
+
+// Precio que cubre material + operacion + la utilidad deseada.
+function precioSugeridoReal(costoMaterial) {
+  var c = parseFloat(costoMaterial) || 0;
+  if (c <= 0) return 0;
+  return Math.round(c * (1 + (parseFloat(configNegocio.utilidad_objetivo) || 0) / 100) + cargoOperativoPorPieza());
+}
+
+function mermaFactor() {
+  var m = parseFloat(configNegocio.merma_pct) || 0;
+  if (m <= 0 || m >= 100) return 1;
+  return 1 / (1 - m / 100);
+}
+
+function cfgLoad() {
+  return fetch(SB_URL + '/rest/v1/config_negocio?id=eq.1&select=*', { headers: sbHeaders() })
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(rows) {
+      var c = Array.isArray(rows) ? rows[0] : rows;
+      if (c) configNegocio = c;
+      cfgRender();
+    }).catch(function(e) { console.error('Error cargando la configuracion del negocio:', e); });
+}
+
+function cfgRender() {
+  if (!$('cfg-gasto-mes')) return;
+  $('cfg-gasto-mes').value = Math.round(configNegocio.gasto_operativo_mensual || 0);
+  $('cfg-piezas-mes').value = configNegocio.piezas_mes || '';
+  $('cfg-utilidad').value = configNegocio.utilidad_objetivo || 0;
+  $('cfg-merma').value = configNegocio.merma_pct || 0;
+  cfgRenderResumen();
+}
+
+function cfgRenderResumen() {
+  if (!$('cfg-cargo')) return;
+  var cargo = cargoOperativoPorPieza();
+  $('cfg-cargo').textContent = fmt(cargo);
+  // Punto de equilibrio: cuanta utilidad bruta hay que generar al mes para cubrir la operacion.
+  $('cfg-equilibrio').textContent = fmt(parseFloat(configNegocio.gasto_operativo_mensual) || 0);
+  var ejemplos = [60000, 300000, 1500000];
+  $('cfg-tabla').innerHTML = ejemplos.map(function(c) {
+    var m = margenMinimoReal(c);
+    return '<div class="pyg-row sub"><span>Pieza con material de ' + fmt(c) + '</span><b>' +
+      Math.round(m) + '% · precio ' + fmt(precioSugeridoReal(c)) + '</b></div>';
+  }).join('');
+}
+
+function cfgGuardar() {
+  var body = {
+    id: 1,
+    gasto_operativo_mensual: parseFloat($('cfg-gasto-mes').value) || 0,
+    piezas_mes: Math.max(0.01, parseFloat($('cfg-piezas-mes').value) || 1),
+    utilidad_objetivo: parseFloat($('cfg-utilidad').value) || 0,
+    merma_pct: Math.min(99, Math.max(0, parseFloat($('cfg-merma').value) || 0))
+  };
+  fetch(SB_URL + '/rest/v1/config_negocio', {
+    method: 'POST',
+    headers: { ...sbHeaders(), 'Prefer': 'return=representation,resolution=merge-duplicates' },
+    body: JSON.stringify(body)
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+    return r.json();
+  }).then(function(rows) {
+    configNegocio = (Array.isArray(rows) ? rows[0] : rows) || body;
+    toast('Configuración guardada — se recalcularon márgenes y costos');
+    cfgRender(); cjCalcular(); renderFin(); renderVentas();
+  }).catch(function(e) {
+    console.error('Error guardando la configuracion:', e);
+    toast('No se pudo guardar la configuración: ' + (e.message || 'error desconocido'));
+  });
+}
 
 function $(id) { return document.getElementById(id); }
 
@@ -2424,6 +2616,8 @@ function showFichaVenta(id, ev) {
   h += fichaRow('Metal puro' + (m.itemPuro ? ' (' + m.itemPuro + ')' : ''),
     fmtQty(m.gramosPuro || 0, 'g') + ' g × ' + fmt(pPuro || 0) + '/g', 'sub');
   h += fichaRow('Liga', fmtQty(m.gramosLiga || 0, 'g') + ' g × ' + fmt(pLiga || 0) + '/g', 'sub');
+  if (m.mermaPct) h += fichaRow('Merma aplicada', m.mermaPct + '% · consumió ' +
+    fmtQty((m.gramosConsumidoPuro || 0) + (m.gramosConsumidoLiga || 0), 'g') + ' g', 'sub');
   if (m.precioGramoPuro === undefined) h += '<div class="ficha-vacio">Ficha anterior: se calculó con un precio único de ' + fmt(m.precioGramo || 0) + '/g para todo el metal.</div>';
   h += fichaRow('Costo de metal', fmt(t.metal || 0), 'tot');
 
@@ -2607,13 +2801,14 @@ function renderFin() {
   tbody.innerHTML = html;
 
   // Summary
-  var cats = {}, months = {}, total = 0, invTotal = 0, opeTotal = 0, ingresosVentas = 0, ins = {};
+  var cats = {}, months = {}, total = 0, invTotal = 0, opeTotal = 0, ingresosVentas = 0, ins = {}, retiros = 0;
   for (var i = 0; i < delPeriodo.length; i++) {
     var e = delPeriodo[i];
     cats[e.cat] = (cats[e.cat] || 0) + e.amount;
     var mk = e.date.substring(0, 7);
     months[mk] = (months[mk] || 0) + e.amount;
     if (e.cat === 'Ingresos por Ventas') { ingresosVentas += e.amount; }
+    else if (e.cat === CAT_RETIRO) { retiros += e.amount; }
     else if (isInv(e.cat)) { invTotal += e.amount; total += e.amount; }
     else { opeTotal += e.amount; total += e.amount; }
     if (UNITS[e.cat] && e.qty) {
@@ -2624,7 +2819,7 @@ function renderFin() {
   var utilidad = ingresosVentas - opeTotal;
 
   $('sum-periodo').textContent = finPeriodoLabel();
-  renderEstadoResultados(delPeriodo, opeTotal);
+  renderEstadoResultados(delPeriodo, opeTotal, retiros);
   renderSoportes(delPeriodo);
   $('split-inv').textContent = fmtShort(invTotal);
   $('split-ope').textContent = fmtShort(opeTotal);
@@ -2664,7 +2859,43 @@ function renderFin() {
 
 /* Estado de resultados real, calculado desde `ventas`, no desde el espejo de
    "Ingresos por Ventas" en gastos (ese guarda la ganancia, no el ingreso). */
-function renderEstadoResultados(gastosDelPeriodo, gastoOperativo) {
+/* Los acumulados van desde el inicio del negocio y NO siguen el filtro de
+   periodo: la pregunta que responden es "cuanta plata ha dejado esto en total". */
+function renderAcumulados() {
+  var ingresos = 0, cogs = 0;
+  ventas.forEach(function(v) {
+    if (!ventaCuenta(v)) return;
+    ingresos += v.monto_total || 0;
+    cogs += (v.cantidad || 0) * (v.costo_unitario || 0);
+  });
+  var operativo = 0, retiros = 0;
+  expenses.forEach(function(e) {
+    if (e.cat === 'Ingresos por Ventas') return;
+    if (e.cat === CAT_RETIRO) { retiros += e.amount; return; }
+    if (!isInv(e.cat)) operativo += e.amount;
+  });
+  var utilidad = ingresos - cogs - operativo;
+  var retenida = utilidad - retiros;
+
+  // Valor del inventario al costo: entradas menos salidas, valorizadas al promedio.
+  var inmovilizado = 0;
+  invSaldosRows().forEach(function(r) { inmovilizado += Math.max(0, r.saldoQty) * r.costoProm; });
+  invJoyasRows().forEach(function(r) { inmovilizado += Math.max(0, r.saldo) * r.costoProm; });
+
+  $('acum-utilidad').textContent = fmt(utilidad);
+  $('acum-retiros').textContent = fmt(retiros);
+  $('acum-retenida').textContent = fmt(retenida);
+  $('acum-inventario').textContent = fmt(inmovilizado);
+  var box = $('acum-ret-box');
+  box.classList.toggle('neg', retenida < 0);
+  box.classList.toggle('pos', retenida > 0);
+  $('acum-hint').innerHTML = retenida > 0 && inmovilizado > retenida
+    ? '⚠️ Tienes ' + fmt(inmovilizado) + ' en inventario pero solo ' + fmt(retenida) +
+      ' de utilidad retenida: parte del material está financiado con plata que pusiste tú, no con ganancia del negocio.'
+    : '💡 Utilidad retenida es la ganancia que se quedó en el negocio. Registra lo que sacas para ti como «Retiro de utilidades» — no es un gasto y no resta de la utilidad del periodo.';
+}
+
+function renderEstadoResultados(gastosDelPeriodo, gastoOperativo, retirosPeriodo) {
   var delPeriodo = ventas.filter(function(v) { return finEnPeriodo({ date: v.fecha }); });
   var ingresos = 0, cogs = 0, porCobrar = 0;
   delPeriodo.forEach(function(v) {
@@ -2689,6 +2920,7 @@ function renderEstadoResultados(gastosDelPeriodo, gastoOperativo) {
   box.classList.toggle('pos', operativa > 0);
   $('pyg-cxc-box').style.display = porCobrar > 0 ? 'flex' : 'none';
   $('pyg-cxc').textContent = fmt(porCobrar);
+  renderAcumulados();
 }
 
 /* En Colombia el gasto sin soporte no es deducible: hay que poder ver cuánto pesa. */
@@ -3097,21 +3329,23 @@ function ventaCalcSugerido() {
   var hint = $('precio-sugerido-hint');
   if (!costo || isNaN(margen)) { hint.style.display = 'none'; hint.textContent = ''; hint.onclick = null; return; }
   var sugerido = Math.round(costo * (1 + margen / 100));
-  var margenBajo = margen < 20;
+  // El minimo real depende del costo: cubre la parte de operacion de esta pieza.
+  var minReal = margenMinimoReal(costo);
+  var margenBajo = margen < minReal;
   hint.style.display = 'block';
   hint.style.borderColor = margenBajo ? '#c0392b' : 'var(--esm,#1f6f4a)';
   hint.style.background = margenBajo ? '#fdecea' : 'var(--esm-bg,#e8f5ee)';
   hint.style.color = margenBajo ? '#c0392b' : 'var(--esm,#1f6f4a)';
   if (editingIdVenta) {
     hint.style.cursor = 'default';
-    hint.textContent = (margenBajo ? '⚠️ Margen bajo (' + margen + '%, mínimo recomendado 20%). ' : '💡 ') +
+    hint.textContent = (margenBajo ? '⚠️ Pierdes plata: con ' + margen + '% no cubres la operación (mínimo ' + Math.round(minReal) + '%, precio ' + fmt(precioSugeridoReal(costo)) + '). ' : '💡 ') +
       'Precio sugerido (margen ' + margen + '%): ' + fmt(sugerido);
     hint.onclick = null;
     $('f-precio-ven').value = sugerido;
     ventaCalcGanancia();
   } else {
     hint.style.cursor = 'pointer';
-    hint.textContent = (margenBajo ? '⚠️ Margen bajo (' + margen + '%, mínimo recomendado 20%). ' : '💡 ') +
+    hint.textContent = (margenBajo ? '⚠️ Pierdes plata: con ' + margen + '% no cubres la operación (mínimo ' + Math.round(minReal) + '%, precio ' + fmt(precioSugeridoReal(costo)) + '). ' : '💡 ') +
       'Precio sugerido (margen ' + margen + '%): ' + fmt(sugerido) + ' — clic para usar';
     hint.onclick = function() { $('f-precio-ven').value = sugerido; ventaCalcGanancia(); };
   }
@@ -3461,7 +3695,8 @@ function ventaMargenObjetivo(v) {
     var p = productosCache.find(function(x) { return x.id === v.producto_id; });
     if (p && p.margen > 0) return parseFloat(p.margen);
   }
-  return 20;
+  // Sin producto de catalogo, el objetivo es cubrir la operacion de esa pieza.
+  return margenMinimoReal(v.costo_unitario) || 20;
 }
 
 function renderVentas() {
