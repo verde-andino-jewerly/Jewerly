@@ -867,7 +867,8 @@
             <span class="lab">Liga</span>
             <span class="val"><span id="cj-metal-liga">0.00</span> g <small class="calcj-per-gram" id="cj-precio-liga-inline">· $0/g</small></span>
           </div>
-          <div class="calcj-hint">💡 Puro y liga usan hoy el mismo promedio de tus compras de Metales en Finanzas (no hay forma de diferenciarlos aún). Cuando construyamos el control de inventario, cada compra y cada salida por venta se registrará ahí con su costo real.</div>
+          <div class="calcj-hint" id="cj-merma-info" style="display:none;"></div>
+          <div class="calcj-hint">💡 Cada precio por gramo sale del promedio de <b>tus compras de ese material</b> en Finanzas. Al registrar la venta, el metal y las piedras salen del inventario.</div>
           <div class="calcj-sub-result">
             <span class="lab">Costo de metal</span>
             <span class="val"><span id="cj-costo-metal">$0</span> <small class="calcj-per-gram" id="cj-costo-metal-desglose">· $0 puro + $0 liga</small></span>
@@ -953,8 +954,8 @@
             <label for="f-desc">Descripcion</label>
             <input type="text" id="f-desc" placeholder="Ej: Plata 925 en lamina">
           </div>
-          <div class="field">
-            <label for="f-prov">Proveedor</label>
+          <div class="field" id="f-prov-field">
+            <label for="f-prov" id="f-prov-label">Proveedor</label>
             <input type="text" id="f-prov" list="prov-list" placeholder="Ej: Metalurgica Andina">
             <datalist id="prov-list"></datalist>
           </div>
@@ -1526,7 +1527,42 @@ function authTogglePin() {
   eye.innerHTML = showing ? '&#128065;' : '&#128584;';
 }
 
+var AUTH_INTENTOS_KEY = 'va_panel_intentos';
+var AUTH_MAX_INTENTOS = 5;
+var AUTH_BLOQUEO_MS = 30 * 60 * 1000;
+
+function authLeerIntentos() {
+  try { return JSON.parse(localStorage.getItem(AUTH_INTENTOS_KEY)) || { n: 0, hasta: 0 }; }
+  catch (e) { return { n: 0, hasta: 0 }; }
+}
+function authGuardarIntentos(d) {
+  try { localStorage.setItem(AUTH_INTENTOS_KEY, JSON.stringify(d)); } catch (e) { /* modo privado */ }
+}
+function authMinutosRestantes() {
+  var d = authLeerIntentos();
+  if (!d.hasta || d.hasta <= Date.now()) return 0;
+  return Math.ceil((d.hasta - Date.now()) / 60000);
+}
+function authFallo() {
+  var d = authLeerIntentos();
+  d.n = (d.n || 0) + 1;
+  if (d.n >= AUTH_MAX_INTENTOS) { d.hasta = Date.now() + AUTH_BLOQUEO_MS; d.n = 0; }
+  authGuardarIntentos(d);
+  return d;
+}
+function authExito() { authGuardarIntentos({ n: 0, hasta: 0 }); }
+
+function authMostrarError(msg) {
+  var err = document.getElementById('auth-error');
+  err.textContent = msg; err.style.display = 'block';
+}
+
 function authCheck() {
+  var min = authMinutosRestantes();
+  if (min > 0) {
+    authMostrarError('Demasiados intentos. Espera ' + min + ' minuto' + (min === 1 ? '' : 's') + ' antes de volver a intentar.');
+    return;
+  }
   var pin = document.getElementById('auth-pin').value.trim();
   if (!pin) { toast('Escribe la clave'); return; }
   sha256(pin + SB_TOKEN_SALT).then(function(tok) {
@@ -1544,16 +1580,22 @@ function authCheck() {
       // Merge duplicates so it works as upsert
     }).then(function(r) {
       if (r.ok || r.status === 201 || r.status === 200 || r.status === 409) {
+        authExito();
         authUnlock();
       } else {
         sessionStorage.removeItem('va_admin_token');
-        var err = document.getElementById('auth-error');
-        err.textContent = 'Clave incorrecta'; err.style.display = 'block';
+        authFallo();
+        var bloqueo = authMinutosRestantes();
+        if (bloqueo > 0) {
+          authMostrarError('Demasiados intentos. Bloqueado por ' + bloqueo + ' minutos.');
+        } else {
+          var quedan = AUTH_MAX_INTENTOS - authLeerIntentos().n;
+          authMostrarError('Clave incorrecta. Quedan ' + quedan + ' intento' + (quedan === 1 ? '' : 's') + '.');
+        }
       }
     }).catch(function() {
       sessionStorage.removeItem('va_admin_token');
-      var err = document.getElementById('auth-error');
-      err.textContent = 'Error de conexion'; err.style.display = 'block';
+      authMostrarError('Error de conexión');
     });
   });
 }
@@ -1935,7 +1977,10 @@ function cjCargarAVentas() {
   if (!costo) { toast('Completa los datos de la joya antes de cargarla a Ventas'); return; }
   if ($('cj-btn-cargar-ventas').disabled) { toast('Falta registrar la compra de ese material en Finanzas'); return; }
   var isGold = $('cj-tipo-metal').value === 'gold';
-  var metalItem = isGold ? ('Oro ' + $('cj-karat').value + 'K') : ('Plata ' + $('cj-ley').value);
+  // El item DEBE ser el mismo del inventario ('Oro' / 'Plata'), no "Oro 18K":
+  // si no coincide, la salida no cruza con la entrada y el material nunca se descuenta.
+  var metalItem = isGold ? 'Oro' : 'Plata';
+  var metalLey = isGold ? ($('cj-karat').value + 'K') : $('cj-ley').value;
   // Del inventario sale el metal consumido (con merma), no el que queda en la pieza.
   var fm = mermaFactor();
   var gramosPuro = (parseFloat($('cj-metal-puro').textContent) || 0) * fm;
@@ -1958,7 +2003,7 @@ function cjCargarAVentas() {
   $('f-costo-ven').value = costo.toFixed(2);
   ventaCalcSugerido();
   ventaCalcGanancia();
-  window._cjSalidaPendiente = { metalCategoria: 'Metales', metalItem: metalItem, gramosPuro: gramosPuro, gramosLiga: gramosLiga, piedras: piedrasSnapshot };
+  window._cjSalidaPendiente = { metalCategoria: 'Metales', metalItem: metalItem, metalLey: metalLey, gramosPuro: gramosPuro, gramosLiga: gramosLiga, piedras: piedrasSnapshot };
 
   // Ficha tecnica congelada: el precio por gramo es el promedio ponderado de HOY,
   // y cada compra nueva de metal lo mueve, asi que despues ya no se puede reconstruir.
@@ -2238,6 +2283,18 @@ function syncCat() {
   $('link-field').classList.toggle('hidden', cat !== 'Joyas para reventa');
   if (cat !== 'Joyas para reventa') $('f-link').value = '';
   else renderLinkOptions($('f-link').value);
+  // Un retiro de utilidades no es una compra: no tiene proveedor, factura, IVA ni
+  // comprobante fiscal. Pedir esos datos solo confunde e invita a llenarlos mal.
+  var esRetiro = cat === CAT_RETIRO;
+  $('soporte-fields').classList.toggle('hidden', esRetiro);
+  $('f-prov-label').textContent = esRetiro ? 'A nombre de quién' : 'Proveedor';
+  $('f-prov').placeholder = esRetiro ? 'Ej: Jhojan Sánchez' : 'Ej: Metalurgica Andina';
+  if (esRetiro) {
+    $('f-nit').value = ''; $('f-numfactura').value = '';
+    $('f-formapago').value = ''; $('f-iva').value = '';
+    $('f-sin-soporte').checked = false; comprobanteUrl = '';
+    $('f-comprobante').value = ''; $('f-comprobante-hint').textContent = '';
+  }
   $('link-venta-field').classList.toggle('hidden', cat !== 'Mano de obra');
   if (cat !== 'Mano de obra') $('f-link-venta').value = '';
   else renderLinkVentaOptions($('f-link-venta').value);
@@ -3408,6 +3465,22 @@ function saveVenta() {
   var transportadora = $('f-transportadora').value.trim();
   var guia = $('f-guia').value.trim();
 
+  // Vender mas unidades de las compradas deja el inventario en negativo y el
+  // costo de ventas sin respaldo. Se avisa y se exige confirmar.
+  if (producto_id && ESTADOS_QUE_CUENTAN.indexOf(estado) >= 0) {
+    var fila = invJoyasRows().find(function(r) { return r.id === producto_id; });
+    if (fila) {
+      var yaContada = editingVenta && editingVenta.producto_id === producto_id && ventaCuenta(editingVenta)
+        ? (editingVenta.cantidad || 0) : 0;
+      var disponible = fila.saldo + yaContada;
+      if (cantidad > disponible) {
+        toast('Solo hay ' + fmtQty(disponible) + ' unidades de ' + producto_id +
+          ' y estás vendiendo ' + fmtQty(cantidad) + '. Registra la compra que falta en Finanzas antes de guardar.');
+        return;
+      }
+    }
+  }
+
   window._ventaPendiente = {
     numero: numero, fecha: fecha, cliente: cliente, contacto: contacto, producto_id: producto_id,
     producto_nombre: productoNombre, esManual: esManual,
@@ -3550,7 +3623,15 @@ function confirmarYGuardarVenta() {
       var ventaActualizada = Array.isArray(rows) ? rows[0] : rows;
       var idxVenta = ventas.findIndex(x => x.id === v.editingId);
       if (idxVenta >= 0 && ventaActualizada) ventas[idxVenta] = mapVentaRow(ventaActualizada);
-      if (ventaActualizada) sincronizarIngresoVenta(v, ventaActualizada);
+      if (ventaActualizada) {
+        sincronizarIngresoVenta(v, ventaActualizada);
+        // La venta acaba de empezar a contar: recien ahora sale el material.
+        var yaSalio = inventarioSalidas.some(function(x) { return x.ventaId === ventaActualizada.id; });
+        var pendiente = window._cjSalidaPendiente;
+        if (v.esManual && ventaCuenta(ventaActualizada) && !yaSalio && pendiente) {
+          registrarSalidasInventario(ventaActualizada.id, v.fecha, v.cantidad, pendiente);
+        }
+      }
       toast('Venta actualizada'); cancelEditVenta(); renderVentas(); window._ventaPendiente = null;
       // Editar la cantidad puede agotar el stock igual que una venta nueva.
       if (!v.esManual && v.producto_id) invCheckAutoOcultar(v.producto_id);
@@ -3919,13 +4000,30 @@ function ventaEstadoChanged() {
 function ventasExportRows() {
   var headers = ['Número','Fecha','Cliente','Contacto','ID producto','Producto','Cantidad',
     'Precio de venta','Monto total','Costo unitario','Ganancia bruta','Método de pago',
-    'Factura DIAN','No. factura','Transportadora','No. guía','Estado','Notas'];
+    'Factura DIAN','No. factura','Transportadora','No. guía','Estado','Notas',
+    'Cuenta como venta','Margen sobre costo (%)',
+    'Costo metal','Costo piedras','Costo mano de obra','Detalle del metal','Gastos enlazados'];
   var rows = [headers];
   ventas.forEach(v => {
+    var d = v.costo_detalle || {}, t = d.totales || {}, m = d.metal || {};
+    var detMetal = m.tipo
+      ? (m.tipo + ' ' + (m.ley || '') + ' · ' + fmtQty(m.pesoTotal || 0) + ' g' +
+         (m.mermaPct ? ' · merma ' + m.mermaPct + '%' : ''))
+      : '';
+    var enlazados = expenses.filter(function(e) { return e.linkVenta === v.id; });
+    var detGastos = enlazados.length
+      ? enlazados.map(function(e) { return '#' + e.id + ' ' + e.cat + ' ' + Math.round(e.amount); }).join(' | ')
+      : '';
     rows.push([v.numero, v.fecha, v.cliente, v.contacto || '', v.producto_id, v.producto_nombre || '',
       v.cantidad, v.precio_unitario, v.monto_total, v.costo_unitario, v.ganancia_bruta, v.metodo_pago || '',
       v.tiene_factura ? 'Si' : 'No', v.numero_factura || '', v.transportadora || '', v.numero_guia || '',
-      v.estado, v.notas || '']);
+      v.estado, v.notas || '',
+      ventaCuenta(v) ? 'Si' : 'No',
+      v.costo_unitario > 0 ? Math.round(ventaMargenReal(v)) : '',
+      t.metal !== undefined ? Math.round(t.metal) : '',
+      t.piedras !== undefined ? Math.round(t.piedras) : '',
+      t.labor !== undefined ? Math.round(t.labor) : '',
+      detMetal, detGastos]);
   });
   return rows;
 }
@@ -3949,7 +4047,8 @@ function exportVentasXLSX() {
       var val = rows[r][c], ref = colName(c+1) + (r+1);
       if (val === '' || val === null || val === undefined) continue;
       if (r > 0 && typeof val === 'number') {
-        var st = (c === 7 || c === 8 || c === 9 || c === 10) ? ' s="2"' : '';
+        // dinero: precio, monto, costo, ganancia y el desglose del costo
+        var st = [7, 8, 9, 10, 20, 21, 22].indexOf(c) >= 0 ? ' s="2"' : '';
         cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
       } else {
         var s = r === 0 ? ' s="1"' : '';
@@ -3959,7 +4058,11 @@ function exportVentasXLSX() {
     sheet += '<row r="' + (r+1) + '">' + cells + '</row>';
   }
   var cols = '<cols>';
-  for (var c = 1; c <= rows[0].length; c++) cols += '<col min="' + c + '" max="' + c + '" width="12" customWidth="1"/>';
+  for (var c = 1; c <= rows[0].length; c++) {
+    // las dos ultimas columnas llevan texto largo (detalle del metal y gastos enlazados)
+    var w = c >= rows[0].length - 1 ? 32 : 12;
+    cols += '<col min="' + c + '" max="' + c + '" width="' + w + '" customWidth="1"/>';
+  }
   cols += '</cols>';
   var files = [
     { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
@@ -4075,8 +4178,9 @@ function invLoad() {
 function registrarSalidasInventario(ventaId, fecha, cantidadVenta, p) {
   var mult = cantidadVenta || 1;
   var rows = [];
-  if (p.gramosPuro > 0) rows.push({ fecha: fecha, categoria: p.metalCategoria, item: p.metalItem, cantidad: p.gramosPuro * mult, unidad: 'g', venta_id: ventaId, notas: 'Metal puro' });
-  if (p.gramosLiga > 0) rows.push({ fecha: fecha, categoria: p.metalCategoria, item: p.metalItem, cantidad: p.gramosLiga * mult, unidad: 'g', venta_id: ventaId, notas: 'Liga' });
+  if (p.gramosPuro > 0) rows.push({ fecha: fecha, categoria: p.metalCategoria, item: p.metalItem, cantidad: p.gramosPuro * mult, unidad: 'g', venta_id: ventaId, notas: 'Metal puro' + (p.metalLey ? ' ' + p.metalLey : '') });
+  // La liga es su propio item de inventario: sale de 'Liga', no del metal fino.
+  if (p.gramosLiga > 0) rows.push({ fecha: fecha, categoria: p.metalCategoria, item: 'Liga', cantidad: p.gramosLiga * mult, unidad: 'g', venta_id: ventaId, notas: 'Liga para ' + (p.metalItem || 'la pieza') });
   (p.piedras || []).forEach(function(s) {
     if (s.quilates > 0) rows.push({ fecha: fecha, categoria: 'Piedras', item: s.item, cantidad: s.quilates * mult, unidad: 'ct', cantidad_piedras: (s.cantidad || 1) * mult, venta_id: ventaId });
   });
