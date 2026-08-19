@@ -378,13 +378,30 @@ esta descrito en la trampa 2.
 Ademas: contar filas de `gastos`, `ventas`, `productos` e `inventario_salidas`
 antes y despues de cualquier cambio, para probar que no se altero nada.
 
-## Datos reales vs. de prueba en la base
+## Estado de los datos (base limpia)
 
-A 18/08/2026 la base mezcla ambos. **Reales**: gastos **#1 a #5** (Plata 1000,
-Liga plata, Lupa x40, Pinzas, Balanza) y **#25** (dominio verdeandino.app,
-Dynodot, $32.000). **Todo lo demas es de prueba** del ecosistema: gastos #47-#57,
-las ventas C-001 y M-001, y los productos VA-001/002/003. `VA-__auth_probe__` es
-del sistema de login y se recrea solo.
+El 19/08/2026 se vacio la base y quedo **solo lo real**. Se guardo un respaldo
+completo en `respaldo-antes-de-limpieza-20260819.json` (raiz del proyecto).
 
-El usuario decidio **no borrarlos por ahora**. Tenerlo presente al leer
-cualquier total: las cifras del panel hoy no son las del negocio.
+**Los 7 gastos que quedaron**, renumerados 1..7 por fecha:
+
+| # | Fecha | Categoria | Descripcion | Monto |
+|---|---|---|---|---|
+| 1 | 05/08 | Metales | Plata 1000 (item: Plata, 5 g) | $31.000 |
+| 2 | 05/08 | Metales | Liga plata (item: Liga, 5 g) | $3.000 |
+| 3 | 05/08 | Herramientas | Lupa x40 | $40.000 |
+| 4 | 05/08 | Herramientas | Pinzas | $35.000 |
+| 5 | 05/08 | Herramientas | Balanza | $45.000 |
+| 6 | 10/08 | Otros | Dominio VerdeAndino.app | $32.000 |
+| 7 | 17/08 | Piedras | Esmeraldas (1 ct) | $170.000 |
+
+Total $356.000. **Todo lo demas quedo en cero**: ventas, productos, salidas y
+minimos de inventario, y las tres tablas de auditoria.
+
+**Contadores reiniciados**: proximo gasto **#8**; ventas arrancan en **C-001** y
+**M-001**; productos en **VA-001**. `VA-__auth_probe__` se conserva porque es
+del sistema de login y se recrea sola.
+
+**Ojo con el oro**: ya no hay compras de oro registradas, asi que la calculadora
+bloquea el costeo de piezas en oro hasta que se registre una compra. Es el
+comportamiento correcto, no un fallo.
