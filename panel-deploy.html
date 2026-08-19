@@ -2521,6 +2521,9 @@ function saveExpense() {
     enlace_venta: (linkVenta && !isNaN(linkVenta)) ? linkVenta : null
   };
 
+  // Si el gasto estaba enlazado a otra venta, esa tambien queda desactualizada.
+  var gastoPrevio = expenses.find(function(x) { return x.id === editingId; });
+  var ventaAfectada = gastoPrevio ? gastoPrevio.linkVenta : null;
   if (editingId !== null) {
     // UPDATE
     var patchHeaders = sbHeaders();
@@ -2545,6 +2548,9 @@ function saveExpense() {
           if (updated) { e.updated_at = updated.updated_at; e.created_at = updated.created_at; }
         }
       }
+      // El costo real de la venta cambio: hay que poner al dia su ingreso.
+      if (ventaAfectada) recalcularIngresoDeVenta(ventaAfectada);
+      if (e.linkVenta && e.linkVenta !== ventaAfectada) recalcularIngresoDeVenta(e.linkVenta);
       toast('Gasto actualizado');
       cancelEdit();
     }).catch(function(e) { toast('Error al guardar'); console.error(e); });
@@ -2568,6 +2574,7 @@ function saveExpense() {
       } else {
         toast('Gasto registrado');
       }
+      if (linkVenta) recalcularIngresoDeVenta(linkVenta);
     }).catch(function(e) { toast('Error al guardar'); console.error(e); });
   }
 }
@@ -2585,6 +2592,8 @@ function delExpense(id, ev) {
   }).then(function(r) {
     if (!r.ok) throw new Error(r.status);
     expenses = expenses.filter(function(e) { return e.id !== id; });
+    // Se fue un gasto que sustentaba una venta: su ingreso vuelve a cambiar.
+    if (target.linkVenta) recalcularIngresoDeVenta(target.linkVenta);
     if (editingId === id) { cancelEdit(); return; }
     toast('Gasto eliminado');
     renderFin();
@@ -2731,19 +2740,28 @@ function showFichaVenta(id, ev) {
       gh += fichaRow('#' + g.id + ' · ' + g.categoria + ' · ' + g.descripcion, fmt(parseFloat(g.monto) || 0), 'sub');
     });
     gh += fichaRow('Total pagado y enlazado', fmt(suma), 'tot');
-    // Coherencia contable: el costo congelado no incluye estos gastos, asi que se
-    // dice de frente cual es el costo real que usa el estado de resultados.
-    var base = (v.cantidad || 0) * (v.costo_unitario || 0);
+    // De donde sale el numero que usa la contabilidad, paso a paso.
+    var dg = desgloseCostoVenta(v);
     gh += '<div class="ficha-sec">Costo real de esta venta</div>';
-    gh += fichaRow('Costo congelado al registrarla', fmt(base), 'sub');
-    gh += fichaRow('más Gastos enlazados después', fmt(suma), 'sub');
-    gh += fichaRow('Costo real usado en contabilidad', fmt(base + suma), 'tot');
-    var laborFicha = (d.totales && d.totales.labor) || 0;
-    var hayLaborEnlazada = rows.some(function(g) { return g.categoria === 'Mano de obra'; });
-    if (laborFicha > 0 && hayLaborEnlazada) {
-      gh += '<div class="ficha-aviso">⚠️ Esta pieza ya tenía ' + fmt(laborFicha) +
-        ' de mano de obra en el cálculo, y además hay un gasto de mano de obra enlazado. ' +
-        'Si es el mismo trabajo, lo estás contando dos veces: desenlaza el gasto o quítalo del cálculo.</div>';
+    gh += fichaRow('Costo congelado al registrarla', fmt(dg.base), 'sub');
+    if (dg.reemplaza) {
+      gh += fichaRow('menos Mano de obra estimada', '−' + fmt(dg.laborEstimada), 'sub');
+      gh += fichaRow('más Mano de obra realmente pagada', fmt(dg.laborReal), 'sub');
+    }
+    if (dg.otros > 0) gh += fichaRow('más Otros gastos enlazados', fmt(dg.otros), 'sub');
+    gh += fichaRow('Costo real usado en contabilidad', fmt(dg.total), 'tot');
+    if (dg.reemplaza) {
+      var dif = dg.laborReal - dg.laborEstimada;
+      gh += '<div class="ficha-vacio">El gasto real <b>reemplaza</b> al estimado, nunca se suman: ' +
+        'por eso el mismo trabajo no se puede contar dos veces. ' +
+        (dif === 0 ? 'Estimaste exacto.'
+          : (dif > 0 ? 'Costó ' + fmt(dif) + ' más de lo estimado.' : 'Costó ' + fmt(-dif) + ' menos de lo estimado.')) +
+        '</div>';
+    }
+    if (dg.sinRespaldo) {
+      gh += '<div class="ficha-aviso">⚠️ Esta pieza declara ' + fmt(dg.laborEstimada) +
+        ' de mano de obra estimada, pero no hay ningún gasto enlazado que la respalde. ' +
+        'Si ya pagaste ese trabajo, regístralo en Finanzas y enlázalo a esta venta: hoy es un costo sin soporte.</div>';
     }
     cont.innerHTML = gh;
   }).catch(function(e) {
@@ -2942,16 +2960,74 @@ function renderFin() {
 }
 
 /* Gastos que se enlazaron a una venta concreta (hoy, mano de obra). */
+/* El apunte de "Ingresos por Ventas" guarda la ganancia con el costo congelado.
+   Si el costo real cambia al enlazar o quitar un gasto, esa fila queda mintiendo:
+   hay que ponerla al dia o Finanzas y Ventas se contradicen. */
+function recalcularIngresoDeVenta(ventaId) {
+  var v = ventas.find(function(x) { return x.id === ventaId; });
+  if (!v || !v.ingreso_id || !ventaCuenta(v)) return Promise.resolve();
+  var gananciaReal = Math.round((v.monto_total || 0) - costoRealVenta(v));
+  var idx = expenses.findIndex(function(e) { return e.id === v.ingreso_id; });
+  if (idx >= 0 && Math.round(expenses[idx].amount) === gananciaReal) return Promise.resolve();
+  return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + v.ingreso_id, {
+    method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+    body: JSON.stringify({ monto: gananciaReal })
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+    return r.json();
+  }).then(function(rows) {
+    var g = Array.isArray(rows) ? rows[0] : rows;
+    var i = expenses.findIndex(function(e) { return e.id === v.ingreso_id; });
+    if (i >= 0 && g) expenses[i] = mapGastoRow(g);
+    renderFin();
+  }).catch(function(e) {
+    console.error('Error recalculando el ingreso de la venta:', e);
+    toast('El costo cambió, pero no se pudo actualizar el ingreso en Finanzas');
+  });
+}
+
 function gastosEnlazadosAVenta(ventaId) {
   return expenses.filter(function(e) { return e.linkVenta === ventaId && e.cat !== 'Ingresos por Ventas'; });
 }
 
-/* Costo real de una venta: lo que se congelo al registrarla, mas los gastos que
-   despues se le enlazaron. Es el numero que debe usar la contabilidad. */
-function costoRealVenta(v) {
-  var base = (v.cantidad || 0) * (v.costo_unitario || 0);
-  return base + gastosEnlazadosAVenta(v.id).reduce(function(a, g) { return a + g.amount; }, 0);
+/* Mano de obra que la calculadora ESTIMO para esta venta (por pieza x cantidad). */
+function laborEstimadaVenta(v) {
+  var t = v.costo_detalle && v.costo_detalle.totales;
+  return ((t && t.labor) || 0) * (v.cantidad || 1);
 }
+
+/* Costo real de una venta, y de donde sale cada parte.
+
+   Regla contable: la plata entra a los libros UNA sola vez, cuando se paga.
+   La calculadora estima para poder fijar el precio; el gasto es el hecho real.
+   Por eso un gasto de mano de obra enlazado NO se suma al estimado: lo REEMPLAZA.
+   Asi es imposible contar dos veces el mismo trabajo.
+
+   Los gastos enlazados de otra categoria si se suman: son costos que aparecieron
+   despues y que el calculo no habia previsto. */
+function desgloseCostoVenta(v) {
+  var base = (v.cantidad || 0) * (v.costo_unitario || 0);
+  var enlazados = gastosEnlazadosAVenta(v.id);
+  var laborReal = 0, otros = 0;
+  enlazados.forEach(function(g) {
+    if (g.cat === 'Mano de obra') laborReal += g.amount; else otros += g.amount;
+  });
+  var laborEstimada = laborEstimadaVenta(v);
+  var reemplaza = laborReal > 0;
+  return {
+    base: base,
+    laborEstimada: laborEstimada,
+    laborReal: laborReal,
+    otros: otros,
+    reemplaza: reemplaza,
+    // sin gasto de mano de obra enlazado se conserva el estimado: es lo mejor
+    // que se sabe hasta que aparezca el soporte real
+    total: base - (reemplaza ? laborEstimada : 0) + laborReal + otros,
+    sinRespaldo: laborEstimada > 0 && laborReal === 0
+  };
+}
+
+function costoRealVenta(v) { return desgloseCostoVenta(v).total; }
 
 /* Estado de resultados real, calculado desde `ventas`, no desde el espejo de
    "Ingresos por Ventas" en gastos (ese guarda la ganancia, no el ingreso). */
@@ -3858,6 +3934,11 @@ function renderVentas() {
     var fichaBtn = v.costo_detalle
       ? '<button class="btn-small" onclick="showFichaVenta(' + v.id + ', event)" title="Ficha técnica de la pieza">🔍</button>'
       : '';
+    // Le pagaste a alguien y no quedo registrado: ese costo no tiene soporte fiscal.
+    if (desgloseCostoVenta(v).sinRespaldo) {
+      productoCell += ' <span class="cat-badge" style="background:var(--warn-bg,#faf1dd);color:var(--warn,#8a6212);" ' +
+        'title="La ficha declara mano de obra estimada pero no hay ningún gasto enlazado que la respalde">sin respaldo</span>';
+    }
     // Solo tiene sentido evaluar el margen de una venta que efectivamente se hizo.
     if (ventaCuenta(v)) {
       var mReal = ventaMargenReal(v), mObj = ventaMargenObjetivo(v);
@@ -4054,7 +4135,8 @@ function ventasExportRows() {
     'Precio de venta','Monto total','Costo unitario','Ganancia bruta','Método de pago',
     'Factura DIAN','No. factura','Transportadora','No. guía','Estado','Notas',
     'Cuenta como venta','Margen sobre costo (%)',
-    'Costo metal','Costo piedras','Costo mano de obra','Detalle del metal','Gastos enlazados'];
+    'Costo metal','Costo piedras','Costo mano de obra','Detalle del metal','Gastos enlazados',
+    'Mano de obra estimada','Mano de obra pagada','Costo real total','Material consumido'];
   var rows = [headers];
   ventas.forEach(v => {
     var d = v.costo_detalle || {}, t = d.totales || {}, m = d.metal || {};
@@ -4075,7 +4157,13 @@ function ventasExportRows() {
       t.metal !== undefined ? Math.round(t.metal) : '',
       t.piedras !== undefined ? Math.round(t.piedras) : '',
       t.labor !== undefined ? Math.round(t.labor) : '',
-      detMetal, detGastos]);
+      detMetal, detGastos,
+      d.totales ? Math.round(laborEstimadaVenta(v)) : '',
+      Math.round(desgloseCostoVenta(v).laborReal),
+      Math.round(costoRealVenta(v)),
+      inventarioSalidas.filter(function(x) { return x.ventaId === v.id; })
+        .map(function(x) { return x.item + ' ' + x.cantidad + x.unidad + (x.notas ? ' (' + x.notas + ')' : ''); })
+        .join(' | ')]);
   });
   return rows;
 }
