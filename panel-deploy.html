@@ -143,7 +143,12 @@
   .calcj-section.stones .calcj-ico, .calcj-section.labor .calcj-ico { background: var(--esm-l); color: var(--esm); }
   .calcj-section-header h3 { font-size: 0.85rem; font-weight: 700; margin: 0; color: var(--text); }
   .calcj-count { font-size: 0.68rem; color: var(--text-3); font-weight: 500; margin-left: auto; }
-  .calcj-hint { font-size: 0.68rem; color: var(--text-3); margin-top: 0.5rem; line-height: 1.4; }
+  .calcj-hint {
+    font-size: 0.76rem; color: var(--text-2); margin-top: 0.6rem; line-height: 1.5;
+    background: var(--bg-alt); border-left: 2px solid var(--gold);
+    border-radius: 0 5px 5px 0; padding: 0.42rem 0.6rem;
+  }
+  .calcj-hint b { color: var(--text); font-weight: 600; }
   .calcj-sub-result {
     margin-top: 0.85rem; padding: 0.65rem 0.9rem; background: var(--gold-bg);
     border-radius: 7px; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
@@ -219,7 +224,12 @@
   }
   .inv-chip.active { background: var(--gold); color: #fff; border-color: var(--gold); }
   .item-name { font-weight: 700; color: var(--text); }
-  .hint { font-size: 0.68rem; color: var(--text-3); line-height: 1.4; }
+  .hint {
+    font-size: 0.78rem; color: var(--text-2); line-height: 1.5;
+    background: var(--bg-alt); border-left: 2px solid var(--gold);
+    border-radius: 0 5px 5px 0; padding: 0.42rem 0.6rem; margin-top: 0.4rem;
+  }
+  .hint b { color: var(--text); font-weight: 600; }
   .inv-item-cat {
     display: inline-block; font-size: 0.66rem; font-weight: 600; padding: 0.15rem 0.5rem;
     border-radius: 5px; margin-top: 0.2rem; color: var(--text-2); background: var(--bg-alt);
@@ -2001,6 +2011,9 @@ function cjCargarAVentas() {
   $('f-venta-manual').checked = true;
   toggleVentaManual();
   $('f-costo-ven').value = costo.toFixed(2);
+  // Viene de costear una pieza que aun no se fabrica: nace como cotizacion.
+  $('f-estado-ven').value = 'cotización';
+  ventaEstadoChanged();
   ventaCalcSugerido();
   ventaCalcGanancia();
   window._cjSalidaPendiente = { metalCategoria: 'Metales', metalItem: metalItem, metalLey: metalLey, gramosPuro: gramosPuro, gramosLiga: gramosLiga, piedras: piedrasSnapshot };
@@ -2718,6 +2731,20 @@ function showFichaVenta(id, ev) {
       gh += fichaRow('#' + g.id + ' · ' + g.categoria + ' · ' + g.descripcion, fmt(parseFloat(g.monto) || 0), 'sub');
     });
     gh += fichaRow('Total pagado y enlazado', fmt(suma), 'tot');
+    // Coherencia contable: el costo congelado no incluye estos gastos, asi que se
+    // dice de frente cual es el costo real que usa el estado de resultados.
+    var base = (v.cantidad || 0) * (v.costo_unitario || 0);
+    gh += '<div class="ficha-sec">Costo real de esta venta</div>';
+    gh += fichaRow('Costo congelado al registrarla', fmt(base), 'sub');
+    gh += fichaRow('más Gastos enlazados después', fmt(suma), 'sub');
+    gh += fichaRow('Costo real usado en contabilidad', fmt(base + suma), 'tot');
+    var laborFicha = (d.totales && d.totales.labor) || 0;
+    var hayLaborEnlazada = rows.some(function(g) { return g.categoria === 'Mano de obra'; });
+    if (laborFicha > 0 && hayLaborEnlazada) {
+      gh += '<div class="ficha-aviso">⚠️ Esta pieza ya tenía ' + fmt(laborFicha) +
+        ' de mano de obra en el cálculo, y además hay un gasto de mano de obra enlazado. ' +
+        'Si es el mismo trabajo, lo estás contando dos veces: desenlaza el gasto o quítalo del cálculo.</div>';
+    }
     cont.innerHTML = gh;
   }).catch(function(e) {
     console.error('Error consultando gastos enlazados:', e);
@@ -2914,6 +2941,18 @@ function renderFin() {
   renderInventario();
 }
 
+/* Gastos que se enlazaron a una venta concreta (hoy, mano de obra). */
+function gastosEnlazadosAVenta(ventaId) {
+  return expenses.filter(function(e) { return e.linkVenta === ventaId && e.cat !== 'Ingresos por Ventas'; });
+}
+
+/* Costo real de una venta: lo que se congelo al registrarla, mas los gastos que
+   despues se le enlazaron. Es el numero que debe usar la contabilidad. */
+function costoRealVenta(v) {
+  var base = (v.cantidad || 0) * (v.costo_unitario || 0);
+  return base + gastosEnlazadosAVenta(v.id).reduce(function(a, g) { return a + g.amount; }, 0);
+}
+
 /* Estado de resultados real, calculado desde `ventas`, no desde el espejo de
    "Ingresos por Ventas" en gastos (ese guarda la ganancia, no el ingreso). */
 /* Los acumulados van desde el inicio del negocio y NO siguen el filtro de
@@ -2923,7 +2962,7 @@ function renderAcumulados() {
   ventas.forEach(function(v) {
     if (!ventaCuenta(v)) return;
     ingresos += v.monto_total || 0;
-    cogs += (v.cantidad || 0) * (v.costo_unitario || 0);
+    cogs += costoRealVenta(v);
   });
   var operativo = 0, retiros = 0;
   expenses.forEach(function(e) {
@@ -2959,6 +2998,9 @@ function renderEstadoResultados(gastosDelPeriodo, gastoOperativo, retirosPeriodo
     if (ventaCuenta(v)) {
       ingresos += v.monto_total || 0;
       cogs += (v.cantidad || 0) * (v.costo_unitario || 0);
+      // Un gasto enlazado a esta venta se consumio en la pieza: es costo de venta,
+      // no inventario. Si no se suma aca, la utilidad queda inflada.
+      cogs += gastosEnlazadosAVenta(v.id).reduce(function(a, g) { return a + g.amount; }, 0);
     } else if (v.estado === ESTADO_POR_COBRAR) {
       porCobrar += v.monto_total || 0;
     }
@@ -3453,6 +3495,13 @@ function saveVenta() {
   if (cantidad <= 0 || precio < 0) { toast('Cantidad y precio deben ser positivos'); return; }
   if (isNaN(costo) || costo < 0) { toast('Completa el costo unitario'); return; }
   if (precio < costo) { toast('Precio no puede ser menor al costo (' + fmt(costo) + ')'); return; }
+  // Una venta que ya cuenta como ingreso necesita saber por donde entro la plata.
+  var cuenta = ESTADOS_QUE_CUENTAN.indexOf(estado) >= 0;
+  if (cuenta && !metodo) { toast('Elige el método de pago: esta venta ya cuenta como ingreso y hay que saber por dónde entró la plata'); return; }
+  if (tieneFactura && !numeroFactura) { toast('Escribe el número de la factura DIAN o desmarca la casilla'); return; }
+  if ((estado === 'enviado' || estado === 'entregado') && !transportadora) {
+    toast('Escribe la transportadora: sin ella no hay trazabilidad del envío'); return;
+  }
 
   var monto = cantidad * precio;
   var ganancia = monto - (cantidad * costo);
@@ -3768,7 +3817,10 @@ function venResetFiltros() {
 /* Margen real sobre costo y su objetivo: el del producto en ventas de catalogo,
    el minimo del 20% en las manuales. */
 function ventaMargenReal(v) {
-  return v.costo_unitario > 0 ? ((v.precio_unitario - v.costo_unitario) / v.costo_unitario * 100) : 0;
+  // Costo real por unidad: el congelado mas los gastos que se le enlazaron despues.
+  var cant = v.cantidad || 1;
+  var costoUnit = costoRealVenta(v) / cant;
+  return costoUnit > 0 ? ((v.precio_unitario - costoUnit) / costoUnit * 100) : 0;
 }
 
 function ventaMargenObjetivo(v) {

@@ -1242,6 +1242,7 @@
         <div class="field">
           <label>Categoría</label>
           <select id="f-cat" onchange="admUpdateEstilos()">
+            <option value="" disabled selected>Elegir…</option>
             <option value="Anillo">Anillo</option>
             <option value="Aretes">Aretes</option>
             <option value="Collar">Collar</option>
@@ -1263,6 +1264,7 @@
         <div class="field">
           <label>Metal</label>
           <select id="f-metal" onchange="admUpdateLeyes()">
+            <option value="" disabled selected>Elegir…</option>
             <option value="Oro">Oro</option>
             <option value="Plata">Plata</option>
             <option value="Oro laminado">Oro laminado</option>
@@ -1278,6 +1280,7 @@
         <div class="field">
           <label>Color</label>
           <select id="f-color">
+            <option value="" disabled selected>Elegir…</option>
             <option value="Amarillo">Amarillo</option>
             <option value="Blanco">Blanco</option>
             <option value="Rosado">Rosado</option>
@@ -1287,6 +1290,7 @@
         <div class="field">
           <label>Género</label>
           <select id="f-genero">
+            <option value="" disabled selected>Elegir…</option>
             <option value="Mujer">Mujer</option>
             <option value="Hombre">Hombre</option>
             <option value="Unisex">Unisex</option>
@@ -2454,12 +2458,16 @@ var ADM_LEYES = {
 function admUpdateEstilos() {
   var cat = document.getElementById('f-cat').value;
   var opts = ADM_ESTILOS[cat] || ['Otro'];
-  document.getElementById('f-estilo').innerHTML = opts.map(function(o){ return '<option value="'+o+'">'+o+'</option>'; }).join('');
+  document.getElementById('f-estilo').innerHTML =
+    '<option value="" disabled selected>Elegir…</option>' +
+    opts.map(function(o){ return '<option value="'+o+'">'+o+'</option>'; }).join('');
 }
 function admUpdateLeyes() {
   var metal = document.getElementById('f-metal').value;
   var opts = ADM_LEYES[metal] || [];
-  document.getElementById('f-ley').innerHTML = opts.map(function(o){ return '<option value="'+o+'">'+o+'</option>'; }).join('');
+  document.getElementById('f-ley').innerHTML =
+    '<option value="" disabled selected>Elegir…</option>' +
+    opts.map(function(o){ return '<option value="'+o+'">'+o+'</option>'; }).join('');
 }
 function admAddStone(tipo, qty, ct) {
   var list = document.getElementById('stones-list');
@@ -2507,6 +2515,48 @@ function admValidateForm() {
   return missing;
 }
 /* Muestra modal de campos faltantes */
+/* El historial del producto ya se guardaba en productos_audit por trigger,
+   pero no habia forma de verlo. Explica por que una pieza cambio de estado. */
+function admHistorialProducto(id) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML = '<div style="background:var(--bg);color:var(--text);max-width:520px;width:100%;max-height:80vh;overflow-y:auto;padding:24px;border-radius:12px;border:2px solid var(--gold);">' +
+    '<h3 style="margin-top:0;">Historial de ' + esc(id) + '</h3><div id="hist-cuerpo">Consultando…</div>' +
+    '<button style="width:100%;padding:12px;background:var(--gold);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;margin-top:16px;" onclick="this.closest(\'div\').parentElement.remove();">Cerrar</button></div>';
+  document.body.appendChild(ov);
+
+  fetch(SB_URL + '/rest/v1/productos_audit?producto_id=eq.' + encodeURIComponent(id) + '&order=timestamp.desc&limit=40', {
+    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
+  }).then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(filas) {
+      var c = document.getElementById('hist-cuerpo');
+      if (!c) return;
+      if (!filas.length) { c.innerHTML = '<p style="color:var(--text-3);">Sin cambios registrados.</p>'; return; }
+      c.innerHTML = filas.map(function(f) {
+        var ant = f.datos_anteriores || {}, nue = f.datos_nuevos || {};
+        var cambios = [];
+        if (f.accion === 'update') {
+          ['estado', 'precio', 'costo', 'margen', 'descripcion', 'precio_oferta'].forEach(function(k) {
+            if (String(ant[k]) !== String(nue[k])) {
+              cambios.push(k + ': ' + (ant[k] === null || ant[k] === '' ? '—' : ant[k]) + ' → ' + (nue[k] === null || nue[k] === '' ? '—' : nue[k]));
+            }
+          });
+        }
+        var etiqueta = f.accion === 'insert' ? 'Creado' : (f.accion === 'delete' ? 'Eliminado' : 'Modificado');
+        var fecha = new Date(f.timestamp).toLocaleString('es-CO');
+        return '<div style="padding:10px 0;border-bottom:1px solid var(--border);">' +
+          '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);">' + etiqueta + '</div>' +
+          '<div style="font-size:.75rem;color:var(--text-3);margin:2px 0 4px;">' + fecha + '</div>' +
+          (cambios.length ? '<div style="font-size:.82rem;color:var(--text-2);">' + cambios.map(esc).join('<br>') + '</div>' : '') +
+          '</div>';
+      }).join('');
+    }).catch(function(e) {
+      console.error('Error consultando el historial del producto:', e);
+      var c = document.getElementById('hist-cuerpo');
+      if (c) c.innerHTML = '<p style="color:#C0392B;">No se pudo consultar el historial.</p>';
+    });
+}
+
 function admShowMissingFields(missing) {
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
@@ -2744,6 +2794,44 @@ function admSaveProduct() {
   });
 }
 
+/* Saldo real de una pieza: unidades compradas menos vendidas en ventas que
+   cuentan. Republicar con saldo 0 deja la vitrina ofreciendo algo que no existe. */
+function admSaldoProducto(productId, cb) {
+  var base = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() };
+  Promise.all([
+    fetch(SB_URL + '/rest/v1/gastos?select=cantidad&categoria=eq.' + encodeURIComponent('Joyas para reventa') +
+      '&enlace_producto=eq.' + encodeURIComponent(productId), { headers: base })
+      .then(function(r) { return r.ok ? r.json() : []; }),
+    fetch(SB_URL + '/rest/v1/ventas?select=cantidad_vendida,estado&producto_id=eq.' + encodeURIComponent(productId),
+      { headers: base }).then(function(r) { return r.ok ? r.json() : []; })
+  ]).then(function(res) {
+    var cuentan = ['pagado', 'enviado', 'entregado'];
+    var compradas = (res[0] || []).reduce(function(a, g) { return a + (parseFloat(g.cantidad) || 0); }, 0);
+    var vendidas = (res[1] || []).filter(function(v) { return cuentan.indexOf(v.estado) >= 0; })
+      .reduce(function(a, v) { return a + (parseFloat(v.cantidad_vendida) || 0); }, 0);
+    cb({ compradas: compradas, vendidas: vendidas, saldo: compradas - vendidas });
+  }).catch(function(e) {
+    console.error('Error consultando el saldo del producto:', e);
+    cb(null);
+  });
+}
+
+function admShowSinStock(id, saldo) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML =
+    '<div style="background:var(--bg);color:var(--text);max-width:480px;width:100%;padding:24px;border-radius:12px;border:2px solid var(--gold);">' +
+    '<h3 style="margin-top:0;color:#C0392B;">⚠️ Sin unidades disponibles</h3>' +
+    '<p style="margin:12px 0;color:var(--text-2);"><b style="color:var(--text);">' + esc(id) + '</b> tiene saldo ' +
+    '<b style="color:var(--text);">' + saldo.saldo + '</b> (compradas ' + saldo.compradas + ', vendidas ' + saldo.vendidas + ').</p>' +
+    '<p style="margin:12px 0;color:var(--text-2);">Publicarla dejaría la vitrina ofreciendo una pieza que no tienes. ' +
+    'Registra la nueva compra en <b>Finanzas</b> y enlázala a esta pieza; ahí el saldo sube y podrás publicarla.</p>' +
+    '<button style="width:100%;padding:12px;background:var(--gold);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;margin-bottom:8px;" onclick="this.closest(\'div\').parentElement.remove(); admGuardarComoBorrador();">Guardar como Borrador</button>' +
+    '<button style="width:100%;padding:12px;background:transparent;color:var(--text-2);border:1px solid var(--text-3);border-radius:6px;font-weight:600;cursor:pointer;" onclick="this.closest(\'div\').parentElement.remove();">Volver a editar</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+}
+
 function admCheckGastoEnlazado(productId, cb) {
   fetch(SB_URL + '/rest/v1/gastos?select=id&categoria=eq.' + encodeURIComponent('Joyas para reventa') + '&enlace_producto=eq.' + encodeURIComponent(productId) + '&limit=1', {
     headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
@@ -2779,6 +2867,12 @@ function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) 
         admShowBloqueoPublicacion(id);
         return;
       }
+      // Tiene gasto, pero puede estar agotada: no se republica sin unidades.
+      admSaldoProducto(id, function(saldo) {
+        if (saldo && saldo.compradas > 0 && saldo.saldo <= 0) { admShowSinStock(id, saldo); return; }
+        admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta);
+      });
+      return;
       admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta);
     });
     return;
@@ -3069,6 +3163,7 @@ function admRenderGallery() {
         '<div class="product-price">' + esc(it.metal || '') + ' · ' + precio + '</div>' +
       '</div>' +
       '<div class="product-actions">' +
+        '<button class="btn-edit" onclick="admHistorialProducto(\'' + jid + '\')" title="Historial de cambios" type="button">🕘</button>' +
         '<button class="btn-edit" onclick="admEditProduct(\'' + jid + '\')" title="Editar" type="button">✎</button>' +
         '<button class="btn-dup" onclick="admDuplicateProduct(\'' + jid + '\')" title="Duplicar" type="button">⧉</button>' +
         '<button class="btn-del" onclick="admDeleteProduct(\'' + jid + '\')" title="Eliminar" type="button">✕</button>' +
