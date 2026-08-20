@@ -2,7 +2,7 @@
 
 Marca colombiana de joyería con esmeraldas nacionales. Este repositorio contiene el código de la **tienda-vitrina pública** y las herramientas internas de operación.
 
-**Sitio en vivo:** https://verde-andino-jewerly.github.io/Jewerly/
+**Sitio en vivo:** https://verdeandino.app
 
 ---
 
@@ -34,7 +34,7 @@ El catálogo se sirve desde **Supabase** (base de datos en la nube), así que to
 - **Seguridad:** Row-Level Security (RLS) en Supabase: lectura pública solo de productos publicados; escrituras protegidas por token administrativo.
 - **Hosting:** GitHub Pages, con auto-deploy en cada `git push` a `main`.
 
-👉 Detalle completo en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) y [`docs/MODELO-DE-DATOS.md`](docs/MODELO-DE-DATOS.md).
+👉 Detalle completo en `REFERENCIA-TECNICA.md`, en la raíz del proyecto (fuera de este repositorio).
 
 ---
 
@@ -52,7 +52,9 @@ El catálogo se sirve desde **Supabase** (base de datos en la nube), así que to
 
 ## 🌐 Publicar en la web
 
-`index.html` es autosuficiente (sin build, sin dependencias). Instrucciones detalladas en [`docs/DESPLIEGUE-WEB.md`](docs/DESPLIEGUE-WEB.md).
+`index.html` es autosuficiente (sin build, sin dependencias). Se publica solo: un `git push` a `main` actualiza https://verdeandino.app en uno o dos minutos.
+
+El **panel de herramientas** no se publica desde aquí — va a Vercel por un camino distinto. Ver `MANUAL.md` en la raíz del proyecto.
 
 ---
 

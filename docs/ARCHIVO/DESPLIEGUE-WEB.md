@@ -1,3 +1,16 @@
+> ## ARCHIVADO — no vigente
+>
+> Este documento quedo desactualizado. Daba como URL en vivo
+> `verde-andino-jewerly.github.io/Jewerly/`, que ya no es la direccion: el sitio
+> vive en **https://verdeandino.app**. Ademas es anterior al panel de
+> herramientas, que se publica en Vercel por un camino distinto.
+>
+> **Vigente:** `MANUAL.md` en la raiz del proyecto, seccion 3.
+>
+> Se conserva como registro historico.
+
+---
+
 # Despliegue
 
 Cómo se publica y se mantiene el sitio.

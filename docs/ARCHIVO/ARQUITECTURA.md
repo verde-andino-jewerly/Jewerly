@@ -1,3 +1,14 @@
+> ## ARCHIVADO — no vigente
+>
+> Este documento describe la vitrina de agosto de 2026, antes de que
+> existieran los modulos de Finanzas, Ventas e Inventario.
+>
+> **Vigente:** `REFERENCIA-TECNICA.md` en la raiz del proyecto.
+>
+> Se conserva como registro historico.
+
+---
+
 # Arquitectura técnica
 
 Cómo está construido el sitio de Verde Andino Jewelry.

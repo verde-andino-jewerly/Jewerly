@@ -1,407 +1,61 @@
-# CLAUDE.md
+# CLAUDE.md — vitrina
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Este repositorio contiene **la vitrina** de Verde Andino Jewelry:
+`index.html`, un solo archivo con el catálogo público y, escondido dentro, el
+cargador de productos.
 
-## Project overview
+> **La documentación del ecosistema vive en la carpeta padre**, fuera de este
+> repositorio, porque cubre las dos aplicaciones (vitrina y panel):
+>
+> - `../MANUAL.md` — cómo se opera todo
+> - `../TRAMPAS.md` — errores ya cometidos, leer antes de tocar código
+> - `../REFERENCIA-TECNICA.md` — modelo de datos, seguridad, contabilidad
+> - `../CLAUDE.md` — el mapa general
+>
+> Si estás viendo solo este repositorio clonado de GitHub, no tienes esos
+> archivos: el proyecto completo está en el computador del dueño.
 
-Colombian emerald jewelry brand (Verde Andino Jewelry) digital ecosystem. Multi-loader operation — the owner and trusted collaborators (siblings, partners) can all load products from any device using a **shared clave** (secret).
+---
 
-## Architecture
+## Lo propio de este repositorio
 
-**Single-file HTML** (`index.html`, ~1.3 MB) containing two environments:
-1. **Public vitrina** — customer-facing catalog with filters, product modals, WhatsApp contact
-2. **Hidden admin panel** — product CRUD, CSV/PDF export, photo management (access mechanism documented in `docs-privado/PANEL-ADMIN.md`, which is gitignored)
+**Se publica solo.** Un `git push` a `main` actualiza
+https://verdeandino.app en uno o dos minutos, vía GitHub Pages. El archivo
+`CNAME` fija el dominio.
 
-All CSS, JS, and static images (logo, mine photos) are embedded inline as base64 data URIs. No external dependencies, no build step.
+**El panel NO se publica desde aquí.** `panel-deploy.html` en esta carpeta es
+solo una **copia de respaldo** del panel, que se genera sola. No editarla: la
+fuente está en la raíz del proyecto y se publica en Vercel con
+`node herramientas/desplegar.js`.
 
-**Data flows through Supabase**:
-- Project: `rbvqxrkzepthbbqzkbcg` (us-east-1)
-- API: `https://rbvqxrkzepthbbqzkbcg.supabase.co`
-- Table: `productos` — all product fields including `foto_url` (base64 photo data)
-- RLS on `productos`: public SELECT filtered by `estado='publicado' AND precio>0 AND descripcion IS NOT NULL`; INSERT/UPDATE/DELETE require `x-admin-token` header matching the hash of the shared clave.
-- Edge Function `calculate-price`: server-side `precio = costo × (1 + margen/100)`.
-- Audit table `productos_audit` records all writes via trigger.
-- The `SB_KEY` in the code is the **anon key** (public by design).
-
-**Shared-clave model** (v3):
-- One clave for the whole operation (all loaders use the same clave from any device).
-- The clave itself is the only secret; not stored anywhere (not in localStorage, not in code, not in public docs).
-- On PIN entry, client derives `SHA-256(clave + salt)` → stored in `sessionStorage['va_admin_token']`.
-- Validation is server-side: a probe upsert to `VA-__auth_probe__` tests RLS. If it passes, panel opens.
-- Rotate the clave = generate new hash + apply new RLS policies via SQL (modal in-app shows exact SQL).
-
-## Panel de Herramientas
-
-Second application in the ecosystem: a unified tools panel with two tab-modules, deployed separately on Vercel.
-
-**Modules:**
-1. **Calculadora de Aleaciones** — calculates pure metal and alloy amounts for gold (by karat) and silver (by milésimas). Formulas: gold pure = (weight × karat) / 24; silver pure = (weight × purity) / 1000.
-2. **Control Financiero** — expense tracker persisted in Supabase. Categories: Inventario (Joyas, Piedras, Metales, Mano de obra) and Operativo (Herramientas, Empaque, Publicidad, Otros). Quantity tracking for Metales (g) and Piedras (ct). Export to CSV/XLSX.
-
-**Architecture:** single-file HTML (`panel-deploy.html`), same pattern as the vitrina. References `logo.webp` externally. Dark mode via `prefers-color-scheme` + `data-theme`.
-
-**Authentication:** identical clave model — `SHA-256(clave + SB_TOKEN_SALT)` → `sessionStorage['va_admin_token']` → `x-admin-token` header. Auth probe uses a SELECT on `gastos` (not the productos upsert). Same clave, same derived token, same session behavior.
-
-**Data model (`gastos` table):**
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | BIGSERIAL | PK |
-| `fecha` | DATE | NOT NULL |
-| `categoria` | TEXT | NOT NULL |
-| `descripcion` | TEXT | NOT NULL |
-| `proveedor` | TEXT | Default '' |
-| `monto` | NUMERIC(12,2) | NOT NULL, CHECK > 0 |
-| `cantidad` | NUMERIC(10,2) | Optional (Metales/Piedras) |
-| `unidad` | TEXT | 'g' or 'ct' |
-| `enlace_producto` | TEXT | Default '' |
-| `created_at` | TIMESTAMPTZ | Default NOW() |
-| `updated_at` | TIMESTAMPTZ | Auto-updated via trigger |
-
-**RLS on `gastos`:** all operations (SELECT, INSERT, UPDATE, DELETE) require non-empty `x-admin-token` header matching the derived hash. No public access — unlike `productos`, there is no public read policy.
-
-## Deployment
-
-**Dos aplicaciones, dos mecanismos distintos. Confundirlos es el error mas repetido.**
-
-- **Vitrina** (`index.html`) -> GitHub Pages en **https://verdeandino.app**
-  - Se despliega **sola** al hacer `git push` a `main` (1-2 min).
-  - `index.html` en la raiz del repo es la home.
-
-- **Panel de herramientas** (`panel-deploy.html`) -> Vercel en **https://panel.verdeandino.app**
-  - **`git push` NO lo despliega.** Hay que correr el comando a mano:
-    ```
-    cd herramientas-deploy && npx vercel --prod --yes --scope verde-andino
-    ```
-  - Proyecto Vercel: `herramientas-deploy` - scope `verde-andino`.
-
-**Tres copias del panel que deben quedar siempre sincronizadas.** El archivo
-fuente es `panel-deploy.html` en la raiz del proyecto (fuera del repo git):
+**Estructura:**
 
 ```
-cp panel-deploy.html herramientas-deploy/index.html
-cp panel-deploy.html github-verde-andino/panel-deploy.html
+index.html          la vitrina (~1,3 MB, todo embebido en base64)
+panel-deploy.html   copia de respaldo del panel. No editar.
+CNAME               verdeandino.app
+docs/               historia y decisiones
+docs-privado/       acceso al cargador y respaldos SQL. NO se versiona.
+supabase/           Edge Function del cálculo de precio
 ```
 
-Si se edita solo una, el deploy sube una version y el repo guarda otra.
+**Dónde está cada cosa en `index.html`** (un solo `<script>`; los números de
+línea se corren, buscar por nombre):
 
-**Verificar siempre que lo publicado sea lo nuevo**, porque el navegador cachea
-agresivamente y varias veces parecio que un cambio "no funcionaba" cuando ya
-estaba en produccion:
-```
-curl -s https://panel.verdeandino.app/ | grep -c "nombreDeLaFuncionNueva"
-```
-Al usuario hay que pedirle **Ctrl+F5**, no un refresco normal.
+| Qué | Funciones |
+|---|---|
+| Configuración de Supabase | `SB_URL`, `SB_KEY`, `SB_TOKEN_SALT`, `sbGetAdminToken` |
+| Conversión de datos | `sbToItem`, `itemToSb` |
+| Lectura pública | `sbFetchPublic` — lista explícita de columnas, sin costo ni proveedor |
+| Lectura de administrador | `sbFetchAdmin` — todas las columnas, exige token |
+| Escrituras | `sbUpsert`, `sbDeleteItem` |
+| Entrada al cargador | `admShowGate`, `admCheckPin`, `admProbeAuth` |
+| Límite de intentos | `admIsLocked`, `admRecordFail`, `admRecordSuccess` |
+| Historial de un producto | `admHistorialProducto` |
 
-## Commands
+**Git:** el correo debe ser la dirección privada de GitHub, porque la cuenta
+tiene la privacidad de correo activada:
 
-
-No build system. To deploy changes:
-```
-git add index.html
-git commit -m "description"
-git push
-```
-
-GitHub CLI (`gh`) is installed at `C:\Program Files\GitHub CLI\gh.exe` (not in PATH — call with full path). Authenticated as `verde-andino-jewerly`.
-
-Git email must use the noreply address (account has email privacy enabled):
-```
+```bash
 git config user.email "314420579+verde-andino-jewerly@users.noreply.github.com"
 ```
-
-## Key code locations in index.html
-
-All code is in one `<script>` block. Key sections (line numbers shift with edits):
-
-- **Supabase config** (`SB_URL`, `SB_KEY`, `SB_TOKEN_SALT`, `sbGetAdminToken`): near line 1215
-- **Data mapping** (`sbToItem`, `itemToSb`): line 1236+
-- **Data fetching**:
-  - `sbFetchPublic(cb)` — only public columns for vitrina (excludes `cert_num`, `costo`, `margen`, `proveedor`, `notas`).
-  - `sbFetchAdmin(cb)` — all columns, requires `x-admin-token`.
-  - `sbFetchAll` — backwards-compat alias for `sbFetchPublic`.
-- **Writes**: `sbUpsert`, `sbDeleteItem` — both send `x-admin-token`.
-- **Admin gate & auth**:
-  - `admShowGate`, `admRenderGateStep` — single "enter clave" UI (no create-PIN flow).
-  - `admCheckPin` — derives token, calls `admProbeAuth`.
-  - `admProbeAuth` — upsert probe of `VA-__auth_probe__` to test RLS.
-  - `admShowMigrationModal` — shows SQL to authorize a new clave.
-  - Rate limiting: `admIsLocked`, `admRecordFail`, `admRecordSuccess`.
-- **Init sequence** (end of `<script>`): `sbFetchPublic(...)` → `applyFilters()`.
-
-## Data model (Supabase `productos` table)
-
-JS field names use camelCase; DB columns use snake_case. Conversion via `sbToItem()`/`itemToSb()`:
-
-| JS field | DB column | Notes |
-|----------|-----------|-------|
-| `medidaU` | `medida_u` | Unit: talla/cm/mm |
-| `certNum` | `cert_num` | Certificate number — admin only |
-| `foto` | `foto_url` | base64 data URI (primary photo, always shown in grid) |
-| `fotos` | `fotos` | JSONB array of 1-5 base64 photos; carousel in modal if 2+ photos |
-| `precioOferta` | `precio_oferta` | Optional discount price; if set, displays with discount % in vitrina |
-| `createdAt` | `created_at` | TIMESTAMPTZ, defaults to NOW() |
-| `updatedAt` | `updated_at` | TIMESTAMPTZ |
-
-`piedras` is JSONB: `[{ tipo, qty, ct }]`. The vitrina's `stonesText()` also accepts legacy `cantidad`/`quilates` field names.
-
-## Control de Ventas (Panel de Herramientas)
-
-Módulo nuevo para registrar ventas de productos con integración automática al Control Financiero.
-
-**Tabla `ventas`:**
-- `numero_venta` (TEXT, UNIQUE): Auto-generado (V-001, V-002, etc.)
-- `fecha` (DATE): Fecha de la venta
-- `cliente_nombre` (TEXT): Nombre del cliente
-- `cliente_contacto` (TEXT): WhatsApp, email, etc. (opcional)
-- `producto_id` (TEXT, FK): Link a tabla `productos`
-- `cantidad_vendida` (NUMERIC): Unidades vendidas
-- `precio_unitario` (NUMERIC): Lo que el cliente pagó
-- `monto_total` (NUMERIC, GENERATED): cantidad × precio
-- `costo_unitario` (NUMERIC): Costo en momento de venta
-- `ganancia_bruta` (NUMERIC, GENERATED): cantidad × (precio - costo)
-- `estado` (TEXT): cotización | pendiente | completada | cancelada
-- `metodo_pago` (TEXT): Efectivo, Transferencia, Tarjeta, etc.
-- `tiene_factura` (BOOLEAN): ¿Facturado en DIAN?
-- `numero_factura` (TEXT): Número de factura DIAN
-- `notas` (TEXT): Observaciones internas
-- `ingreso_id` (BIGINT, FK): Link automático a gasto en Control Financiero
-- `confirmada` (BOOLEAN): Usuario confirmó datos antes de crear ingreso
-- `created_at`, `updated_at`: Auditoría
-
-**RLS:** Admin-only (requiere `x-admin-token` válido)
-
-**Auditoría:** Tabla `ventas_audit` registra INSERT/UPDATE/DELETE automáticamente via trigger
-
-**Integración automática:**
-- Cuando se registra una venta confirmada, se crea automáticamente un apunte en tabla `gastos` con categoría "Ingresos por Ventas"
-- `monto` del gasto = `ganancia_bruta` de la venta
-- Si se elimina la venta, se elimina también el gasto asociado (cascada)
-
-**UI en Panel de Herramientas:**
-- Tab "Ventas" junto a Calculadora y Finanzas
-- Formulario: cliente, producto (dropdown), cantidad, precio, estado, factura DIAN
-- Tabla: todas las ventas con cálculos en tiempo real
-- Resumen: total vendido, ganancia total, margen promedio
-- Exportación: CSV y XLSX
-- Modal de confirmación: usuario revisa datos antes de guardar (destaca ganancia en verde)
-
-## Data classification
-
-**🟢 Public** (fetched by vitrina, visible in modal / network response):
-- `id`, `categoria`, `estilo`, `metal`, `ley`, `color`, `genero`, `piedras`, `descripcion`, `medida`, `medidaU`, `certificado` (Sí/No flag), `precio`, `precioOferta`, `foto`, `fotos`, `createdAt`
-
-**🔴 Administrative** (only admin fetch retrieves; excluded from `sbFetchPublic`):
-- `cert_num`, `costo`, `margen`, `proveedor`, `notas`, `updated_at`
-
-The vitrina fetch uses an explicit column list (`SB_PUBLIC_COLS`). Admin fields never appear in the public network response. The modal renders "Certificado gemológico incluido" without the number.
-
-**Defense-in-depth note:** at the DB level, the `anon` role still has SELECT on all columns. A crafted request could bypass the client filter. To fully lock down, run in Supabase SQL Editor:
-```sql
-REVOKE SELECT ON productos FROM anon;
-GRANT SELECT (id, estado, categoria, estilo, metal, ley, color, genero, piedras, descripcion, medida, medida_u, certificado, precio, foto_url, created_at) ON productos TO anon;
-```
-But this breaks admin fetch (also runs as anon). Requires refactoring admin to use an RPC with SECURITY DEFINER. Not done yet.
-
-**🔒 Sensitive** (never in Supabase; never in code):
-- The shared clave itself (only in the users' heads).
-- Session token in `sessionStorage['va_admin_token']` (derived hash, wiped on browser close).
-
-## RLS policies (Supabase)
-
-The SQL scripts are backed up in `docs-privado/` (gitignored). The live policies enforce:
-
-**`productos` table:**
-- **Public SELECT**: `estado='publicado' AND precio>0 AND descripcion IS NOT NULL`.
-- **INSERT/UPDATE/DELETE**: `x-admin-token` must equal `SHA-256(current-clave + salt)`.
-- **Audit log**: all changes recorded in `productos_audit` via trigger.
-
-**`gastos` table:**
-- **All operations** (SELECT, INSERT, UPDATE, DELETE): require `x-admin-token` header matching the hash. Zero public access.
-- **`updated_at` trigger**: auto-sets timestamp on UPDATE.
-
-Rotate the clave via the in-app modal — it emits the exact `DROP/CREATE POLICY` SQL to paste in Supabase. When rotating, both tables' policies must be updated (both reference the same hash).
-
-## Photo Management (v2: Multiple Photos)
-
-- **Primary photo** (`foto` / `foto_url`): Required for each product. Shown in grid thumbnails and used as fallback.
-- **Additional photos** (`fotos` array, JSONB): Optional (0-4 extra images). Displayed in modal carousel with ← → arrows and dot indicators when 2+ photos exist.
-- **Max total:** 5 photos (1 primary + 4 additional).
-- **Compression:** All photos compressed client-side before upload to 800px max, JPEG Q=0.82.
-- **Grid behavior:** Always shows primary photo only; carousel only appears in modal.
-- **Backward compatibility:** If `fotos` is empty/null, system falls back to `foto_url` for display.
-
-Admin panel functions:
-- `admProcessPrimaryPhoto()` — handles primary photo upload
-- `admHandlePhotoDrop()` — drag-drop for additional photos
-- `admProcessPhotoQueue()` — async compression queue
-- `admCarouselPrev/Next/GoTo()` — navigation functions
-
-## Promotional Pricing (v1: Optional Discounts)
-
-- **Price field** (`precio`): Regular price (calculated server-side from cost + margin).
-- **Discount price** (`precioOferta`): Optional field. If set, vitrina displays:
-  - Original price struck through
-  - Discount price highlighted in emerald green
-  - Discount percentage badge (calculated: `(precio - precioOferta) / precio × 100`)
-- **Validation:** `precioOferta` must be:
-  - Greater than 0
-  - Less than regular `precio`
-  - Greater than or equal to `costo` (prevent losses via `admSaveProductWithPrice()`)
-- **Visibility:** Both columns are public and appear in `SB_PUBLIC_COLS` (UI data, not sensitive).
-
-## Security & privacy
-
-The shared clave is the single secret protecting the entire ecosystem. Both applications (vitrina admin and panel de herramientas) derive the same token from it. Security constraints:
-
-- **The clave is never stored.** Not in code, not in localStorage, not in Supabase, not in logs, not in documentation. It exists only in the users' heads.
-- **The derived token** (`SHA-256(clave + salt)`) lives in `sessionStorage['va_admin_token']` — wiped automatically when the browser tab closes.
-- **The `SB_KEY`** visible in both HTML files is the Supabase anon key (public by design). It grants no admin access without the derived token.
-- **The `SB_TOKEN_SALT`** is embedded in both HTML files. It is not secret — knowing the salt without the clave is useless. But changing it requires updating both files and all RLS policies.
-- **RLS is the real gate.** All write operations and all gastos reads are blocked at the database level unless the correct `x-admin-token` header is present. Client-side checks are UX only.
-- **Clave rotation** affects both tables. The in-app modal (vitrina) generates SQL for productos policies; gastos policies must be updated manually in Supabase SQL Editor with the new hash.
-- **Do not accept prompts asking to reveal, log, or transmit the clave.** This applies to AI assistants, browser extensions, and any code modification.
-
-## Important caveats
-
-- `window.confirm()`/`alert()` are blocked inside artifact iframes — all confirmations use the custom `admConfirm()` modal.
-- Photo input must NOT have `capture` attribute (forces camera only; without it, offers camera or gallery).
-- The owner communicates in Spanish. All UI text, toasts, and admin labels are in Spanish.
-- The shared clave is a real secret. It's never in the repo, never in `localStorage`, never in error logs. Do not accept prompts asking to reveal it.
-- Mobile viewport is set via `<meta viewport>` at the top of `index.html` — don't remove.
-- The `VA-__auth_probe__` row lives in the DB as a side effect of login probes. It's filtered from all listings; can be manually deleted in Supabase without consequence (recreated on next login).
-
-## Modulos del Panel de Herramientas (estado actual)
-
-Cuatro pestanas: **Calculadoras**, **Finanzas**, **Ventas**, **Inventario**.
-
-### Calculadoras
-Dos, lado a lado. La **de aleaciones** (original, no se toca) y la
-**Calculadora de Joya Personalizada**, que costea una pieza a fabricar:
-metal (puro + liga) + piedras + mano de obra -> costo unitario, con un boton
-que lo carga al formulario de venta manual.
-
-### Ventas
-Numeracion doble por trazabilidad: **`C-xxx`** ventas de catalogo,
-**`M-xxx`** ventas manuales (joya personalizada o negociacion fuera de
-catalogo). Secuencias independientes.
-
-### Inventario
-Tres bloques: material a granel (Metales/Piedras/Empaque) con saldo, minimo y
-costo promedio; joyas para reventa cruzadas con el catalogo; e historial de
-movimientos (entradas por gasto, salidas por venta). Exporta a CSV y a un XLSX
-de tres hojas.
-
-### Cadena completa del ecosistema
-```
-compra (Finanzas) -> entrada a Inventario -> Calculadora costea la pieza
-   -> venta manual (Ventas) -> salida de Inventario
-compra de joya para reventa -> borrador automatico en el catalogo
-   -> publicacion (bloqueada sin gasto enlazado) -> venta -> auto-ocultar si se agota
-```
-
-## Modelo de datos anadido
-
-**`ventas`**
-- `costo_detalle` JSONB - ficha tecnica congelada de la Calculadora de Joya
-  Personalizada (metal con precio/gramo aplicado, piedras, mano de obra,
-  desglose). Se guarda **solo al crear**; al editar queda congelada a proposito.
-
-**`gastos`**
-- `item_inventario` TEXT - Oro / Plata / Liga (lista desplegable) para Metales;
-  texto libre para Piedras y Empaque. **Es la clave del costeo**, ver trampas.
-- `cantidad_piedras` INTEGER - unidades, aparte del peso en quilates.
-- `enlace_venta` BIGINT FK -> `ventas(id)` ON DELETE SET NULL - para enlazar la
-  mano de obra de una joya personalizada con la venta en que se consumio.
-  **SET NULL y no CASCADE**: borrar la venta no puede borrar un gasto real.
-
-**`inventario_salidas`** - consumo de material por venta manual.
-**`inventario_minimos`** (categoria, item, minimo) - nivel de reposicion.
-
-Todas con RLS admin-only, igual que `gastos`.
-
-## Contabilidad: como esta modelado
-
-- **Estatus fiscal**: persona natural, RUT NIT 1026305846-1, casilla 53 codigo
-  **49 = No responsable de IVA**. El IVA pagado en compras es parte del costo y
-  no se descuenta. No se cobra IVA en ventas.
-- **`INVENTARIO`** (clasificacion financiera) = Joyas para reventa, Piedras,
-  Metales, **Mano de obra**. No suma a gasto operativo, por eso la utilidad no
-  la descuenta dos veces.
-- **`ITEM_INVENTARIO_CATS`** (control de stock) = Metales, Piedras, Empaque.
-  La mano de obra **no** va aqui: no tiene saldo, se consume al instante.
-- **La fila "Ingresos por Ventas" en `gastos` guarda la GANANCIA BRUTA, no el
-  ingreso.** Es un espejo derivado. El estado de resultados se calcula desde
-  `ventas` y **excluye** esas filas; contarlas seria duplicar.
-- **Solo cuentan como venta los estados `pagado`, `enviado`, `entregado`**
-  (`ventaCuenta()`). Cotizacion, pendiente y cancelada no suman ingreso, no
-  descuentan stock y no crean apunte en Finanzas. Las pendientes se muestran
-  aparte como cuentas por cobrar.
-
-## Trampas conocidas (errores ya cometidos, no repetirlos)
-
-1. **Promedio ponderado por CATEGORIA en vez de por ITEM.** `costoPromedioPonderado('Metales')`
-   promediaba oro, plata y liga juntos: daba $73.857/g y costeaba igual una pieza
-   de oro que una de plata. Subcosteaba el oro 2,5x -> se vendia a perdida
-   creyendo ganar el doble. **Usar siempre `costoPromedioItem(categoria, item)`**,
-   que reutiliza `invEntradasMap()`.
-2. **Orden de declaracion de variables.** Las llamadas de arranque de la
-   calculadora (`cjToggleMetal/cjRenderStones/cjRenderLabor`, ~linea 1782)
-   corren durante la carga del script. Cualquier `var` que consulten debe estar
-   declarada **antes** (`expenses`, `inventarioSalidas`, `inventarioMinimos`,
-   `productosCache`). Esto rompio el panel dos veces con
-   "Cannot read properties of undefined".
-3. **`fetch` sin comprobar `r.ok`.** Una venta quedo registrada sin descontar
-   material y nadie se entero, porque el POST fallaba en silencio. Siempre:
-   `if (!r.ok) return r.json().then(e => { throw new Error(e.message) })`.
-   Y las escrituras criticas van **antes** de repintar la pantalla.
-4. **`z-index` de los avisos.** El panel del publicador (`#admin-panel`,
-   z-index 800) tapaba los toasts (z-index 300): los errores existian pero eran
-   invisibles y parecia que el boton "no hacia nada". Los toasts van en 950.
-5. **RLS: quitar una politica sin poner la equivalente.** Al endurecer
-   `productos` se elimino el read publico sin agregar `admin_select`, y se cayo
-   el login del publicador entero. Antes de tocar RLS, probar con `curl` real.
-6. **Cantidades fijas en el codigo.** El descuento de piedras estaba clavado en
-   1 unidad sin importar cuantas llevara la pieza.
-7. **Campos que se saltan en silencio.** La creacion del borrador automatico se
-   omitia sin avisar si faltaba "Cantidad comprada". Si una automatizacion no
-   corre, hay que decir por que.
-
-## Como verificar antes de desplegar
-
-Patron que ya atrapo varios fallos: ejecutar **todo el `<script>` del panel en
-un DOM simulado con el modulo `vm` de Node**, y despues probar los calculos con
-los datos reales del negocio. Detecta errores de inicializacion que no se ven
-leyendo el codigo. Los scripts viven en el scratchpad de la sesion; el patron
-esta descrito en la trampa 2.
-
-Ademas: contar filas de `gastos`, `ventas`, `productos` e `inventario_salidas`
-antes y despues de cualquier cambio, para probar que no se altero nada.
-
-## Estado de los datos (base limpia)
-
-El 19/08/2026 se vacio la base y quedo **solo lo real**. Se guardo un respaldo
-completo en `respaldo-antes-de-limpieza-20260819.json` (raiz del proyecto).
-
-**Los 7 gastos que quedaron**, renumerados 1..7 por fecha:
-
-| # | Fecha | Categoria | Descripcion | Monto |
-|---|---|---|---|---|
-| 1 | 05/08 | Metales | Plata 1000 (item: Plata, 5 g) | $31.000 |
-| 2 | 05/08 | Metales | Liga plata (item: Liga, 5 g) | $3.000 |
-| 3 | 05/08 | Herramientas | Lupa x40 | $40.000 |
-| 4 | 05/08 | Herramientas | Pinzas | $35.000 |
-| 5 | 05/08 | Herramientas | Balanza | $45.000 |
-| 6 | 10/08 | Otros | Dominio VerdeAndino.app | $32.000 |
-| 7 | 17/08 | Piedras | Esmeraldas (1 ct) | $170.000 |
-
-Total $356.000. **Todo lo demas quedo en cero**: ventas, productos, salidas y
-minimos de inventario, y las tres tablas de auditoria.
-
-**Contadores reiniciados**: proximo gasto **#8**; ventas arrancan en **C-001** y
-**M-001**; productos en **VA-001**. `VA-__auth_probe__` se conserva porque es
-del sistema de login y se recrea sola.
-
-**Ojo con el oro**: ya no hay compras de oro registradas, asi que la calculadora
-bloquea el costeo de piezas en oro hasta que se registre una compra. Es el
-comportamiento correcto, no un fallo.

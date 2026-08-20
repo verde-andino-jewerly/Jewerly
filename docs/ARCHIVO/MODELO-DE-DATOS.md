@@ -1,3 +1,14 @@
+> ## ARCHIVADO — no vigente
+>
+> Este documento cubre solo la tabla `productos`. Hoy el ecosistema
+> tiene nueve tablas.
+>
+> **Vigente:** `REFERENCIA-TECNICA.md` en la raiz del proyecto.
+>
+> Se conserva como registro historico.
+
+---
+
 # Modelo de datos
 
 Estructura exacta de los datos que maneja el sistema.
