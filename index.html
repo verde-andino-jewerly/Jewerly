@@ -1357,7 +1357,7 @@
           </div>
           <div class="field">
             <label>Margen (%)</label>
-            <input type="number" id="f-margen" placeholder="100" min="20" value="100" oninput="admCalcPrecio();admPreviewMargen()">
+            <input type="number" id="f-margen" placeholder="100" min="20" oninput="admCalcPrecio();admPreviewMargen()">
             <div id="margen-preview" style="display:none; margin-top:4px; padding:6px 10px; border-radius:6px; font-size:0.82rem; font-weight:500;"></div>
           </div>
         </div>
@@ -2543,6 +2543,11 @@ function admHistorialProducto(id) {
           });
         }
         var etiqueta = f.accion === 'insert' ? 'Creado' : (f.accion === 'delete' ? 'Eliminado' : 'Modificado');
+        // El sistema oculta solo por una razon: se agoto el stock. Si el unico
+        // cambio es ese, se dice, en vez de dejar un "Modificado" mudo.
+        var soloSeOculto = f.accion === 'update' && cambios.length === 1 &&
+          ant.estado === 'publicado' && nue.estado === 'oculto';
+        if (soloSeOculto) etiqueta = 'Ocultado por agotarse el stock';
         var fecha = new Date(f.timestamp).toLocaleString('es-CO');
         return '<div style="padding:10px 0;border-bottom:1px solid var(--border);">' +
           '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);">' + etiqueta + '</div>' +
@@ -2772,7 +2777,11 @@ function admSaveProduct() {
   // Las reglas de precio solo aplican al publicar: un borrador puede ir sin costo ni margen.
   // El margen minimo lo exige tambien la base de datos en cuanto hay un costo cargado.
   var esPublicado = admEstado === 'publicado';
-  if (costo > 0 && margen < 20) { toast('El margen mínimo es 20% para cubrir costos operativos'); return; }
+  // Solo al publicar: un borrador se guarda como este, a medio llenar.
+  if (admEstado === 'publicado' && costo > 0 && margen < 20) {
+    toast('Para publicar, el margen mínimo es 20% — como borrador sí se puede guardar');
+    return;
+  }
   if (precioOferta !== null && precioOferta <= 0) { toast('Precio de oferta debe ser > 0'); return; }
 
   // Calcular precio en servidor (Edge Function)
@@ -2992,14 +3001,16 @@ function admFillForm(it) {
   } else {
     admClearPhoto();
   }
-  admSetSelect('f-cat', it.categoria || 'Anillo');
+  // Sin valores de relleno: si la ficha no lo dice, el campo queda en
+  // "Elegir...". Publicar una pieza mal descrita es peor que dejarla vacia.
+  admSetSelect('f-cat', it.categoria || '');
   admUpdateEstilos();
   admSetSelect('f-estilo', it.estilo);
-  admSetSelect('f-metal', it.metal || 'Oro');
+  admSetSelect('f-metal', it.metal || '');
   admUpdateLeyes();
   admSetSelect('f-ley', it.ley);
-  admSetSelect('f-color', it.color || 'Amarillo');
-  admSetSelect('f-genero', it.genero || 'Mujer');
+  admSetSelect('f-color', it.color || '');
+  admSetSelect('f-genero', it.genero || '');
   // Piedras
   document.getElementById('stones-list').innerHTML = '';
   var piedras = it.piedras && it.piedras.length ? it.piedras : [];
