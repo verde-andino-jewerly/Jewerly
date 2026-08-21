@@ -716,7 +716,20 @@
     .form-grid { grid-template-columns: 1fr; }
     .split { grid-template-columns: 1fr 1fr; }
     .summary-grid { grid-template-columns: 1fr; }
-    .nav-tab { padding: 0.75rem 0.8rem; font-size: 0.72rem; }
+    /* En un telefono no caben logo + cuatro pestanas + Salir en una linea: la
+       barra se salia 36px y arrastraba toda la pagina de lado. Se parte en dos
+       filas — arriba logo y Salir, abajo las pestanas repartidas a lo ancho. */
+    .nav-bar { flex-wrap: wrap; justify-content: flex-start; padding: 0 0.6rem; }
+    .nav-logo { order: 1; margin-right: 0.5rem; }
+    .nav-spacer { order: 2; flex: 1 1 auto; }
+    .btn-logout { order: 3; margin: 0.4rem 0; }
+    /* Corte forzado: sin esto las pestanas se repartian a lo que diera y una
+       quedaba sola ocupando toda la segunda fila. */
+    .nav-bar::after { content: ""; order: 4; flex: 0 0 100%; height: 0; }
+    .nav-tab {
+      order: 5; flex: 1 1 0; min-width: 0;
+      padding: 0.6rem 0.2rem; font-size: 0.64rem; letter-spacing: 0;
+    }
   }
 </style>
 </head>
