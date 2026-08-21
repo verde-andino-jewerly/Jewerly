@@ -426,6 +426,10 @@
     text-transform: none; letter-spacing: 0; line-height: 1.4;
   }
   .field.hidden { display: none; }
+  /* Generica y con !important a proposito: tiene que ganarle al display:grid
+     o display:flex del propio elemento. Sin esto, ocultar un contenedor no
+     hacia nada y los campos de factura salian en los retiros. */
+  .hidden { display: none !important; }
   .rate-badge {
     grid-column: 1 / -1; display: none;
     background: var(--gold-bg); border: 1px solid var(--gold-l);
@@ -915,6 +919,7 @@
           <div id="cj-aviso-reposicion" style="display:none; background:#fef9e7; color:#a56a15; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <div id="cj-aviso-stock" style="display:none; background:#fef9e7; color:#a56a15; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <div id="cj-aviso-material" style="display:none; background:#fdecea; color:#c0392b; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
+          <button type="button" class="btn-sec" onclick="cjLimpiar(false)" style="width:100%; margin-top:0.6rem;">Limpiar la calculadora</button>
           <button type="button" class="btn-add" id="cj-btn-cargar-ventas" onclick="cjCargarAVentas()" style="width:100%; margin-top:0.9rem;">→ Cargar costo unitario a Ventas (venta manual)</button>
           <div class="calcj-result-note">El margen y el precio de venta se definen en el formulario de Ventas al registrar la pieza.</div>
         </div>
@@ -983,7 +988,8 @@
           </div>
           <div class="field hidden" id="item-inv-field">
             <label for="f-item-inv">Ítem / tipo de material</label>
-            <input type="text" id="f-item-inv" placeholder="Ej: Esmeralda, Caja kraft mediana">
+            <input type="text" id="f-item-inv" list="items-sugeridos" autocomplete="off" placeholder="Ej: Esmeralda, Caja kraft mediana">
+            <datalist id="items-sugeridos"></datalist>
             <div class="hint">Para agrupar el inventario por tipo. Opcional — si lo dejas vacío, queda como "Sin especificar".</div>
           </div>
           <div class="field hidden" id="qty-field">
@@ -1656,6 +1662,13 @@ function setMetal(metal) { currentMetal = metal; renderMetal(); }
 function toggleMetal() { currentMetal = currentMetal === 'gold' ? 'silver' : 'gold'; renderMetal(); }
 
 function renderMetal() {
+  // El resultado del metal que se deja atras no puede quedarse en pantalla:
+  // se lee como si fuera la cuenta del metal nuevo.
+  var oculto = currentMetal === 'gold' ? 'silver' : 'gold';
+  var res = document.getElementById(oculto + '-results');
+  if (res) res.innerHTML = '';
+  var peso = document.getElementById(oculto + '-weight');
+  if (peso) peso.value = '';
   var track = document.getElementById('switch-track');
   track.setAttribute('data-metal', currentMetal);
   document.getElementById('label-gold').classList.toggle('active', currentMetal === 'gold');
@@ -1945,8 +1958,10 @@ function cjCalcular() {
   if (elMerma) {
     var mp = parseFloat(configNegocio.merma_pct) || 0;
     elMerma.style.display = mp > 0 ? 'block' : 'none';
-    elMerma.textContent = 'Merma ' + mp + '%: la pieza pesa ' + fmtQty(peso) + ' g pero consume ' +
-      fmtQty(consumoPuro + consumoLiga) + ' g de material.';
+    elMerma.textContent = 'Merma ' + mp + '%: la pieza pesa ' + fmtQty(peso) +
+      ' g, pero hay que comprar ' + fmtQty(consumoPuro + consumoLiga) + ' g — ' +
+      fmtQty(consumoPuro) + ' g de ' + itemPuro.toLowerCase() + ' y ' + fmtQty(consumoLiga) +
+      ' g de liga. El costo de abajo ya usa esos gramos, no los de la pieza.';
   }
   // Descapitalizacion: el promedio historico puede quedar por debajo del precio de reposicion.
   var repo = [];
@@ -2044,7 +2059,21 @@ function cjCargarAVentas() {
       .map(function(s) { return { nombre: s.desc || 'Sin nombre', costo: s.costo || 0 }; }),
     totales: { metal: costoMetal, piedras: totalPiedras, labor: totalLabor, costoUnitario: costo }
   };
+  cjLimpiar(true);
   toast('Costo cargado en Ventas — completa cliente, cantidad y margen');
+}
+
+/* Deja la calculadora en blanco. Con `traspasado` en true se llama despues de
+   pasar el costo a Ventas: los datos no se pierden, ya viajaron al formulario
+   y quedan congelados en la ficha tecnica de la venta. */
+function cjLimpiar(traspasado) {
+  $('cj-peso').value = '';
+  cjStones = [];
+  cjLaborItems = [];
+  cjRenderStones();
+  cjRenderLabor();
+  cjCalcular();
+  if (!traspasado) toast('Calculadora en blanco');
 }
 
 /* ===== FINANCIERO — Supabase CRUD ===== */
@@ -2291,6 +2320,7 @@ function syncCat() {
   $('item-inv-metal-field').classList.toggle('hidden', !showItemInvMetal);
   $('item-inv-field').classList.toggle('hidden', !showItemInv);
   if (!showItemInv) $('f-item-inv').value = '';
+  if (showItemInv) renderItemSugeridos(cat);
   $('qty-piedras-field').classList.toggle('hidden', cat !== 'Piedras');
   if (cat !== 'Piedras') $('f-qty-piedras').value = '';
   $('link-field').classList.toggle('hidden', cat !== 'Joyas para reventa');
@@ -2315,6 +2345,30 @@ function syncCat() {
 }
 
 // Lista de ventas para enlazar un gasto de mano de obra con la pieza en que se consumio.
+/* Sugiere primero lo que YA existe en el inventario y despues los nombres
+   habituales. La idea no es limitar: es que se elija el item existente en vez
+   de escribir una variante que parta el saldo en dos. */
+var ITEMS_HABITUALES = {
+  'Piedras': ['Esmeralda', 'Diamante', 'Moissanita', 'Zafiro', 'Rubi', 'Topacio',
+              'Amatista', 'Aguamarina', 'Citrino', 'Cuarzo', 'Granate', 'Opalo',
+              'Perla', 'Peridoto', 'Turmalina', 'Circonia'],
+  'Empaque': ['Cajas', 'Bolsas', 'Estuches', 'Cintas', 'Etiquetas', 'Papel seda']
+};
+
+function renderItemSugeridos(cat) {
+  var dl = $('items-sugeridos');
+  if (!dl) return;
+  var yaEnInventario = Object.keys(invEntradasMap())
+    .map(function(k) { return invEntradasMap()[k]; })
+    .filter(function(e) { return e.categoria === cat && e.item && e.item !== 'Sin especificar'; })
+    .map(function(e) { return e.item; });
+  var lista = yaEnInventario.slice();
+  (ITEMS_HABITUALES[cat] || []).forEach(function(x) {
+    if (!lista.some(function(y) { return normalizarItem(y) === normalizarItem(x); })) lista.push(x);
+  });
+  dl.innerHTML = lista.map(function(x) { return '<option value="' + esc(x) + '">'; }).join('');
+}
+
 function renderLinkVentaOptions(selected) {
   var sel = $('f-link-venta');
   if (!sel) return;
@@ -2496,12 +2550,35 @@ function saveExpense() {
   var linkVentaRaw = (cat === 'Mano de obra') ? $('f-link-venta').value.trim() : '';
   var linkVenta = linkVentaRaw ? parseInt(linkVentaRaw, 10) : null;
   var itemInv = cat === 'Metales' ? $('f-item-inv-metal').value
-    : (ITEM_INVENTARIO_CATS.indexOf(cat) >= 0 ? $('f-item-inv').value.trim() : '');
+    : (ITEM_INVENTARIO_CATS.indexOf(cat) >= 0 ? normalizarItem($('f-item-inv').value) : '');
   var qtyPiedrasRaw = $('f-qty-piedras').value;
   var qtyPiedras = (cat === 'Piedras' && qtyPiedrasRaw !== '') ? (parseInt(qtyPiedrasRaw, 10) || 0) : null;
 
-  if (!date || !cat || !desc || isNaN(amount) || amount <= 0) {
-    toast('Completa fecha, categoria, descripcion y monto');
+  if (!date || !cat || !desc) {
+    toast('Completa fecha, categoria y descripcion');
+    return;
+  }
+  // Mensajes concretos: "completa los campos" no dice que esta mal.
+  if (isNaN(amount) || amount <= 0) {
+    toast(isNaN(amount) ? 'Falta el monto' : 'El monto tiene que ser mayor que cero');
+    return;
+  }
+  if (ITEM_INVENTARIO_CATS.indexOf(cat) >= 0 && (qty === null || qty <= 0)) {
+    toast('Falta la cantidad: sin ella el material entra al inventario sin peso y el costeo lo trata como gratis');
+    return;
+  }
+  if (ITEM_INVENTARIO_CATS.indexOf(cat) >= 0 && !itemInv) {
+    toast('Falta el item: sin el, esta compra no cruza con el inventario y el costo promedio queda mal');
+    return;
+  }
+  if (cat === CAT_RETIRO && !$('f-formapago').value) {
+    toast('Elige la forma de pago del retiro');
+    return;
+  }
+  // Si el gasto declara soporte fiscal, la forma de pago es parte de ese
+  // soporte: una factura sin forma de pago no sirve para sustentar nada.
+  if (cat !== CAT_RETIRO && !$('f-sin-soporte').checked && !$('f-formapago').value) {
+    toast('Falta la forma de pago: sin ella el soporte fiscal queda incompleto');
     return;
   }
 
@@ -2965,7 +3042,11 @@ function renderFin() {
    hay que ponerla al dia o Finanzas y Ventas se contradicen. */
 function recalcularIngresoDeVenta(ventaId) {
   var v = ventas.find(function(x) { return x.id === ventaId; });
-  if (!v || !v.ingreso_id || !ventaCuenta(v)) return Promise.resolve();
+  if (!v) return Promise.resolve();
+  // El desglose del costo cambio: la fila de Ventas y su insignia "sin
+  // respaldo" hay que repintarlas aunque no haya ingreso que corregir.
+  renderVentas();
+  if (!v.ingreso_id || !ventaCuenta(v)) return Promise.resolve();
   var gananciaReal = Math.round((v.monto_total || 0) - costoRealVenta(v));
   var idx = expenses.findIndex(function(e) { return e.id === v.ingreso_id; });
   if (idx >= 0 && Math.round(expenses[idx].amount) === gananciaReal) return Promise.resolve();
@@ -3752,7 +3833,9 @@ function confirmarYGuardarVenta() {
         sincronizarIngresoVenta(v, ventaActualizada);
         // La venta acaba de empezar a contar: recien ahora sale el material.
         var yaSalio = inventarioSalidas.some(function(x) { return x.ventaId === ventaActualizada.id; });
-        var pendiente = window._cjSalidaPendiente;
+        // Si la venta nacio como cotizacion, la variable de memoria ya se
+        // perdio: se rearma desde la ficha guardada.
+        var pendiente = window._cjSalidaPendiente || salidaDesdeFicha(ventaActualizada.costo_detalle);
         if (v.esManual && ventaCuenta(ventaActualizada) && !yaSalio && pendiente) {
           registrarSalidasInventario(ventaActualizada.id, v.fecha, v.cantidad, pendiente);
         }
@@ -3793,7 +3876,7 @@ function confirmarYGuardarVenta() {
       }).then(rows => {
         var ventaCreada = Array.isArray(rows) ? rows[0] : rows;
         if (!ventaCreada || !ventaCreada.id) { toast('Error: respuesta inesperada de Supabase'); return; }
-        var salidaPendiente = window._cjSalidaPendiente;
+        var salidaPendiente = window._cjSalidaPendiente || salidaDesdeFicha(ventaCreada.costo_detalle);
         ventas.unshift(mapVentaRow(ventaCreada));
         if (ingresoCreado) expenses.unshift(mapGastoRow(ingresoCreado));
         if (v.esManual) nextVentaNumberManual++; else nextVentaNumberCatalogo++;
@@ -4219,7 +4302,23 @@ function exportVentasXLSX() {
 var invMatFilterCat = 'all';
 var invMovFilterTipo = 'all';
 
-function invItemKey(cat, item) { return cat + '|' + (item || 'Sin especificar'); }
+/* El nombre del item cruza compras, inventario y costeo. Escrito a mano,
+   "Esmeralda" y "ESMERALDA" quedaban como dos items separados: el saldo se
+   partia en dos y el costo promedio de cada mitad salia mal. Se normaliza a
+   Mayuscula Inicial para que la llave sea estable, sin impedir variantes
+   deliberadas como "Esmeralda Muzo", que SI son items distintos. */
+function normalizarItem(txt) {
+  var t = String(txt == null ? '' : txt).trim().replace(/\s+/g, ' ');
+  if (!t) return '';
+  return t.split(' ').map(function(w) {
+    return w.charAt(0).toLocaleUpperCase('es') + w.slice(1).toLocaleLowerCase('es');
+  }).join(' ');
+}
+
+function invItemKey(cat, item) {
+  var t = String(item == null ? '' : item).trim();
+  return cat + '|' + normalizarItem(t || 'Sin especificar');
+}
 
 function mapSalidaRow(r) {
   return {
@@ -4315,6 +4414,35 @@ function invLoad() {
   }).catch(function(e) { console.error('Error cargando inventario:', e); toast('Error al cargar inventario'); });
 }
 
+/* Reconstruye que material hay que descontar a partir de la ficha tecnica
+   guardada con la venta. Es la red que faltaba: la variable de memoria se
+   pierde en cuanto se guarda, pero costo_detalle queda en la base para
+   siempre. Sin esto, toda venta que empezara como cotizacion se pagaba sin
+   descontar una sola pieza de material. */
+function salidaDesdeFicha(ficha) {
+  if (!ficha || !ficha.metal || !ficha.metal.item) return null;
+  var m = ficha.metal;
+  return {
+    metalCategoria: 'Metales',
+    metalItem: m.item,
+    metalLey: m.ley || '',
+    gramosPuro: parseFloat(m.gramosPuro) || 0,
+    gramosLiga: parseFloat(m.gramosLiga) || 0,
+    piedras: (ficha.piedras || [])
+      .filter(function(s) { return (parseFloat(s.quilates) || 0) > 0; })
+      .map(function(s) {
+        // Las piedras escritas a mano pueden no existir en inventario; si no
+        // cruzan, salen igual con el nombre que traen y quedan a la vista.
+        var reg = invBuscarItem('Piedras', s.nombre);
+        return {
+          item: reg ? reg.item : s.nombre,
+          quilates: parseFloat(s.quilates) || 0,
+          cantidad: parseInt(s.cantidad, 10) || 1
+        };
+      })
+  };
+}
+
 function registrarSalidasInventario(ventaId, fecha, cantidadVenta, p) {
   var mult = cantidadVenta || 1;
   var rows = [];
@@ -4367,6 +4495,14 @@ function invSalidasMap() {
 
 function invSaldosRows() {
   var entradas = invEntradasMap(), salidas = invSalidasMap();
+  // Un item con minimo definido pero sin compras vigentes tiene que seguir a la
+  // vista con saldo 0: es justo cuando hay que reponerlo. Antes desaparecia.
+  Object.keys(inventarioMinimos).forEach(function(key) {
+    if (entradas[key]) return;
+    var m = inventarioMinimos[key];
+    if (!m || !(m.minimo > 0)) return;
+    entradas[key] = { categoria: m.categoria, item: m.item, qty: 0, qtyPiedras: 0, amount: 0 };
+  });
   var rows = [];
   Object.keys(entradas).forEach(function(key) {
     var e = entradas[key], s = salidas[key] || { qty: 0, qtyPiedras: 0 };
