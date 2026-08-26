@@ -1225,7 +1225,9 @@
 
       <div class="field">
         <label>ID del producto <span id="id-lock-note" style="display:none">· no se puede cambiar al editar</span></label>
-        <input type="text" id="f-id" placeholder="VA-001" maxlength="20">
+        <input type="text" id="f-id" placeholder="VA-001" maxlength="20" readonly
+               title="Lo asigna el sistema. Para reabastecer una pieza que ya existe, se elige desde el gasto en Finanzas.">
+        <div class="hint">Lo asigna el sistema solo.</div>
       </div>
 
       <div class="field">
@@ -2975,7 +2977,12 @@ function admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOf
 /* Helper: setea el valor de un select; si la opción no existe, la agrega */
 function admSetSelect(id, val) {
   var sel = document.getElementById(id);
-  if (!val) { return; }
+  if (!sel) return;
+  // Vacio SI es un valor: significa «este producto no lo tiene definido», y el
+  // desplegable tiene que volver a «Elegir...». Antes se salia sin tocar nada
+  // y quedaba lo del producto anterior: una pieza sin categoria se mostraba
+  // como «Anillo de Oro Amarillo para Mujer», descrita como algo que no era.
+  if (!val) { sel.value = ''; return; }
   var found = false;
   for (var i = 0; i < sel.options.length; i++) {
     if (sel.options[i].value === val) { found = true; break; }

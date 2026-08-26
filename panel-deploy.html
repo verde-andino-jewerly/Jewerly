@@ -103,6 +103,10 @@
     background: var(--bg-card); padding: 0 1rem;
     position: sticky; top: 0; z-index: 100;
   }
+  /* En escritorio los grupos no existen: sus hijos son los que se acomodan,
+     asi la barra queda igual que siempre. En movil si toman forma propia. */
+  .nav-top, .nav-tabs { display: contents; }
+  .nav-logo-link { display: inline-flex; align-items: center; text-decoration: none; }
   .nav-logo { width: 36px; height: auto; margin-right: 1rem; }
   .nav-tab {
     padding: 0.85rem 1.5rem; font-size: 0.82rem; font-weight: 600;
@@ -459,6 +463,27 @@
   .btn-cancel.on { display: inline-flex; align-items: center; }
 
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Confirmacion propia */
+  .confirm-ov {
+    display: none; position: fixed; inset: 0; z-index: 960;
+    background: rgba(0,0,0,.55); align-items: center; justify-content: center; padding: 1.25rem;
+  }
+  .confirm-ov[data-abierto="si"] { display: flex; }
+  .confirm-box {
+    background: var(--bg-card); color: var(--text); border-radius: 12px;
+    padding: 1.5rem; max-width: 380px; width: 100%;
+    box-shadow: 0 10px 40px rgba(0,0,0,.3); text-align: center;
+  }
+  .confirm-box h3 { margin: 0 0 .5rem; font-size: 1.05rem; }
+  .confirm-box p { margin: 0 0 1.25rem; color: var(--text-2); font-size: .9rem; line-height: 1.5; }
+  .confirm-box button {
+    width: 100%; padding: .75rem; border-radius: 8px; border: none;
+    font-family: inherit; font-size: .9rem; font-weight: 600; cursor: pointer;
+  }
+  .confirm-box .pv-si { background: var(--red, #c0392b); color: #fff; margin-bottom: .5rem; }
+  .confirm-box .pv-no { background: transparent; color: var(--text-3); border: 1px solid var(--border); }
+  .confirm-box button:hover { opacity: .9; }
   table { width: 100%; border-collapse: collapse; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
   thead th {
     text-align: left; font-size: 0.68rem; text-transform: uppercase;
@@ -577,7 +602,23 @@
   }
   .btn-secondary:hover { background: var(--bg-hover); }
 
-  /* ===== TOAST ===== */
+  /* Pregunta antes de algo que no se puede deshacer. Reemplaza al confirm()
+   del navegador: se ve como el resto del panel y deja explicar que se pierde. */
+function pvConfirmar(mensaje, siAcepta, opciones) {
+  opciones = opciones || {};
+  var ov = $('pv-confirm');
+  if (!ov) { if (siAcepta) siAcepta(); return; }   // sin modal, no bloquear
+  $('pv-confirm-title').textContent = opciones.titulo || '¿Confirmar?';
+  $('pv-confirm-msg').textContent = mensaje;
+  var si = $('pv-confirm-yes'), no = $('pv-confirm-no');
+  si.textContent = opciones.textoSi || 'Eliminar';
+  function cerrar() { ov.dataset.abierto = 'no'; si.onclick = null; no.onclick = null; }
+  si.onclick = function() { cerrar(); if (siAcepta) siAcepta(); };
+  no.onclick = cerrar;
+  ov.dataset.abierto = 'si';
+}
+
+/* ===== TOAST ===== */
   .toast {
     position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
     background: var(--bg-card); border: 1px solid var(--border);
@@ -716,20 +757,31 @@
     .form-grid { grid-template-columns: 1fr; }
     .split { grid-template-columns: 1fr 1fr; }
     .summary-grid { grid-template-columns: 1fr; }
-    /* En un telefono no caben logo + cuatro pestanas + Salir en una linea: la
-       barra se salia 36px y arrastraba toda la pagina de lado. Se parte en dos
-       filas — arriba logo y Salir, abajo las pestanas repartidas a lo ancho. */
-    .nav-bar { flex-wrap: wrap; justify-content: flex-start; padding: 0 0.6rem; }
-    .nav-logo { order: 1; margin-right: 0.5rem; }
-    .nav-spacer { order: 2; flex: 1 1 auto; }
-    .btn-logout { order: 3; margin: 0.4rem 0; }
-    /* Corte forzado: sin esto las pestanas se repartian a lo que diera y una
-       quedaba sola ocupando toda la segunda fila. */
-    .nav-bar::after { content: ""; order: 4; flex: 0 0 100%; height: 0; }
-    .nav-tab {
-      order: 5; flex: 1 1 0; min-width: 0;
-      padding: 0.6rem 0.2rem; font-size: 0.64rem; letter-spacing: 0;
+    /* Las cuatro pestanas no caben arriba junto al logo y Salir por mucho que
+       se achiquen: se van abajo, fijas, como en una app. */
+    .nav-bar { display: block; padding: 0; }
+    .nav-top {
+      display: flex; align-items: center;
+      padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--border);
     }
+    .nav-logo { width: 30px; margin-right: 0.5rem; }
+    .nav-spacer { flex: 1 1 auto; }
+
+    .nav-tabs {
+      display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      background: var(--bg-card); border-top: 1px solid var(--border);
+      /* En iPhone el borde inferior lo tapa la barra del sistema. */
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .nav-tab {
+      flex-grow: 1; flex-shrink: 1; flex-basis: 0%; min-width: 0;
+      padding: 0.65rem 0.15rem; font-size: 0.7rem; letter-spacing: 0;
+      border-bottom: none; border-top: 2px solid transparent;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .nav-tab.active { border-top-color: var(--gold); border-bottom-color: transparent; }
+    /* Sitio para la barra de abajo, para que no tape el ultimo boton. */
+    .tab-content { padding-bottom: 4.5rem; }
   }
 </style>
 </head>
@@ -752,13 +804,19 @@
 <!-- ===== APP ===== -->
 <div class="app-container" id="app">
   <nav class="nav-bar">
-    <img src="logo.webp" alt="VA" class="nav-logo">
-    <button class="nav-tab active" data-tab="calc" onclick="switchTab('calc')">Calculadora</button>
-    <button class="nav-tab" data-tab="fin" onclick="switchTab('fin')">Finanzas</button>
-    <button class="nav-tab" data-tab="ven" onclick="switchTab('ven')">Ventas</button>
-    <button class="nav-tab" data-tab="inv" onclick="switchTab('inv')">Inventario</button>
-    <span class="nav-spacer"></span>
-    <button class="btn-logout" onclick="authLogout()">Salir</button>
+    <div class="nav-top">
+      <a class="nav-logo-link" href="https://verdeandino.app" title="Ir a la vitrina">
+        <img src="logo.webp" alt="Ir a la vitrina" class="nav-logo">
+      </a>
+      <span class="nav-spacer"></span>
+      <button class="btn-logout" onclick="authLogout()">Salir</button>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="calc" onclick="switchTab('calc')">Calculadora</button>
+      <button class="nav-tab" data-tab="fin" onclick="switchTab('fin')">Finanzas</button>
+      <button class="nav-tab" data-tab="ven" onclick="switchTab('ven')">Ventas</button>
+      <button class="nav-tab" data-tab="inv" onclick="switchTab('inv')">Inventario</button>
+    </div>
   </nav>
 
   <!-- TAB: CALCULADORA -->
@@ -1036,7 +1094,7 @@
         </div>
 
         <div class="form-grid" id="soporte-fields" style="margin-top: 0.75rem;">
-          <div class="field">
+          <div class="field" id="f-soporte-wrapper">
             <label class="checkbox-label">
               <input type="checkbox" id="f-sin-soporte" onchange="toggleSinSoporte()">
               <span class="checkbox-visual"></span>
@@ -1512,6 +1570,17 @@
 
 <div class="toast" id="toast-el"></div>
 
+<!-- Confirmacion propia. El confirm() del navegador se ve ajeno y no siempre
+     funciona; ademas no deja explicar bien que se va a perder. -->
+<div class="confirm-ov" id="pv-confirm">
+  <div class="confirm-box">
+    <h3 id="pv-confirm-title">¿Confirmar?</h3>
+    <p id="pv-confirm-msg"></p>
+    <button type="button" class="pv-si" id="pv-confirm-yes">Eliminar</button>
+    <button type="button" class="pv-no" id="pv-confirm-no">Cancelar</button>
+  </div>
+</div>
+
 <script>
 /* ===== CONFIG ===== */
 var SB_URL = 'https://rbvqxrkzepthbbqzkbcg.supabase.co';
@@ -1525,6 +1594,22 @@ function sbHeaders() {
     'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
     'Content-Type': 'application/json', 'x-admin-token': sbToken()
   };
+}
+
+/* Pregunta antes de algo que no se puede deshacer. Reemplaza al confirm()
+   del navegador: se ve como el resto del panel y deja explicar que se pierde. */
+function pvConfirmar(mensaje, siAcepta, opciones) {
+  opciones = opciones || {};
+  var ov = $('pv-confirm');
+  if (!ov) { if (siAcepta) siAcepta(); return; }   // sin modal, no bloquear
+  $('pv-confirm-title').textContent = opciones.titulo || '¿Confirmar?';
+  $('pv-confirm-msg').textContent = mensaje;
+  var si = $('pv-confirm-yes'), no = $('pv-confirm-no');
+  si.textContent = opciones.textoSi || 'Eliminar';
+  function cerrar() { ov.dataset.abierto = 'no'; si.onclick = null; no.onclick = null; }
+  si.onclick = function() { cerrar(); if (siAcepta) siAcepta(); };
+  no.onclick = cerrar;
+  ov.dataset.abierto = 'si';
 }
 
 /* ===== TOAST ===== */
@@ -1679,9 +1764,17 @@ function renderMetal() {
   // se lee como si fuera la cuenta del metal nuevo.
   var oculto = currentMetal === 'gold' ? 'silver' : 'gold';
   var res = document.getElementById(oculto + '-results');
-  if (res) res.innerHTML = '';
+  // innerHTML vacio no basta: el contenedor sigue pintando su franja de color.
+  if (res) { res.innerHTML = ''; res.style.display = 'none'; }
   var peso = document.getElementById(oculto + '-weight');
   if (peso) peso.value = '';
+  var ley = document.getElementById(oculto + '-purity');
+  if (ley) ley.selectedIndex = 0;
+  // Y el que se muestra arranca limpio tambien, no con la cuenta de antes.
+  var resVisible = document.getElementById(currentMetal + '-results');
+  if (resVisible) { resVisible.innerHTML = ''; resVisible.style.display = 'none'; }
+  var pesoVisible = document.getElementById(currentMetal + '-weight');
+  if (pesoVisible) pesoVisible.value = '';
   var track = document.getElementById('switch-track');
   track.setAttribute('data-metal', currentMetal);
   document.getElementById('label-gold').classList.toggle('active', currentMetal === 'gold');
@@ -2342,7 +2435,12 @@ function syncCat() {
   // Un retiro de utilidades no es una compra: no tiene proveedor, factura, IVA ni
   // comprobante fiscal. Pedir esos datos solo confunde e invita a llenarlos mal.
   var esRetiro = cat === CAT_RETIRO;
-  $('soporte-fields').classList.toggle('hidden', esRetiro);
+  // Un retiro no tiene proveedor con NIT, ni factura, ni IVA, ni comprobante.
+  // Pero SI tiene forma de pago: la plata sale de algun lado. Por eso se ocultan
+  // los campos uno por uno en vez del bloque entero — esconderlo completo dejaba
+  // el retiro sin el unico dato fiscal que si le corresponde.
+  ['f-soporte-wrapper', 'f-nit-wrapper', 'f-factura-wrapper', 'f-iva-wrapper', 'f-comprobante-wrapper']
+    .forEach(function(id) { if ($(id)) $(id).classList.toggle('hidden', esRetiro); });
   $('f-prov-label').textContent = esRetiro ? 'A nombre de quién' : 'Proveedor';
   $('f-prov').placeholder = esRetiro ? 'Ej: Jhojan Sánchez' : 'Ej: Metalurgica Andina';
   if (esRetiro) {
@@ -2584,14 +2682,9 @@ function saveExpense() {
     toast('Falta el item: sin el, esta compra no cruza con el inventario y el costo promedio queda mal');
     return;
   }
-  if (cat === CAT_RETIRO && !$('f-formapago').value) {
-    toast('Elige la forma de pago del retiro');
-    return;
-  }
-  // Si el gasto declara soporte fiscal, la forma de pago es parte de ese
-  // soporte: una factura sin forma de pago no sirve para sustentar nada.
-  if (cat !== CAT_RETIRO && !$('f-sin-soporte').checked && !$('f-formapago').value) {
-    toast('Falta la forma de pago: sin ella el soporte fiscal queda incompleto');
+  // Siempre, con factura o sin ella: si salio plata, salio de algun lado.
+  if (!$('f-formapago').value) {
+    toast('Falta la forma de pago: con factura o sin ella, la plata salio de algun lado');
     return;
   }
 
@@ -2676,7 +2769,14 @@ function delExpense(id, ev) {
   if (!target) return;
   if (target.cat === 'Ingresos por Ventas') { toast('Este ingreso está vinculado a una venta. Elimínalo desde Control de Ventas.'); return; }
   if (isLocked(target)) { toast('Este gasto tiene mas de 30 dias y no se puede eliminar'); return; }
-  if (!confirm('Eliminar "' + target.desc + '" por ' + fmt(target.amount) + '?\nEsta accion no se puede deshacer.')) return;
+  pvConfirmar(
+    'Se elimina «' + target.desc + '» por ' + fmt(target.amount) + '. Esta acción no se puede deshacer.',
+    function () { delExpenseConfirmado(id, target); },
+    { titulo: 'Eliminar gasto #' + target.id }
+  );
+}
+
+function delExpenseConfirmado(id, target) {
   fetch(SB_URL + '/rest/v1/gastos?id=eq.' + id, {
     method: 'DELETE', headers: sbHeaders()
   }).then(function(r) {
@@ -3849,6 +3949,7 @@ function confirmarYGuardarVenta() {
         // Si la venta nacio como cotizacion, la variable de memoria ya se
         // perdio: se rearma desde la ficha guardada.
         var pendiente = window._cjSalidaPendiente || salidaDesdeFicha(ventaActualizada.costo_detalle);
+        avisarSiNoDescuenta(v, ventaActualizada, yaSalio, pendiente);
         if (v.esManual && ventaCuenta(ventaActualizada) && !yaSalio && pendiente) {
           registrarSalidasInventario(ventaActualizada.id, v.fecha, v.cantidad, pendiente);
         }
@@ -3898,6 +3999,7 @@ function confirmarYGuardarVenta() {
           : 'Guardada en estado «' + v.estado + '»: todavía no cuenta como ingreso ni descuenta stock');
         // El descuento de inventario va ANTES de repintar: si un render falla,
         // no puede quedarse una venta registrada sin su salida de material.
+        avisarSiNoDescuenta(v, ventaCreada, false, salidaPendiente);
         if (v.esManual && cuentaComoIngreso && salidaPendiente) registrarSalidasInventario(ventaCreada.id, v.fecha, v.cantidad, salidaPendiente);
         cancelEditVenta(); renderVentas(); renderFin(); window._ventaPendiente = null;
         if (!v.esManual && v.producto_id) invCheckAutoOcultar(v.producto_id);
@@ -3909,13 +4011,51 @@ function confirmarYGuardarVenta() {
   }
 }
 
+/* Al borrar una venta la pieza puede recuperar stock. Si se habia ocultado
+   sola por agotarse, se ofrece volver a publicarla — pero no se hace solo:
+   pudo haberse ocultado a proposito por otra razon. */
+function ofrecerRepublicar(productoId) {
+  var fila = invJoyasRows().find(function(r) { return r.id === productoId; });
+  if (!fila || fila.saldo <= 0) return;
+  var prod = productosCache.find(function(x) { return x.id === productoId; });
+  if (!prod || prod.estado !== 'oculto') return;
+
+  pvConfirmar(
+    productoId + ' vuelve a tener ' + fila.saldo + (fila.saldo === 1 ? ' unidad' : ' unidades') +
+    ', pero sigue oculta en la vitrina. ¿La volvemos a publicar?',
+    function() {
+      fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(productoId), {
+        method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+        body: JSON.stringify({ estado: 'publicado' })
+      }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+        return r.json();
+      }).then(function(rows) {
+        var actualizado = Array.isArray(rows) ? rows[0] : rows;
+        var i = productosCache.findIndex(function(x) { return x.id === productoId; });
+        if (i >= 0 && actualizado) productosCache[i] = actualizado;
+        renderInventario();
+        toast(productoId + ' vuelve a estar publicada');
+      }).catch(function(e) {
+        console.error('No se pudo republicar:', e);
+        toast('No se pudo republicar: ' + e.message);
+      });
+    },
+    { titulo: 'La pieza volvió a tener stock', textoSi: 'Volver a publicar' }
+  );
+}
+
 function delVenta(id, ev) {
   if (ev) ev.stopPropagation();
   var v = ventas.find(x => x.id === id);
   if (!v) return;
-  var msg = 'Eliminar venta #' + v.numero + ' (' + esc(v.cliente) + ', ' + fmt(v.ganancia_bruta) + ')?';
-  if (v.ingreso_id) msg += '\n\n⚠️ También se eliminará el ingreso asociado en Control Financiero.';
-  if (!confirm(msg)) return;
+  var msg = 'Se elimina la venta ' + v.numero + ' de ' + v.cliente + ', por ' + fmt(v.monto_total) + '.';
+  if (v.ingreso_id) msg += ' También se elimina el ingreso que creó en Finanzas.';
+  msg += ' Esta acción no se puede deshacer.';
+  pvConfirmar(msg, function () { delVentaConfirmada(id, v); }, { titulo: 'Eliminar venta ' + v.numero });
+}
+
+function delVentaConfirmada(id, v) {
   // La venta referencia al gasto via ingreso_id (FK sin ON DELETE CASCADE), asi que hay
   // que borrar primero la venta y despues el gasto, o la FK rechaza el borrado del gasto.
   fetch(SB_URL + '/rest/v1/ventas?id=eq.' + id, { method: 'DELETE', headers: sbHeaders() })
@@ -3934,6 +4074,9 @@ function delVenta(id, ev) {
     }
   }).then(() => {
     toast('Venta' + (v.ingreso_id ? ' e ingreso eliminados' : ' eliminada'));
+    // La pieza que se habia agotado vuelve a tener stock. Antes seguia oculta
+    // en la vitrina y nadie lo decia: la venta desaparecia y la joya no volvia.
+    if (v.producto_id) ofrecerRepublicar(v.producto_id);
   }).catch(e => { console.error(e); toast(e.message || 'Error al eliminar venta'); });
 }
 
@@ -4454,6 +4597,32 @@ function salidaDesdeFicha(ficha) {
         };
       })
   };
+}
+
+/* Dice por que NO se descuento material, cuando uno esperaria que si.
+   Existe porque el descuento fallaba sin dejar rastro: la condicion no se
+   cumplia y nadie se enteraba hasta contar el inventario a mano. La trampa 7
+   del proyecto es exactamente esto — una automatizacion que se salta callada.
+
+   Solo habla cuando el silencio seria sospechoso: venta que cuenta, sin
+   salidas todavia. Si la venta no cuenta o ya descontó, no molesta. */
+function avisarSiNoDescuenta(v, filaVenta, yaSalio, material) {
+  if (!ventaCuenta(filaVenta) || yaSalio) return;   // no hay nada que explicar
+  if (v.esManual && material) return;               // va a descontar, todo bien
+
+  var razon;
+  if (!v.esManual) {
+    // Una venta de catalogo descuenta la pieza entera, no material a granel.
+    return;
+  } else if (!filaVenta.costo_detalle) {
+    razon = 'esta venta no trae ficha tecnica (no salio de la calculadora)';
+  } else if (!material) {
+    razon = 'la ficha tecnica no dice de que metal es';
+  } else {
+    razon = 'motivo desconocido';
+  }
+  console.warn('No se descontó material de la venta', filaVenta.numero_venta, '-', razon);
+  toast('Venta guardada, pero NO se descontó material: ' + razon);
 }
 
 function registrarSalidasInventario(ventaId, fecha, cantidadVenta, p) {
