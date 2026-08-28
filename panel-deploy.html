@@ -602,23 +602,7 @@
   }
   .btn-secondary:hover { background: var(--bg-hover); }
 
-  /* Pregunta antes de algo que no se puede deshacer. Reemplaza al confirm()
-   del navegador: se ve como el resto del panel y deja explicar que se pierde. */
-function pvConfirmar(mensaje, siAcepta, opciones) {
-  opciones = opciones || {};
-  var ov = $('pv-confirm');
-  if (!ov) { if (siAcepta) siAcepta(); return; }   // sin modal, no bloquear
-  $('pv-confirm-title').textContent = opciones.titulo || '¿Confirmar?';
-  $('pv-confirm-msg').textContent = mensaje;
-  var si = $('pv-confirm-yes'), no = $('pv-confirm-no');
-  si.textContent = opciones.textoSi || 'Eliminar';
-  function cerrar() { ov.dataset.abierto = 'no'; si.onclick = null; no.onclick = null; }
-  si.onclick = function() { cerrar(); if (siAcepta) siAcepta(); };
-  no.onclick = cerrar;
-  ov.dataset.abierto = 'si';
-}
-
-/* ===== TOAST ===== */
+  /* ===== TOAST ===== */
   .toast {
     position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
     background: var(--bg-card); border: 1px solid var(--border);
@@ -986,7 +970,6 @@ function pvConfirmar(mensaje, siAcepta, opciones) {
             <div class="calcj-breakdown-row"><span>Piedras</span><b id="cj-b-piedras">$0</b></div>
             <div class="calcj-breakdown-row"><span>Mano de obra y otros</span><b id="cj-b-labor">$0</b></div>
           </div>
-          <div id="cj-merma-info" style="display:none; color:var(--text-3); font-size:0.72rem; margin-top:0.6rem;"></div>
           <div id="cj-aviso-reposicion" style="display:none; background:#fef9e7; color:#a56a15; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <div id="cj-aviso-stock" style="display:none; background:#fef9e7; color:#a56a15; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
           <div id="cj-aviso-material" style="display:none; background:#fdecea; color:#c0392b; border-radius:7px; padding:0.6rem 0.75rem; font-size:0.76rem; line-height:1.45; margin-top:0.9rem;"></div>
@@ -1762,19 +1745,18 @@ function toggleMetal() { currentMetal = currentMetal === 'gold' ? 'silver' : 'go
 function renderMetal() {
   // El resultado del metal que se deja atras no puede quedarse en pantalla:
   // se lee como si fuera la cuenta del metal nuevo.
-  var oculto = currentMetal === 'gold' ? 'silver' : 'gold';
-  var res = document.getElementById(oculto + '-results');
-  // innerHTML vacio no basta: el contenedor sigue pintando su franja de color.
-  if (res) { res.innerHTML = ''; res.style.display = 'none'; }
-  var peso = document.getElementById(oculto + '-weight');
-  if (peso) peso.value = '';
-  var ley = document.getElementById(oculto + '-purity');
-  if (ley) ley.selectedIndex = 0;
-  // Y el que se muestra arranca limpio tambien, no con la cuenta de antes.
-  var resVisible = document.getElementById(currentMetal + '-results');
-  if (resVisible) { resVisible.innerHTML = ''; resVisible.style.display = 'none'; }
-  var pesoVisible = document.getElementById(currentMetal + '-weight');
-  if (pesoVisible) pesoVisible.value = '';
+  // Se OCULTA el recuadro, nunca se vacia: adentro viven los <span> donde
+  // calcGold y calcSilver escriben las cifras. Vaciarlo los borraba y la
+  // calculadora reventaba al escribir el primer peso.
+  ['gold', 'silver'].forEach(function(m) {
+    var res = document.getElementById(m + '-results');
+    // display:none ademas de quitar .visible: opacidad 0 seguia ocupando sitio.
+    if (res) { res.classList.remove('visible'); res.style.display = 'none'; }
+    var peso = document.getElementById(m + '-weight');
+    if (peso) peso.value = '';
+    var ley = document.getElementById(m + '-purity');
+    if (ley) ley.selectedIndex = 0;
+  });
   var track = document.getElementById('switch-track');
   track.setAttribute('data-metal', currentMetal);
   document.getElementById('label-gold').classList.toggle('active', currentMetal === 'gold');
@@ -1787,10 +1769,11 @@ function calcGold() {
   var w = parseFloat(document.getElementById('gold-weight').value);
   var k = parseFloat(document.getElementById('gold-purity').value);
   var r = document.getElementById('gold-results');
-  if (!w || w <= 0 || !k) { r.classList.remove('visible'); return; }
+  if (!w || w <= 0 || !k) { r.classList.remove('visible'); r.style.display = 'none'; return; }
   var pure = (w * k) / 24;
   document.getElementById('gold-pure').textContent = pure.toFixed(2);
   document.getElementById('gold-alloy').textContent = (w - pure).toFixed(2);
+  r.style.display = '';
   r.classList.add('visible');
 }
 
@@ -1798,10 +1781,11 @@ function calcSilver() {
   var w = parseFloat(document.getElementById('silver-weight').value);
   var p = parseFloat(document.getElementById('silver-purity').value);
   var r = document.getElementById('silver-results');
-  if (!w || w <= 0 || !p) { r.classList.remove('visible'); return; }
+  if (!w || w <= 0 || !p) { r.classList.remove('visible'); r.style.display = 'none'; return; }
   var pure = (w * p) / 1000;
   document.getElementById('silver-pure').textContent = pure.toFixed(2);
   document.getElementById('silver-alloy').textContent = (w - pure).toFixed(2);
+  r.style.display = '';
   r.classList.add('visible');
 }
 
@@ -2342,7 +2326,13 @@ function finLoad() {
 
 function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtShort(n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); }
-function fmtQty(n, u) { return (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + u; }
+// La unidad es opcional: sin ella devuelve solo el numero. Antes habia dos
+// versiones de esta funcion y la que ganaba ignoraba la unidad, asi que el
+// historial de gastos mostraba «10,00» sin decir de que.
+function fmtQty(n, u) {
+  var txt = (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return u ? txt + ' ' + u : txt;
+}
 function catClass(c) { return CAT_CLASS[c] || 'cb-otros'; }
 function isInv(c) { return INVENTARIO.indexOf(c) >= 0; }
 function monthName(m) {
@@ -2878,15 +2868,15 @@ function showFichaVenta(id, ev) {
 
   h += '<div class="ficha-sec">Metal</div>';
   h += fichaRow('Tipo y ley', esc((m.tipo || '—') + (m.ley ? ' · ' + m.ley : '')));
-  h += fichaRow('Peso total de la pieza', fmtQty(m.pesoTotal || 0, 'g') + ' g');
+  h += fichaRow('Peso total de la pieza', fmtQty(m.pesoTotal || 0, 'g'));
   // Las fichas viejas guardaban un solo precioGramo para puro y liga.
   var pPuro = (m.precioGramoPuro !== undefined) ? m.precioGramoPuro : m.precioGramo;
   var pLiga = (m.precioGramoLiga !== undefined) ? m.precioGramoLiga : m.precioGramo;
   h += fichaRow('Metal puro' + (m.itemPuro ? ' (' + m.itemPuro + ')' : ''),
-    fmtQty(m.gramosPuro || 0, 'g') + ' g × ' + fmt(pPuro || 0) + '/g', 'sub');
-  h += fichaRow('Liga', fmtQty(m.gramosLiga || 0, 'g') + ' g × ' + fmt(pLiga || 0) + '/g', 'sub');
+    fmtQty(m.gramosPuro || 0, 'g') + ' × ' + fmt(pPuro || 0) + '/g', 'sub');
+  h += fichaRow('Liga', fmtQty(m.gramosLiga || 0, 'g') + ' × ' + fmt(pLiga || 0) + '/g', 'sub');
   if (m.mermaPct) h += fichaRow('Merma aplicada', m.mermaPct + '% · consumió ' +
-    fmtQty((m.gramosConsumidoPuro || 0) + (m.gramosConsumidoLiga || 0), 'g') + ' g', 'sub');
+    fmtQty((m.gramosConsumidoPuro || 0) + (m.gramosConsumidoLiga || 0), 'g'), 'sub');
   if (m.precioGramoPuro === undefined) h += '<div class="ficha-vacio">Ficha anterior: se calculó con un precio único de ' + fmt(m.precioGramo || 0) + '/g para todo el metal.</div>';
   h += fichaRow('Costo de metal', fmt(t.metal || 0), 'tot');
 
@@ -2894,7 +2884,7 @@ function showFichaVenta(id, ev) {
   if ((d.piedras || []).length) {
     d.piedras.forEach(function(p) {
       var cant = p.cantidad ? (p.cantidad + (p.cantidad === 1 ? ' piedra · ' : ' piedras · ')) : '';
-      h += fichaRow(p.nombre + ' · ' + cant + fmtQty(p.quilates || 0, 'ct') + ' ct', fmt(p.costo || 0), 'sub');
+      h += fichaRow(p.nombre + ' · ' + cant + fmtQty(p.quilates || 0, 'ct'), fmt(p.costo || 0), 'sub');
     });
     h += fichaRow('Costo de piedras', fmt(t.piedras || 0), 'tot');
   } else { h += '<div class="ficha-vacio">Sin piedras registradas</div>'; }
@@ -3738,9 +3728,10 @@ function toggleVentaManual() {
   }
 }
 
-function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function fmtQty(n) { return (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* fmt, fmtQty y esc vivian tambien aca, repetidas. En JavaScript la ultima
+   declaracion gana, asi que estas tapaban a las buenas de mas arriba: esc
+   perdia su proteccion contra vacios y pintaba «null» en pantalla, y fmtQty
+   se tragaba la unidad. Estan declaradas una sola vez, arriba. */
 
 function saveVenta() {
   var fecha = $('f-fecha-ven').value;
@@ -4703,9 +4694,9 @@ function invFmtSaldo(row) {
   if (row.categoria === 'Piedras') {
     var n = row.saldoPiedras;
     var label = (n === null) ? '' : (n + (n === 1 ? ' piedra' : ' piedras'));
-    return (label ? label + ' — ' : '') + fmtQty(row.saldoQty, 'ct') + ' ct';
+    return (label ? label + ' — ' : '') + fmtQty(row.saldoQty, 'ct');
   }
-  return fmtQty(row.saldoQty, row.unidad) + ' ' + row.unidad;
+  return fmtQty(row.saldoQty, row.unidad);
 }
 
 function invMinimoDe(categoria, item) {
