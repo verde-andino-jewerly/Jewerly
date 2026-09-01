@@ -1949,15 +1949,6 @@ function invBuscarItem(categoria, nombre) {
   return null;
 }
 
-function costoPromedioPonderado(categoria) {
-  var q = 0, a = 0;
-  for (var i = 0; i < expenses.length; i++) {
-    var e = expenses[i];
-    if (e.cat === categoria && e.qty) { q += e.qty; a += e.amount; }
-  }
-  return q > 0 ? a / q : 0;
-}
-
 var CJ_PIEDRA_LIBRE = '__otra__';
 var cjStones = [];
 // El placeholder de "otra piedra" no es un nombre: no debe llegar a inventario ni a la ficha.
