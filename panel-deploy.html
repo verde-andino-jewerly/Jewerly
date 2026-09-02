@@ -3940,16 +3940,16 @@ function confirmarYGuardarVenta() {
       var idxVenta = ventas.findIndex(x => x.id === v.editingId);
       if (idxVenta >= 0 && ventaActualizada) ventas[idxVenta] = mapVentaRow(ventaActualizada);
       if (ventaActualizada) {
-        sincronizarIngresoVenta(v, ventaActualizada);
-        // La venta acaba de empezar a contar: recien ahora sale el material.
-        var yaSalio = inventarioSalidas.some(function(x) { return x.ventaId === ventaActualizada.id; });
-        // Si la venta nacio como cotizacion, la variable de memoria ya se
-        // perdio: se rearma desde la ficha guardada.
-        var pendiente = window._cjSalidaPendiente || salidaDesdeFicha(ventaActualizada.costo_detalle);
-        avisarSiNoDescuenta(v, ventaActualizada, yaSalio, pendiente);
-        if (v.esManual && ventaCuenta(ventaActualizada) && !yaSalio && pendiente) {
-          registrarSalidasInventario(ventaActualizada.id, v.fecha, v.cantidad, pendiente);
+        /* El material PRIMERO, y en su propio try. Antes iba despues de
+           sincronizar el ingreso, asi que cualquier tropiezo de esa —o de un
+           repintado— se llevaba el descuento por delante y nadie se enteraba. */
+        try {
+          descontarMaterial(ventaActualizada, v.cantidad, v.fecha);
+        } catch (e) {
+          console.error('Fallo el descuento de material:', e);
+          toast('Venta guardada, pero NO se descontó el material: ' + (e.message || 'error'));
         }
+        sincronizarIngresoVenta(v, ventaActualizada);
       }
       toast('Venta actualizada'); cancelEditVenta(); renderVentas(); window._ventaPendiente = null;
       // Editar la cantidad puede agotar el stock igual que una venta nueva.
@@ -3987,17 +3987,20 @@ function confirmarYGuardarVenta() {
       }).then(rows => {
         var ventaCreada = Array.isArray(rows) ? rows[0] : rows;
         if (!ventaCreada || !ventaCreada.id) { toast('Error: respuesta inesperada de Supabase'); return; }
-        var salidaPendiente = window._cjSalidaPendiente || salidaDesdeFicha(ventaCreada.costo_detalle);
         ventas.unshift(mapVentaRow(ventaCreada));
         if (ingresoCreado) expenses.unshift(mapGastoRow(ingresoCreado));
         if (v.esManual) nextVentaNumberManual++; else nextVentaNumberCatalogo++;
         toast(cuentaComoIngreso
           ? 'Venta registrada e ingreso creado en Control Financiero'
           : 'Guardada en estado «' + v.estado + '»: todavía no cuenta como ingreso ni descuenta stock');
-        // El descuento de inventario va ANTES de repintar: si un render falla,
-        // no puede quedarse una venta registrada sin su salida de material.
-        avisarSiNoDescuenta(v, ventaCreada, false, salidaPendiente);
-        if (v.esManual && cuentaComoIngreso && salidaPendiente) registrarSalidasInventario(ventaCreada.id, v.fecha, v.cantidad, salidaPendiente);
+        // El descuento va ANTES de repintar: si un render falla, no puede
+        // quedarse una venta registrada sin su salida de material.
+        try {
+          descontarMaterial(ventaCreada, v.cantidad, v.fecha);
+        } catch (e) {
+          console.error('Fallo el descuento de material:', e);
+          toast('Venta guardada, pero NO se descontó el material: ' + (e.message || 'error'));
+        }
         cancelEditVenta(); renderVentas(); renderFin(); window._ventaPendiente = null;
         if (!v.esManual && v.producto_id) invCheckAutoOcultar(v.producto_id);
       }).catch(e => {
@@ -4596,30 +4599,49 @@ function salidaDesdeFicha(ficha) {
   };
 }
 
-/* Dice por que NO se descuento material, cuando uno esperaria que si.
-   Existe porque el descuento fallaba sin dejar rastro: la condicion no se
-   cumplia y nadie se enteraba hasta contar el inventario a mano. La trampa 7
-   del proyecto es exactamente esto — una automatizacion que se salta callada.
+/* La UNICA puerta por la que sale material al vender.
 
-   Solo habla cuando el silencio seria sospechoso: venta que cuenta, sin
-   salidas todavia. Si la venta no cuenta o ya descontó, no molesta. */
-function avisarSiNoDescuenta(v, filaVenta, yaSalio, material) {
-  if (!ventaCuenta(filaVenta) || yaSalio) return;   // no hay nada que explicar
-  if (v.esManual && material) return;               // va a descontar, todo bien
+   Antes esto vivia repartido en dos sitios, con cuatro condiciones cada uno, y
+   una de ellas —«es una venta manual»— se leia de una casilla del formulario.
+   Bastaba que esa casilla no estuviera como se esperaba en el instante del
+   guardado para que la venta quedara registrada y el material siguiera
+   figurando en stock. Es el fallo 4-02, y costo tres vueltas de revision.
 
-  var razon;
-  if (!v.esManual) {
-    // Una venta de catalogo descuenta la pieza entera, no material a granel.
-    return;
-  } else if (!filaVenta.costo_detalle) {
-    razon = 'esta venta no trae ficha tecnica (no salio de la calculadora)';
-  } else if (!material) {
-    razon = 'la ficha tecnica no dice de que metal es';
-  } else {
-    razon = 'motivo desconocido';
+   Ahora se decide con los datos:
+
+     ¿la venta cuenta?  ¿no descontó todavia?  ¿su ficha dice de que es?
+
+   Nada mas. Una venta de catalogo no tiene ficha con metal, asi que nunca
+   entra aqui — no hace falta preguntarlo.
+
+   La ficha se busca en tres sitios porque cada uno falta en algun momento:
+   la que dejo la calculadora, la que devolvio el servidor, y la que ya esta
+   en memoria. */
+function descontarMaterial(filaVenta, cantidad, fecha) {
+  if (!filaVenta || !filaVenta.id) return;
+  if (!ventaCuenta(filaVenta)) return;                       // cotizacion: no toca
+  if (inventarioSalidas.some(function(x) { return x.ventaId === filaVenta.id; })) return;
+
+  var ficha = filaVenta.costo_detalle;
+  if (!ficha) {
+    var enMemoria = ventas.find(function(x) { return x.id === filaVenta.id; });
+    ficha = enMemoria && enMemoria.costo_detalle;
   }
-  console.warn('No se descontó material de la venta', filaVenta.numero_venta, '-', razon);
-  toast('Venta guardada, pero NO se descontó material: ' + razon);
+  var material = window._cjSalidaPendiente || salidaDesdeFicha(ficha);
+
+  if (!material) {
+    // Solo se avisa si la venta PARECE de las que descuentan: manual y con
+    // alguna ficha. Una venta de catalogo no tiene por que traer nada.
+    if (!filaVenta.producto_id) {
+      var razon = ficha
+        ? 'la ficha tecnica no dice de que metal es la pieza'
+        : 'esta venta no trae ficha tecnica (no salio de la calculadora)';
+      console.warn('No se descontó material de la venta', filaVenta.numero_venta, '-', razon);
+      toast('Venta guardada, pero NO se descontó material: ' + razon);
+    }
+    return;
+  }
+  registrarSalidasInventario(filaVenta.id, fecha, cantidad, material);
 }
 
 function registrarSalidasInventario(ventaId, fecha, cantidadVenta, p) {
