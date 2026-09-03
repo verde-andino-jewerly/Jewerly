@@ -2461,7 +2461,8 @@ var ADM_LEYES = {
 };
 function admUpdateEstilos() {
   var cat = document.getElementById('f-cat').value;
-  var opts = ADM_ESTILOS[cat] || ['Otro'];
+  // Sin categoria elegida no se ofrece ningun estilo: no hay de que.
+  var opts = cat ? (ADM_ESTILOS[cat] || ['Otro']) : [];
   document.getElementById('f-estilo').innerHTML =
     '<option value="" disabled selected>Elegir…</option>' +
     opts.map(function(o){ return '<option value="'+o+'">'+o+'</option>'; }).join('');
@@ -3072,7 +3073,9 @@ function admSetFormMode(mode, id) {
     btn.textContent = 'Guardar en catálogo';
     banner.style.display = 'none';
     note.style.display = 'none';
-    idInput.removeAttribute('readonly');
+    /* El ID NO se vuelve editable al crear. Lo asigna admNextId() y escribirlo
+       a mano abria la puerta a duplicados y a piezas huerfanas de su gasto:
+       el ID es lo unico que las cruza. */
     idInput.style.opacity = '';
   }
 }
@@ -3118,12 +3121,17 @@ function admInitForm() {
   admSetFormMode('nuevo');
   admSetEstado('publicado');
   document.getElementById('f-id').value = admNextId();
-  document.getElementById('f-cat').value = 'Anillo';
+  /* Sin valores puestos de antemano. Antes toda pieza nueva nacia siendo
+     «Anillo de Oro Amarillo para Mujer», y si no se tocaban esos cuatro
+     desplegables se publicaba una descripcion que podia ser falsa: el cliente
+     leia en la vitrina algo que la joya no era. Cuesta cuatro clics mas por
+     pieza; a cambio, nada se describe solo. */
+  document.getElementById('f-cat').value = '';
   admUpdateEstilos();
-  document.getElementById('f-metal').value = 'Oro';
+  document.getElementById('f-metal').value = '';
   admUpdateLeyes();
-  document.getElementById('f-color').value = 'Amarillo';
-  document.getElementById('f-genero').value = 'Mujer';
+  document.getElementById('f-color').value = '';
+  document.getElementById('f-genero').value = '';
   document.getElementById('stones-list').innerHTML = '';
   admAddStone('Esmeralda', 1, '');
   admSetCert('No');
@@ -3136,12 +3144,17 @@ function admResetForm() {
   admSetFormMode('nuevo');
   admSetEstado('publicado');
   document.getElementById('f-id').value = admNextId();
-  document.getElementById('f-cat').value = 'Anillo';
+  /* Sin valores puestos de antemano. Antes toda pieza nueva nacia siendo
+     «Anillo de Oro Amarillo para Mujer», y si no se tocaban esos cuatro
+     desplegables se publicaba una descripcion que podia ser falsa: el cliente
+     leia en la vitrina algo que la joya no era. Cuesta cuatro clics mas por
+     pieza; a cambio, nada se describe solo. */
+  document.getElementById('f-cat').value = '';
   admUpdateEstilos();
-  document.getElementById('f-metal').value = 'Oro';
+  document.getElementById('f-metal').value = '';
   admUpdateLeyes();
-  document.getElementById('f-color').value = 'Amarillo';
-  document.getElementById('f-genero').value = 'Mujer';
+  document.getElementById('f-color').value = '';
+  document.getElementById('f-genero').value = '';
   document.getElementById('stones-list').innerHTML = '';
   admAddStone('Esmeralda', 1, '');
   document.getElementById('f-desc').value = '';
@@ -3396,11 +3409,16 @@ function admExportPDF() {
     }
   }
 
+  /* Solo lo publicado. Este PDF se le manda a un cliente: un borrador a medio
+     llenar no tiene por que salir, y salia — una pieza sin foto imprimia el
+     recuadro vacio. El filtro viejo solo descartaba las que no tenian NI foto
+     NI descripcion NI precio, asi que casi nada quedaba fuera. */
   var visibles = admState.items.filter(function(it) {
     if (it.id === ADMIN_PROBE_ID) return false;
+    if ((it.estado || 'publicado') !== 'publicado') return false;
     return !(!it.foto && (!it.descripcion || it.precio <= 0));
   });
-  if (!visibles.length) { toast('No hay productos para exportar'); return; }
+  if (!visibles.length) { toast('No hay piezas publicadas para exportar: el catálogo solo incluye las que ve el cliente'); return; }
 
   var y = drawHeader(true);
   var col = 0;
