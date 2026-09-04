@@ -1685,7 +1685,10 @@ function esc(s) {
 }
 function jsEsc(s) { return String(s).replace(/'/g,"\\'"); }
 
-function fmt(n) {
+/* El formato de precio de la tienda: con espacio y sin decimales. Se llamaba
+   fmt(), igual que la del panel, que da '$1.500,00' en vez de '$ 1.500': dos
+   funciones distintas con el mismo nombre en los dos archivos del proyecto. */
+function fmtPrecio(n) {
   if (!n) return '';
   return '$ ' + Math.round(n).toLocaleString('es-CO');
 }
@@ -1816,7 +1819,7 @@ function renderGrid(items, totalPublic) {
             '<span class="precio-oferta" style="color: var(--esm); font-weight: bold;">$' + Math.round(it.precioOferta).toLocaleString('es-CO') + '</span>' +
             '<span class="descuento-badge" style="background: var(--esm); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; align-self: center;">' + label + '</span>' +
             '</div>';
-        })() : '<div class="card-price">' + fmt(it.precio) + '</div>') +
+        })() : '<div class="card-price">' + fmtPrecio(it.precio) + '</div>') +
       '</div>' +
     '</div>';
   });
@@ -1892,10 +1895,10 @@ function openModal(id) {
         var label = promoLabel(desc);
         return '<div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px;">' +
           '<div><span style="color: var(--text-3); text-decoration: line-through;">Precio regular: $' + Math.round(it.precio).toLocaleString('es-CO') + '</span></div>' +
-          '<div class="modal-price" style="color: var(--esm);">En oferta: ' + fmt(it.precioOferta) + '</div>' +
+          '<div class="modal-price" style="color: var(--esm);">En oferta: ' + fmtPrecio(it.precioOferta) + '</div>' +
           '<div style="background: var(--esm-bg); padding: 10px 14px; border-radius: 8px; color: var(--esm); font-weight: bold; font-size: 1.05rem;">' + label + ' · Ahorra $' + Math.round(it.precio - it.precioOferta).toLocaleString('es-CO') + '</div>' +
           '</div>';
-      })() : '<div class="modal-price">' + fmt(it.precio) + '</div>') +
+      })() : '<div class="modal-price">' + fmtPrecio(it.precio) + '</div>') +
       '<div class="modal-actions">' +
         '<a class="modal-wa" href="' + waLink + '" target="_blank" rel="noopener">Preguntar por WhatsApp</a>' +
         '<button class="modal-share" onclick="sharePiece(\'' + jsEsc(it.id) + '\')" title="Compartir">Compartir</button>' +
@@ -1915,7 +1918,7 @@ function closeModal(e) {
 function sharePiece(id) {
   var it = findItem(id);
   if (!it) return;
-  var text = 'Verde Andino Jewelry — ' + it.id + '\n' + (it.descripcion || '') + '\n' + (it.precio ? fmt(it.precio) : '') + '\n' + location.href;
+  var text = 'Verde Andino Jewelry — ' + it.id + '\n' + (it.descripcion || '') + '\n' + (it.precio ? fmtPrecio(it.precio) : '') + '\n' + location.href;
   if (navigator.share) {
     navigator.share({ title: 'Verde Andino — ' + it.id, text: text }).catch(function(){});
   } else if (navigator.clipboard) {
@@ -2786,7 +2789,7 @@ function admCalcPrecio() {
     return 0;
   }
   sbCalculatePrice(costo, margen, function(precio) {
-    document.getElementById('precio-display').textContent = precio > 0 ? fmt(precio) : '$ —';
+    document.getElementById('precio-display').textContent = precio > 0 ? fmtPrecio(precio) : '$ —';
   });
   return 0; // placeholder while waiting for server
 }
@@ -3242,7 +3245,7 @@ function admRenderGallery() {
     var thumb = it.foto
       ? '<div class="product-thumb"><img src="' + it.foto + '" alt=""></div>'
       : '<div class="product-thumb">💎</div>';
-    var precio = it.precio > 0 ? fmt(it.precio) : '—';
+    var precio = it.precio > 0 ? fmtPrecio(it.precio) : '—';
     var estadoLabel = estado === 'publicado' ? 'Publicado' : (estado === 'oculto' ? 'Oculto' : 'Borrador');
     var badge = '<span class="estado-badge ' + estado + '">' + estadoLabel + '</span>';
     var jid = jsEsc(it.id);
@@ -3404,16 +3407,16 @@ function admExportPDF() {
     /* Foto centrada, respetando la proporción original (sin deformar) */
     var boxX = x + pad, boxY = y + pad + 6, boxW = cardW - pad * 2;
     if (it.foto) {
-      var dw = imgBoxH, dh = imgBoxH, fmt = 'JPEG';
+      var dw = imgBoxH, dh = imgBoxH, formatoImagen = 'JPEG';
       try {
         var p = pdf.getImageProperties(it.foto);
-        if (p.fileType) fmt = p.fileType;
+        if (p.fileType) formatoImagen = p.fileType;
         var r = p.width / p.height;
         dw = boxW; dh = boxW / r;
         if (dh > imgBoxH) { dh = imgBoxH; dw = imgBoxH * r; }
       } catch(e) {}
       try {
-        pdf.addImage(it.foto, fmt, boxX + (boxW - dw) / 2, boxY + (imgBoxH - dh) / 2, dw, dh);
+        pdf.addImage(it.foto, formatoImagen, boxX + (boxW - dw) / 2, boxY + (imgBoxH - dh) / 2, dw, dh);
       } catch(e) {}
     }
 
