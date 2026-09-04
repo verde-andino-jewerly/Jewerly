@@ -707,7 +707,13 @@
     background: var(--text); color: var(--bg);
     padding: 0.7rem 1.3rem;
     font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase;
-    z-index: 950; opacity: 0; pointer-events: none;
+    /* La escala de apilamiento, de abajo hacia arriba:
+         contenido 1-90 · panel admin 800 · modal 900 · confirmacion 950
+         · modales al vuelo 9999 · AVISO 10000
+       El aviso siempre arriba del todo. Estaba en 950, debajo de los seis
+       overlays que se crean con z-index 9999, asi que con cualquiera de ellos
+       abierto el aviso no se veia (trampa 4). */
+    z-index: 10000; opacity: 0; pointer-events: none;
     transition: opacity 0.2s;
     box-shadow: 0 4px 20px rgba(0,0,0,0.25);
   }
@@ -1476,13 +1482,33 @@ function sbFetchPublic(cb) {
     .catch(function(e) { console.error('Error cargando:', e); if (cb) cb(_sbCache); });
 }
 /* Fetch admin: incluye todas las columnas. Requiere x-admin-token. */
+/* Verdadera cuando la ultima lectura del catalogo fallo. Mientras lo este, no
+   se puede asignar un id nuevo: la lista vacia no significa que no haya
+   piezas. */
+var admCatalogoIlegible = false;
+
 function sbFetchAdmin(cb) {
   if (!sbCheckRateLimit('GET /productos-admin')) { if (cb) cb(_sbCache); return; }
   fetch(SB_URL + '/rest/v1/productos?select=*&order=created_at.desc', {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
-  }).then(function(r) { return r.json(); })
-    .then(function(rows) { var items = rows.map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; }); if (cb) cb(items); })
-    .catch(function(e) { console.error('Error cargando (admin):', e); if (cb) cb([]); });
+  }).then(function(r) {
+    if (!r.ok) throw new Error('Error ' + r.status);
+    return r.json();
+  })
+    .then(function(rows) {
+      var items = rows.map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; });
+      admCatalogoIlegible = false;
+      if (cb) cb(items);
+    })
+    .catch(function(e) {
+      /* Un catalogo vacio y un catalogo que no se pudo leer llegan los dos
+         como []. Sin distinguirlos, admNextId() propone VA-001 y sbUpsert
+         —que guarda con merge-duplicates— pisa el VA-001 de verdad. */
+      admCatalogoIlegible = true;
+      console.error('Error cargando (admin):', e);
+      toast('No se pudo leer el catalogo. No cargues piezas hasta que se pueda: el numero de la pieza saldria repetido.');
+      if (cb) cb([]);
+    });
 }
 /* Backwards-compat: sbFetchAll ahora delega en el fetch público. */
 function sbFetchAll(cb) { sbFetchPublic(cb); }
@@ -2251,6 +2277,9 @@ function admSave() {
   _sbCache = admState.items.slice();
 }
 function admNextId() {
+  // Sin catalogo no hay numero siguiente: cualquiera que se invente puede
+  // estar ocupado, y guardar lo reemplazaria.
+  if (admCatalogoIlegible) return '';
   var max = 0;
   admState.items.forEach(function(it) {
     var m = it.id.match(/VA-(\d+)/);
@@ -2770,6 +2799,12 @@ function admToggleGallery() {
   document.getElementById('gallery-body').classList.toggle('hidden', !admGalleryOpen);
 }
 function admSaveProduct() {
+  /* Sin haber podido leer el catalogo no se sabe que ids estan ocupados, y
+     guardar con uno ocupado reemplaza esa pieza. */
+  if (admCatalogoIlegible) {
+    toast('No se pudo leer el catalogo, asi que no se puede guardar: el numero de la pieza podria estar ocupado. Recarga la pagina e intenta de nuevo.');
+    return;
+  }
   /* Validar campos obligatorios */
   var missing = admValidateForm();
   if (missing.length > 0) { admShowMissingFields(missing); return; }
@@ -2850,9 +2885,18 @@ function admShowSinStock(id, saldo) {
 function admCheckGastoEnlazado(productId, cb) {
   fetch(SB_URL + '/rest/v1/gastos?select=id&categoria=eq.' + encodeURIComponent('Joyas para reventa') + '&enlace_producto=eq.' + encodeURIComponent(productId) + '&limit=1', {
     headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
-  }).then(function(r) { return r.ok ? r.json() : []; })
+  }).then(function(r) {
+    if (!r.ok) throw new Error('Error ' + r.status);
+    return r.json();
+  })
     .then(function(rows) { cb(Array.isArray(rows) && rows.length > 0); })
-    .catch(function(e) { console.error('Error verificando gasto enlazado:', e); cb(false); });
+    .catch(function(e) {
+      /* null no es false: «no pude preguntarlo» no es «no lo tiene». Con false
+         se mostraba el bloqueo de publicacion, cuya unica salida es guardar
+         como borrador — y eso despublica una pieza que estaba viva. */
+      console.error('Error verificando gasto enlazado:', e);
+      cb(null);
+    });
 }
 
 /* Aviso de bloqueo: la pieza no tiene gasto de compra registrado en Finanzas */
@@ -2878,6 +2922,10 @@ function admGuardarComoBorrador() {
 function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) {
   if (admEstado === 'publicado') {
     admCheckGastoEnlazado(id, function(tieneGasto) {
+      if (tieneGasto === null) {
+        toast('No se pudo comprobar el gasto de compra de esta pieza. Revisa la conexion y vuelve a intentar: no se guardo nada.');
+        return;
+      }
       if (!tieneGasto) {
         admShowBloqueoPublicacion(id);
         return;
@@ -2887,8 +2935,6 @@ function admSaveProductWithPrice(id, desc, precio, costo, margen, precioOferta) 
         if (saldo && saldo.compradas > 0 && saldo.saldo <= 0) { admShowSinStock(id, saldo); return; }
         admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta);
       });
-      return;
-      admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOferta);
     });
     return;
   }
