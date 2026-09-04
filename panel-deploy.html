@@ -1657,26 +1657,16 @@ function sbPedir(ruta, opciones) {
     });
 }
 
-/* Pregunta antes de algo que no se puede deshacer. Reemplaza al confirm()
-   del navegador: se ve como el resto del panel y deja explicar que se pierde. */
-
-/* ===== UTILIDADES COMPARTIDAS =====
-
-   Formato, escape y descarga. No saben nada del negocio: las usan por igual
+/* ===== UTILIDADES COMPARTIDAS ===== */
+/* Buscar un nodo, dar formato a plata y a cantidades, escapar texto, y armar
+   los archivos que se descargan. No saben nada del negocio: las usan por igual
    Calculadora, Finanzas, Ventas e Inventario.
 
    Vivian dentro de Finanzas por accidente, y eso tuvo consecuencias: fmt,
    fmtQty y esc terminaron declaradas dos veces —Finanzas y Ventas— y en
    JavaScript gana la ultima. La copia mala de esc no protegia contra vacios y
    pintaba la palabra «null» en pantalla; la de fmtQty se tragaba la unidad.
-   Estan aca, una sola vez, para que ninguna area sea duena de ellas.        */
-
-// El atajo mas usado del archivo. Vivia dentro de Finanzas, y lo llaman las
-// cuatro areas: era otra utilidad de la que un area era duena sin serlo.
-/* ===== UTILIDADES COMPARTIDAS ===== */
-/* Lo que usa el archivo entero: buscar un nodo, dar formato a plata y a
-   cantidades, escapar texto, y armar los archivos que se descargan. Vivia
-   dentro de CONFIG, que solo deberia ser la conexion con la base. */
+   Estan aca, una sola vez, para que ninguna area sea duena de ellas. */
 
 /* ---- Exportacion de Inventario ---- */
 // Arma la hoja de calculo de una tabla: fila 0 en negrita, columnas de moneyCols con formato $.
@@ -1850,6 +1840,8 @@ function toast(msg) {
   _toastTimer = setTimeout(function() { el.classList.remove('show'); }, 2500);
 }
 
+/* Pregunta antes de algo que no se puede deshacer. Reemplaza al confirm()
+   del navegador: se ve como el resto del panel y deja explicar que se pierde. */
 function pvConfirmar(mensaje, siAcepta, opciones) {
   opciones = opciones || {};
   var ov = $('pv-confirm');
@@ -2484,7 +2476,10 @@ function gastoRespaldado(e) {
             (e.numFactura && String(e.numFactura).trim()));
 }
 
-/* ===== CONFIGURACION DEL NEGOCIO =====
+/* La configuracion del negocio. Llevaba un banner de bloque que no cerraba en
+   su propia linea, asi que ninguna regla lo veia: se tragaba novecientas
+   lineas de Finanzas, que es donde de verdad vive esto.
+
    El margen solo cubre el material. Los gastos operativos (publicidad, empaque,
    envios, herramientas) hay que repartirlos entre las piezas que se venden, o el
    margen "minimo" se vuelve una perdida en las piezas de bajo costo. */
@@ -3255,10 +3250,6 @@ function renderFin() {
 }
 
 /* Gastos que se enlazaron a una venta concreta (hoy, mano de obra). */
-/* El apunte de "Ingresos por Ventas" guarda la ganancia con el costo congelado.
-   Si el costo real cambia al enlazar o quitar un gasto, esa fila queda mintiendo:
-   hay que ponerla al dia o Finanzas y Ventas se contradicen. */
-
 /* Costo real de una venta, y de donde sale cada parte.
 
    Regla contable: la plata entra a los libros UNA sola vez, cuando se paga.
@@ -3744,6 +3735,9 @@ function showAuditVenta(id, ev) {
   });
 }
 
+/* El apunte de "Ingresos por Ventas" guarda la ganancia con el costo congelado.
+   Si el costo real cambia al enlazar o quitar un gasto, esa fila queda mintiendo:
+   hay que ponerla al dia o Finanzas y Ventas se contradicen. */
 function recalcularIngresoDeVenta(ventaId) {
   var v = ventas.find(function(x) { return x.id === ventaId; });
   if (!v) return Promise.resolve();
