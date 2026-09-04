@@ -466,7 +466,14 @@
 
   /* Confirmacion propia */
   .confirm-ov {
-    display: none; position: fixed; inset: 0; z-index: 960;
+    /* Escala de apilamiento, de abajo hacia arriba:
+         contenido 1 · barras 100 · modales 200-900 · confirmacion 950
+         · AVISO 1000
+       El aviso siempre arriba: es lo unico que explica por que algo no paso.
+       La confirmacion estaba en 960, DEBAJO del modal de venta (1000): al
+       dispararse con ese modal abierto quedaba tapada y la pantalla se veia
+       bloqueada sin botones. */
+    display: none; position: fixed; inset: 0; z-index: 950;
     background: rgba(0,0,0,.55); align-items: center; justify-content: center; padding: 1.25rem;
   }
   .confirm-ov[data-abierto="si"] { display: flex; }
@@ -607,7 +614,7 @@
     position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
     background: var(--bg-card); border: 1px solid var(--border);
     padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.85rem;
-    box-shadow: var(--shadow-h); z-index: 999; opacity: 0;
+    box-shadow: var(--shadow-h); z-index: 1000; opacity: 0;
     transition: opacity 0.3s; pointer-events: none;
   }
   .toast.show { opacity: 1; }
@@ -632,7 +639,7 @@
   .modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.5); display: flex;
-    align-items: center; justify-content: center; z-index: 1000;
+    align-items: center; justify-content: center; z-index: 900;
   }
   .modal-content {
     background: var(--bg-card); border-radius: 8px; max-width: 600px;
@@ -1602,21 +1609,56 @@ function sbHeaders() {
   };
 }
 
+/* Todo lo que sale a la red pasa por aca.
+
+   Un 401, un 400 de PostgREST o la red caida NO llegan como datos: llegan con
+   cuerpo de error y con r.ok en falso. Tratarlos como datos fue la trampa 3, y
+   volvio a pasar tres veces mas —el alta de gastos, la lectura de salidas y el
+   catalogo del publicador—, siempre igual: una lista vacia y una lista que no
+   se pudo leer se ven identicas, y el programa sigue trabajando sobre una
+   realidad falsa. Habia cuatro dialectos distintos de pedir lo mismo; este es
+   el unico.
+
+   Devuelve el cuerpo ya interpretado, o null si no vino ninguno. Si algo sale
+   mal LANZA, con el mensaje que dio el servidor —no un «error al guardar»
+   generico—. El .catch sigue siendo de cada sitio: cada uno sabe que decirle
+   al usuario y que hacer despues. Lo que ya no puede pasar es confundirse.
+
+   La ruta se escribe relativa ('/rest/v1/gastos'); SB_URL lo pone la ayudante.
+   opciones.aceptar lista los estados que ademas cuentan como buenos (un 409 en
+   un upsert de prueba, por ejemplo). */
+function sbPedir(ruta, opciones) {
+  var o = opciones || {};
+  var cabeceras = sbHeaders();
+  if (o.headers) {
+    for (var k in o.headers) {
+      if (Object.prototype.hasOwnProperty.call(o.headers, k)) cabeceras[k] = o.headers[k];
+    }
+  }
+  var destino = ruta.indexOf('http') === 0 ? ruta : SB_URL + ruta;
+  var aceptar = o.aceptar || [];
+  return fetch(destino, { method: o.method || 'GET', headers: cabeceras, body: o.body })
+    .then(function(r) {
+      if (!r.ok && aceptar.indexOf(r.status) < 0) {
+        return r.text().then(function(cuerpo) {
+          var detalle = '';
+          try { var j = JSON.parse(cuerpo); detalle = j.message || j.error_description || j.error || ''; }
+          catch (e) { detalle = (cuerpo || '').slice(0, 200); }
+          var err = new Error('Error ' + r.status + (detalle ? ': ' + detalle : ''));
+          /* Con estado puesto, el servidor contesto y dijo que no. Sin estado,
+             no hubo servidor: no es lo mismo y hay que poder distinguirlo. */
+          err.estado = r.status;
+          throw err;
+        });
+      }
+      if (o.como === 'blob') return r.blob();
+      if (r.status === 204) return null;
+      return r.json().catch(function() { return null; });
+    });
+}
+
 /* Pregunta antes de algo que no se puede deshacer. Reemplaza al confirm()
    del navegador: se ve como el resto del panel y deja explicar que se pierde. */
-function pvConfirmar(mensaje, siAcepta, opciones) {
-  opciones = opciones || {};
-  var ov = $('pv-confirm');
-  if (!ov) { if (siAcepta) siAcepta(); return; }   // sin modal, no bloquear
-  $('pv-confirm-title').textContent = opciones.titulo || '¿Confirmar?';
-  $('pv-confirm-msg').textContent = mensaje;
-  var si = $('pv-confirm-yes'), no = $('pv-confirm-no');
-  si.textContent = opciones.textoSi || 'Eliminar';
-  function cerrar() { ov.dataset.abierto = 'no'; si.onclick = null; no.onclick = null; }
-  si.onclick = function() { cerrar(); if (siAcepta) siAcepta(); };
-  no.onclick = cerrar;
-  ov.dataset.abierto = 'si';
-}
 
 /* ===== UTILIDADES COMPARTIDAS =====
 
@@ -1631,6 +1673,57 @@ function pvConfirmar(mensaje, siAcepta, opciones) {
 
 // El atajo mas usado del archivo. Vivia dentro de Finanzas, y lo llaman las
 // cuatro areas: era otra utilidad de la que un area era duena sin serlo.
+/* ===== UTILIDADES COMPARTIDAS ===== */
+/* Lo que usa el archivo entero: buscar un nodo, dar formato a plata y a
+   cantidades, escapar texto, y armar los archivos que se descargan. Vivia
+   dentro de CONFIG, que solo deberia ser la conexion con la base. */
+
+/* ---- Exportacion de Inventario ---- */
+// Arma la hoja de calculo de una tabla: fila 0 en negrita, columnas de moneyCols con formato $.
+function buildSheetXml(rows, moneyCols) {
+  var sheet = '';
+  for (var r = 0; r < rows.length; r++) {
+    var cells = '';
+    for (var c = 0; c < rows[r].length; c++) {
+      var val = rows[r][c], ref = colName(c + 1) + (r + 1);
+      if (val === '' || val === null || val === undefined) continue;
+      if (r > 0 && typeof val === 'number') {
+        var st = moneyCols.indexOf(c) >= 0 ? ' s="2"' : '';
+        cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
+      } else {
+        var s = r === 0 ? ' s="1"' : '';
+        cells += '<c r="' + ref + '" t="inlineStr"' + s + '><is><t>' + xmlEsc(val) + '</t></is></c>';
+      }
+    }
+    sheet += '<row r="' + (r + 1) + '">' + cells + '</row>';
+  }
+  var cols = '<cols>';
+  for (var c2 = 1; c2 <= rows[0].length; c2++) cols += '<col min="' + c2 + '" max="' + c2 + '" width="18" customWidth="1"/>';
+  cols += '</cols>';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>';
+}
+
+// Un solo archivo .xlsx con varias hojas: sheets = [{ name, rows, moneyCols }]
+function buildXLSXBlob(sheets) {
+  var overrides = '', sheetTags = '', rels = '', files = [];
+  for (var i = 0; i < sheets.length; i++) {
+    var n = i + 1;
+    overrides += '<Override PartName="/xl/worksheets/sheet' + n + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+    sheetTags += '<sheet name="' + xmlEsc(sheets[i].name) + '" sheetId="' + n + '" r:id="rId' + n + '"/>';
+    rels += '<Relationship Id="rId' + n + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + n + '.xml"/>';
+    files.push({ name: 'xl/worksheets/sheet' + n + '.xml', content: buildSheetXml(sheets[i].rows, sheets[i].moneyCols || []) });
+  }
+  // El id de estilos va despues de todas las hojas para no chocar con ellas.
+  rels += '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
+  files.unshift(
+    { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' + overrides + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+    { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + sheetTags + '</sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + rels + '</Relationships>' },
+    { name: 'xl/styles.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>' }
+  );
+  return makeZip(files);
+}
 function $(id) { return document.getElementById(id); }
 
 function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -1650,7 +1743,11 @@ function monthName(m) {
 }
 
 function esc(s) {
-  if (!s) return '';
+  /* El cero es un dato, no un vacio. Esta funcion tenia «if (!s)» y se comia
+     los ceros; la de la vitrina, que es la misma funcion en el otro archivo,
+     ya lo hacia bien. Dos gemelas con el mismo nombre tienen que dar el mismo
+     resultado, o mover una linea de un archivo al otro cambia lo que sale. */
+  if (!s && s !== 0) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
@@ -1658,6 +1755,17 @@ function stamp() {
   var d = new Date();
   function p(n) { return n < 10 ? '0' + n : '' + n; }
   return d.getFullYear() + p(d.getMonth()+1) + p(d.getDate());
+}
+
+/* La fecha de hoy en HORA LOCAL, con guiones, como la esperan los campos de
+   fecha y la base. Nunca toISOString(): eso es UTC, y en Colombia (UTC-5)
+   despues de las 7 de la noche devuelve mañana. Un gasto registrado el 30 a
+   las 9 pm caia en el mes siguiente y rompia el P&G del periodo. */
+function fechaHoyLocal() {
+  var d = new Date();
+  return d.getFullYear() +
+    '-' + String(d.getMonth() + 1).padStart(2, '0') +
+    '-' + String(d.getDate()).padStart(2, '0');
 }
 
 function download(blob, name) {
@@ -1730,13 +1838,36 @@ function colName(n) {
 }
 
 
-/* ===== TOAST ===== */
+/* ===== AVISOS Y CONFIRMACIONES ===== */
+/* El aviso de abajo y la pregunta de antes de algo que no se deshace. Los dos
+   juntos y en un solo sitio: son la misma familia, y su orden de apilamiento
+   —el aviso siempre encima— esta escrito en el CSS. */
 var _toastTimer;
 function toast(msg) {
   var el = document.getElementById('toast-el');
   el.textContent = msg; el.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(function() { el.classList.remove('show'); }, 2500);
+}
+
+function pvConfirmar(mensaje, siAcepta, opciones) {
+  opciones = opciones || {};
+  var ov = $('pv-confirm');
+  if (!ov) {
+    /* Antes esto ejecutaba la accion «para no bloquear»: sin el modal en la
+       pagina, borrar un gasto no preguntaba nada. Si no se puede preguntar,
+       no se hace. */
+    toast('No se pudo mostrar la confirmacion, asi que no se hizo nada. Recarga la pagina.');
+    return;
+  }
+  $('pv-confirm-title').textContent = opciones.titulo || '¿Confirmar?';
+  $('pv-confirm-msg').textContent = mensaje;
+  var si = $('pv-confirm-yes'), no = $('pv-confirm-no');
+  si.textContent = opciones.textoSi || 'Eliminar';
+  function cerrar() { ov.dataset.abierto = 'no'; si.onclick = null; no.onclick = null; }
+  si.onclick = function() { cerrar(); if (siAcepta) siAcepta(); };
+  no.onclick = cerrar;
+  ov.dataset.abierto = 'si';
 }
 
 /* ===== AUTH ===== */
@@ -1800,34 +1931,33 @@ function authCheck() {
   sha256(pin + SB_TOKEN_SALT).then(function(tok) {
     sessionStorage.setItem('va_admin_token', tok);
     // Probe: try upserting to productos to validate token
-    fetch(SB_URL + '/rest/v1/productos', {
+    /* Escribir una fila de prueba es la unica forma de saber si la clave sirve.
+       Un 409 dice que esa fila ya existe: la escritura fue aceptada igual. */
+    sbPedir('/rest/v1/productos', {
       method: 'POST',
-      headers: sbHeaders(),
       body: JSON.stringify({
         id: ADMIN_PROBE_ID, estado: 'borrador', categoria: '', estilo: '',
         metal: '', ley: '', color: '', genero: '', piedras: [],
         descripcion: '__auth_probe__', medida: '', medida_u: '',
         certificado: false, precio: 0, foto_url: ''
       }),
-      // Merge duplicates so it works as upsert
-    }).then(function(r) {
-      if (r.ok || r.status === 201 || r.status === 200 || r.status === 409) {
-        authExito();
-        authUnlock();
-      } else {
-        sessionStorage.removeItem('va_admin_token');
-        authFallo();
-        var bloqueo = authMinutosRestantes();
-        if (bloqueo > 0) {
-          authMostrarError('Demasiados intentos. Bloqueado por ' + bloqueo + ' minutos.');
-        } else {
-          var quedan = AUTH_MAX_INTENTOS - authLeerIntentos().n;
-          authMostrarError('Clave incorrecta. Quedan ' + quedan + ' intento' + (quedan === 1 ? '' : 's') + '.');
-        }
-      }
-    }).catch(function() {
+      aceptar: [409]
+    }).then(function() {
+      authExito();
+      authUnlock();
+    }).catch(function(e) {
       sessionStorage.removeItem('va_admin_token');
-      authMostrarError('Error de conexión');
+      /* Sin estado no hubo servidor: eso no es una clave mala y no gasta
+         intentos. Con estado, el servidor contesto y dijo que no. */
+      if (!e.estado) { authMostrarError('Error de conexión'); return; }
+      authFallo();
+      var bloqueo = authMinutosRestantes();
+      if (bloqueo > 0) {
+        authMostrarError('Demasiados intentos. Bloqueado por ' + bloqueo + ' minutos.');
+      } else {
+        var quedan = AUTH_MAX_INTENTOS - authLeerIntentos().n;
+        authMostrarError('Clave incorrecta. Quedan ' + quedan + ' intento' + (quedan === 1 ? '' : 's') + '.');
+      }
     });
   });
 }
@@ -1853,12 +1983,11 @@ function authLogout() {
 // Auto-login if token exists
 if (sbToken()) {
   // Verify token is still valid
-  fetch(SB_URL + '/rest/v1/gastos?select=id&limit=1', {
-    headers: sbHeaders()
-  }).then(function(r) {
-    if (r.ok) authUnlock();
-    else { sessionStorage.removeItem('va_admin_token'); }
-  }).catch(function() {});
+  sbPedir('/rest/v1/gastos?select=id&limit=1')
+    .then(function() { authUnlock(); })
+    /* Solo se tira el token si el servidor dijo que no vale. Si no hubo
+       servidor, el token puede seguir siendo bueno: no se toca. */
+    .catch(function(e) { if (e.estado) sessionStorage.removeItem('va_admin_token'); });
 }
 
 /* ===== TABS ===== */
@@ -1871,7 +2000,7 @@ function switchTab(tab) {
   });
 }
 
-/* ===== CALCULADORA ===== */
+/* ===== CALCULADORAS ===== */
 var currentMetal = 'gold';
 
 function setMetal(metal) { currentMetal = metal; renderMetal(); }
@@ -1930,47 +2059,7 @@ document.getElementById('silver-weight').addEventListener('input', calcSilver);
 document.getElementById('silver-purity').addEventListener('change', calcSilver);
 renderMetal();
 
-/* ===== CALCULADORA DE JOYA PERSONALIZADA ===== */
-// Promedio ponderado del ITEM concreto (Oro, Plata, Liga...), no de toda la
-// categoria. Promediar "Metales" junto mezcla oro con plata y arruina el costeo.
-// Reutiliza invEntradasMap(), la misma fuente que alimenta el Control de Inventario.
-function costoPromedioItem(categoria, item) {
-  var e = invEntradasMap()[invItemKey(categoria, item)];
-  return (e && e.qty > 0) ? (e.amount / e.qty) : 0;
-}
-
-// Ultimo precio pagado por un item. Si subio frente al promedio, costear al
-// promedio deja la venta sin plata suficiente para reponer el material.
-function ultimoPrecioItem(categoria, item) {
-  var mejor = null;
-  expenses.forEach(function(e) {
-    if (e.cat !== categoria || !e.qty || e.qty <= 0) return;
-    if ((e.itemInv || 'Sin especificar') !== item) return;
-    if (!mejor || e.date > mejor.date || (e.date === mejor.date && e.id > mejor.id)) mejor = e;
-  });
-  return mejor ? (mejor.amount / mejor.qty) : null;
-}
-
-// Saldo disponible de un item. Devuelve null si el item no existe en el inventario.
-function invSaldoDe(categoria, item) {
-  var rows = invSaldosRows();
-  for (var i = 0; i < rows.length; i++) {
-    if (rows[i].categoria === categoria && rows[i].item === item) return rows[i].saldoQty;
-  }
-  return null;
-}
-
-// Busca un item de inventario por nombre sin importar mayusculas ni espacios,
-// porque en la calculadora las piedras se escriben a mano.
-function invBuscarItem(categoria, nombre) {
-  var n = String(nombre || '').trim().toLowerCase();
-  if (!n) return null;
-  var rows = invSaldosRows();
-  for (var i = 0; i < rows.length; i++) {
-    if (rows[i].categoria === categoria && rows[i].item.trim().toLowerCase() === n) return rows[i];
-  }
-  return null;
-}
+/* ===== COSTEO DE JOYA ===== */
 
 var CJ_PIEDRA_LIBRE = '__otra__';
 var cjStones = [];
@@ -2349,7 +2438,7 @@ function cjLimpiar(traspasado) {
   if (!traspasado) toast('Calculadora en blanco');
 }
 
-/* ===== FINANCIERO — Supabase CRUD ===== */
+/* ===== FINANZAS ===== */
 var expenses = [];
 var configNegocio = { gasto_operativo_mensual: 0, piezas_mes: 1, utilidad_objetivo: 0, merma_pct: 0 };
 // Declarados aca, antes de las llamadas de arranque de la calculadora: esas ya
@@ -2429,13 +2518,15 @@ function mermaFactor() {
 }
 
 function cfgLoad() {
-  return fetch(SB_URL + '/rest/v1/config_negocio?id=eq.1&select=*', { headers: sbHeaders() })
-    .then(function(r) { return r.ok ? r.json() : []; })
+  return sbPedir('/rest/v1/config_negocio?id=eq.1&select=*')
     .then(function(rows) {
       var c = Array.isArray(rows) ? rows[0] : rows;
       if (c) configNegocio = c;
       cfgRender();
-    }).catch(function(e) { console.error('Error cargando la configuracion del negocio:', e); });
+    }).catch(function(e) {
+      console.error('Error cargando la configuracion del negocio:', e);
+      cfgRender();   // con los valores por defecto, para que la pantalla exista
+    });
 }
 
 function cfgRender() {
@@ -2469,13 +2560,10 @@ function cfgGuardar() {
     utilidad_objetivo: parseFloat($('cfg-utilidad').value) || 0,
     merma_pct: Math.min(99, Math.max(0, parseFloat($('cfg-merma').value) || 0))
   };
-  fetch(SB_URL + '/rest/v1/config_negocio', {
+  sbPedir('/rest/v1/config_negocio', {
     method: 'POST',
-    headers: { ...sbHeaders(), 'Prefer': 'return=representation,resolution=merge-duplicates' },
+    headers: { 'Prefer': 'return=representation,resolution=merge-duplicates' },
     body: JSON.stringify(body)
-  }).then(function(r) {
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-    return r.json();
   }).then(function(rows) {
     configNegocio = (Array.isArray(rows) ? rows[0] : rows) || body;
     toast('Configuración guardada — se recalcularon márgenes y costos');
@@ -2504,11 +2592,9 @@ function mapGastoRow(r) {
 }
 
 function finLoad() {
-  fetch(SB_URL + '/rest/v1/gastos?select=*&order=fecha.desc,id.desc', {
-    headers: sbHeaders()
-  }).then(function(r) { return r.json(); })
+  sbPedir('/rest/v1/gastos?select=*&order=fecha.desc,id.desc')
   .then(function(rows) {
-    expenses = rows.map(mapGastoRow);
+    expenses = (rows || []).map(mapGastoRow);
     $('fin-loading').style.display = 'none';
     $('fin-table-wrap').style.display = 'block';
     renderFin();
@@ -2525,25 +2611,35 @@ function isInv(c) { return INVENTARIO.indexOf(c) >= 0; }
 var finFiltroPeriodo = 'all', finFiltroCat = 'all';
 
 // Primer dia del mes que abre una ventana de N meses contando el actual.
-function finCutoff(mesesAtras) {
+// Se llamaba finCutoff aunque Ventas tambien la usa: el prefijo mentia.
+function periodoCorte(mesesAtras) {
   var d = new Date(), y = d.getFullYear(), m = d.getMonth() - (mesesAtras - 1);
   while (m < 0) { m += 12; y -= 1; }
   return y + '-' + String(m + 1).padStart(2, '0') + '-01';
 }
 
-function finEnPeriodo(e) {
-  if (finFiltroPeriodo === 'all') return true;
-  if (finFiltroPeriodo === '3m') return e.date >= finCutoff(3);
-  if (finFiltroPeriodo === '6m') return e.date >= finCutoff(6);
-  return e.date.substring(0, 7) === finFiltroPeriodo;
+/* Que significa un periodo elegido, en una sola definicion. Finanzas y Ventas
+   tienen cada una su filtro, pero la regla de que quiere decir 'all', '3m',
+   '6m' o un mes suelto es la misma —y estaba escrita dos veces, palabra por
+   palabra. Añadir «ultimos 12 meses» obligaba a tocar cuatro funciones y a
+   acordarse de las cuatro. */
+function periodoContiene(fecha, periodo) {
+  if (periodo === 'all') return true;
+  if (periodo === '3m') return fecha >= periodoCorte(3);
+  if (periodo === '6m') return fecha >= periodoCorte(6);
+  return (fecha || '').substring(0, 7) === periodo;
 }
 
-function finPeriodoLabel() {
-  if (finFiltroPeriodo === 'all') return 'Todo el historial';
-  if (finFiltroPeriodo === '3m') return 'Ultimos 3 meses';
-  if (finFiltroPeriodo === '6m') return 'Ultimos 6 meses';
-  return monthName(finFiltroPeriodo);
+function periodoLabel(periodo) {
+  if (periodo === 'all') return 'Todo el historial';
+  if (periodo === '3m') return 'Ultimos 3 meses';
+  if (periodo === '6m') return 'Ultimos 6 meses';
+  return monthName(periodo);
 }
+
+function finEnPeriodo(e) { return periodoContiene(e.date, finFiltroPeriodo); }
+
+function finPeriodoLabel() { return periodoLabel(finFiltroPeriodo); }
 
 // Reconstruye las dos listas con los periodos y categorias que existen en los datos,
 // conservando lo que el usuario tenga elegido aunque cambien los registros.
@@ -2726,12 +2822,11 @@ function handleComprobanteFile(ev) {
   comprobanteUrl = '';
   $('f-comprobante-hint').textContent = 'Subiendo...';
   var path = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-  fetch(SB_URL + '/storage/v1/object/comprobantes/' + path, {
+  sbPedir('/storage/v1/object/comprobantes/' + path, {
     method: 'POST',
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'x-admin-token': sbToken(), 'Content-Type': file.type },
+    headers: { 'Content-Type': file.type },   // un archivo, no JSON
     body: file
-  }).then(function(r) {
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
+  }).then(function() {
     comprobanteUrl = path;
     $('f-comprobante-hint').textContent = 'Comprobante subido (' + Math.round(file.size / 1024) + ' KB)';
   }).catch(function(e) {
@@ -2747,12 +2842,7 @@ function verComprobanteGasto(id) {
 }
 
 function fetchComprobanteBlob(path) {
-  return fetch(SB_URL + '/storage/v1/object/comprobantes/' + path, {
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'x-admin-token': sbToken() }
-  }).then(function(r) {
-    if (!r.ok) throw new Error('No se pudo cargar el comprobante');
-    return r.blob();
-  });
+  return sbPedir('/storage/v1/object/comprobantes/' + path, { como: 'blob' });
 }
 
 function verComprobante(path) {
@@ -2782,7 +2872,7 @@ function cancelEdit() {
   $('edit-flag').style.display = 'none';
   $('btn-save').textContent = '+ Agregar gasto';
   $('btn-cancel').classList.remove('on');
-  $('f-date').value = new Date().toISOString().split('T')[0];
+  $('f-date').value = fechaHoyLocal();
   $('f-cat').selectedIndex = 0;
   syncCat(); clearForm(); renderFin();
 }
@@ -2896,14 +2986,9 @@ function saveExpense() {
   var ventaAfectada = gastoPrevio ? gastoPrevio.linkVenta : null;
   if (editingId !== null) {
     // UPDATE
-    var patchHeaders = sbHeaders();
-    patchHeaders['Prefer'] = 'return=representation';
-    fetch(SB_URL + '/rest/v1/gastos?id=eq.' + editingId, {
-      method: 'PATCH', headers: patchHeaders,
+    sbPedir('/rest/v1/gastos?id=eq.' + editingId, {
+      method: 'PATCH', headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify(body)
-    }).then(function(r) {
-      if (!r.ok) throw new Error(r.status);
-      return r.json();
     }).then(function(rows) {
       var updated = Array.isArray(rows) ? rows[0] : rows;
       for (var i = 0; i < expenses.length; i++) {
@@ -2926,10 +3011,13 @@ function saveExpense() {
     }).catch(function(e) { toast('Error al guardar'); console.error(e); });
   } else {
     // INSERT
-    fetch(SB_URL + '/rest/v1/gastos', {
-      method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+    // Sin comprobar la respuesta, un error del servidor entraba a la lista como
+    // si fuera un gasto: amount NaN y todos los totales en $NaN. Trampa 3, y
+    // por eso ahora esto pasa por sbPedir como todo lo demas.
+    sbPedir('/rest/v1/gastos', {
+      method: 'POST', headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify(body)
-    }).then(function(r) { return r.json(); })
+    })
     .then(function(rows) {
       var r = Array.isArray(rows) ? rows[0] : rows;
       expenses.push(mapGastoRow(r));
@@ -2945,7 +3033,7 @@ function saveExpense() {
         toast('Gasto registrado');
       }
       if (linkVenta) recalcularIngresoDeVenta(linkVenta);
-    }).catch(function(e) { toast('Error al guardar'); console.error(e); });
+    }).catch(function(e) { toast('No se guardo el gasto: ' + (e.message || 'error desconocido')); console.error(e); });
   }
 }
 
@@ -2964,10 +3052,8 @@ function delExpense(id, ev) {
 }
 
 function delExpenseConfirmado(id, target) {
-  fetch(SB_URL + '/rest/v1/gastos?id=eq.' + id, {
-    method: 'DELETE', headers: sbHeaders()
-  }).then(function(r) {
-    if (!r.ok) throw new Error(r.status);
+  sbPedir('/rest/v1/gastos?id=eq.' + id, { method: 'DELETE' })
+    .then(function() {
     expenses = expenses.filter(function(e) { return e.id !== id; });
     // Se fue un gasto que sustentaba una venta: su ingreso vuelve a cambiar.
     if (target.linkVenta) recalcularIngresoDeVenta(target.linkVenta);
@@ -2983,10 +3069,9 @@ function showAudit(id, ev) {
   $('audit-title').textContent = 'Historial de cambios';
   overlay.classList.add('open');
   $('audit-body').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  fetch(SB_URL + '/rest/v1/gastos_audit?gasto_id=eq.' + id + '&order=timestamp.desc', {
-    headers: sbHeaders()
-  }).then(function(r) { return r.json(); })
+  sbPedir('/rest/v1/gastos_audit?gasto_id=eq.' + id + '&order=timestamp.desc')
   .then(function(rows) {
+    rows = rows || [];
     if (!rows.length) {
       $('audit-body').innerHTML = '<p style="color:var(--text-3);text-align:center;padding:1rem 0;">Sin cambios registrados</p>';
       return;
@@ -3036,174 +3121,6 @@ function showAudit(id, ev) {
 
 function closeAudit() {
   $('audit-overlay').classList.remove('open');
-}
-
-function fichaRow(label, valor, clase) {
-  return '<div class="ficha-row ' + (clase || '') + '"><span class="fl">' + esc(label) + '</span><span class="fv">' + valor + '</span></div>';
-}
-
-/* Ficha tecnica congelada de una joya personalizada (venta manual desde la calculadora) */
-function showFichaVenta(id, ev) {
-  if (ev) ev.stopPropagation();
-  var v = ventas.find(function(x) { return x.id === id; });
-  if (!v || !v.costo_detalle) { toast('Esta venta no tiene ficha técnica'); return; }
-  var d = v.costo_detalle, m = d.metal || {}, t = d.totales || {};
-  $('audit-title').textContent = 'Ficha técnica · ' + v.numero;
-  $('audit-overlay').classList.add('open');
-
-  var h = '';
-  // La ficha describe el calculo original; si el costo se toco a mano despues, hay que decirlo.
-  if (t.costoUnitario && Math.abs(t.costoUnitario - v.costo_unitario) > 1) {
-    h += '<div class="ficha-aviso">El costo se ajustó manualmente después del cálculo: de ' +
-      fmt(t.costoUnitario) + ' a ' + fmt(v.costo_unitario) + '. La ficha refleja el cálculo original.</div>';
-  }
-
-  h += '<div class="ficha-sec">Metal</div>';
-  h += fichaRow('Tipo y ley', esc((m.tipo || '—') + (m.ley ? ' · ' + m.ley : '')));
-  h += fichaRow('Peso total de la pieza', fmtQty(m.pesoTotal || 0, 'g'));
-  // Las fichas viejas guardaban un solo precioGramo para puro y liga.
-  var pPuro = (m.precioGramoPuro !== undefined) ? m.precioGramoPuro : m.precioGramo;
-  var pLiga = (m.precioGramoLiga !== undefined) ? m.precioGramoLiga : m.precioGramo;
-  h += fichaRow('Metal puro' + (m.itemPuro ? ' (' + m.itemPuro + ')' : ''),
-    fmtQty(m.gramosPuro || 0, 'g') + ' × ' + fmt(pPuro || 0) + '/g', 'sub');
-  h += fichaRow('Liga', fmtQty(m.gramosLiga || 0, 'g') + ' × ' + fmt(pLiga || 0) + '/g', 'sub');
-  if (m.mermaPct) h += fichaRow('Merma aplicada', m.mermaPct + '% · consumió ' +
-    fmtQty((m.gramosConsumidoPuro || 0) + (m.gramosConsumidoLiga || 0), 'g'), 'sub');
-  if (m.precioGramoPuro === undefined) h += '<div class="ficha-vacio">Ficha anterior: se calculó con un precio único de ' + fmt(m.precioGramo || 0) + '/g para todo el metal.</div>';
-  h += fichaRow('Costo de metal', fmt(t.metal || 0), 'tot');
-
-  h += '<div class="ficha-sec">Piedras</div>';
-  if ((d.piedras || []).length) {
-    d.piedras.forEach(function(p) {
-      var cant = p.cantidad ? (p.cantidad + (p.cantidad === 1 ? ' piedra · ' : ' piedras · ')) : '';
-      h += fichaRow(p.nombre + ' · ' + cant + fmtQty(p.quilates || 0, 'ct'), fmt(p.costo || 0), 'sub');
-    });
-    h += fichaRow('Costo de piedras', fmt(t.piedras || 0), 'tot');
-  } else { h += '<div class="ficha-vacio">Sin piedras registradas</div>'; }
-
-  h += '<div class="ficha-sec">Mano de obra y otros costos</div>';
-  if ((d.labor || []).length) {
-    d.labor.forEach(function(l) { h += fichaRow(l.nombre, fmt(l.costo || 0), 'sub'); });
-    h += fichaRow('Costo de mano de obra', fmt(t.labor || 0), 'tot');
-  } else { h += '<div class="ficha-vacio">Sin costos de mano de obra registrados</div>'; }
-
-  h += '<div class="ficha-sec">Costo unitario calculado</div>';
-  h += fichaRow('Metal', fmt(t.metal || 0), 'sub');
-  h += fichaRow('Piedras', fmt(t.piedras || 0), 'sub');
-  h += fichaRow('Mano de obra', fmt(t.labor || 0), 'sub');
-  h += fichaRow('Total por pieza', fmt(t.costoUnitario || 0), 'tot');
-  if (d.calculadoEl) h += '<div class="ficha-vacio">Calculado el ' + esc(d.calculadoEl.split('-').reverse().join('/')) + '</div>';
-
-  h += '<div class="ficha-sec">Gastos enlazados en Finanzas</div>';
-  h += '<div id="ficha-gastos"><div class="ficha-vacio">Consultando…</div></div>';
-  $('audit-body').innerHTML = h;
-
-  // Lo realmente pagado, para contrastarlo contra lo calculado.
-  fetch(SB_URL + '/rest/v1/gastos?select=id,fecha,categoria,descripcion,monto&enlace_venta=eq.' + id + '&order=fecha.asc', {
-    headers: sbHeaders()
-  }).then(function(r) { return r.ok ? r.json() : []; })
-  .then(function(rows) {
-    var cont = $('ficha-gastos');
-    if (!cont) return;
-    if (!rows.length) { cont.innerHTML = '<div class="ficha-vacio">Ningún gasto de Finanzas está enlazado a esta venta todavía.</div>'; return; }
-    var gh = '', suma = 0;
-    rows.forEach(function(g) {
-      suma += parseFloat(g.monto) || 0;
-      gh += fichaRow('#' + g.id + ' · ' + g.categoria + ' · ' + g.descripcion, fmt(parseFloat(g.monto) || 0), 'sub');
-    });
-    gh += fichaRow('Total pagado y enlazado', fmt(suma), 'tot');
-    // De donde sale el numero que usa la contabilidad, paso a paso.
-    var dg = desgloseCostoVenta(v);
-    gh += '<div class="ficha-sec">Costo real de esta venta</div>';
-    gh += fichaRow('Costo congelado al registrarla', fmt(dg.base), 'sub');
-    if (dg.reemplaza) {
-      gh += fichaRow('menos Mano de obra estimada', '−' + fmt(dg.laborEstimada), 'sub');
-      gh += fichaRow('más Mano de obra realmente pagada', fmt(dg.laborReal), 'sub');
-    }
-    if (dg.otros > 0) gh += fichaRow('más Otros gastos enlazados', fmt(dg.otros), 'sub');
-    gh += fichaRow('Costo real usado en contabilidad', fmt(dg.total), 'tot');
-    if (dg.reemplaza) {
-      var dif = dg.laborReal - dg.laborEstimada;
-      gh += '<div class="ficha-vacio">El gasto real <b>reemplaza</b> al estimado, nunca se suman: ' +
-        'por eso el mismo trabajo no se puede contar dos veces. ' +
-        (dif === 0 ? 'Estimaste exacto.'
-          : (dif > 0 ? 'Costó ' + fmt(dif) + ' más de lo estimado.' : 'Costó ' + fmt(-dif) + ' menos de lo estimado.')) +
-        '</div>';
-    }
-    if (dg.sinRespaldo) {
-      gh += '<div class="ficha-aviso">⚠️ Esta pieza declara ' + fmt(dg.laborEstimada) +
-        ' de mano de obra estimada, pero no hay ningún gasto enlazado que la respalde. ' +
-        'Si ya pagaste ese trabajo, regístralo en Finanzas y enlázalo a esta venta: hoy es un costo sin soporte.</div>';
-    }
-    cont.innerHTML = gh;
-  }).catch(function(e) {
-    console.error('Error consultando gastos enlazados:', e);
-    var cont = $('ficha-gastos');
-    if (cont) cont.innerHTML = '<div class="ficha-vacio">No se pudieron consultar los gastos enlazados.</div>';
-  });
-}
-
-function showAuditVenta(id, ev) {
-  if (ev) ev.stopPropagation();
-  var overlay = $('audit-overlay');
-  $('audit-title').textContent = 'Historial de cambios';
-  overlay.classList.add('open');
-  $('audit-body').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  fetch(SB_URL + '/rest/v1/ventas_audit?venta_id=eq.' + id + '&order=timestamp.desc', {
-    headers: sbHeaders()
-  }).then(function(r) { return r.json(); })
-  .then(function(rows) {
-    if (!rows.length) {
-      $('audit-body').innerHTML = '<p style="color:var(--text-3);text-align:center;padding:1rem 0;">Sin cambios registrados</p>';
-      return;
-    }
-    var labels = {
-      fecha:'Fecha', cliente_nombre:'Cliente', cliente_contacto:'Contacto',
-      producto_id:'Producto', cantidad_vendida:'Cantidad', precio_unitario:'Precio de venta',
-      costo_unitario:'Costo unitario', estado:'Estado', metodo_pago:'Metodo de pago',
-      tiene_factura:'Factura DIAN', numero_factura:'No. factura',
-      transportadora:'Transportadora', numero_guia:'No. guia', notas:'Notas'
-    };
-    var fields = Object.keys(labels);
-    var html = '';
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      var ts = new Date(r.timestamp).toLocaleString('es-CO');
-      var opLabel = r.accion === 'update' ? 'Modificacion' : r.accion === 'delete' ? 'Eliminacion' : 'Creacion';
-      html += '<div class="audit-entry">';
-      html += '<div class="audit-op ' + r.accion + '">' + opLabel + '</div>';
-      html += '<div class="audit-time">' + ts + '</div>';
-      if (r.accion === 'update' && r.datos_anteriores && r.datos_nuevos) {
-        html += '<div class="audit-diff">';
-        for (var f = 0; f < fields.length; f++) {
-          var key = fields[f];
-          var oldV = r.datos_anteriores[key];
-          var newV = r.datos_nuevos[key];
-          if (String(oldV || '') !== String(newV || '')) {
-            html += '<div class="changed"><span class="field-name">' + labels[key] + '</span>';
-            html += '<span><span class="old-val">' + esc(oldV) + '</span> ';
-            html += '<span class="new-val">' + esc(newV) + '</span></span></div>';
-          }
-        }
-        html += '</div>';
-      } else if (r.accion === 'delete' && r.datos_anteriores) {
-        html += '<div class="audit-diff">';
-        for (var f2 = 0; f2 < fields.length; f2++) {
-          var key2 = fields[f2];
-          var v2 = r.datos_anteriores[key2];
-          if (v2 !== null && v2 !== undefined && v2 !== '') {
-            html += '<div class="changed"><span class="field-name">' + labels[key2] + '</span><span class="old-val">' + esc(v2) + '</span></div>';
-          }
-        }
-        html += '</div>';
-      }
-      html += '</div>';
-    }
-    $('audit-body').innerHTML = html;
-  }).catch(function(e) {
-    console.error('Error loading audit:', e);
-    $('audit-body').innerHTML = '<p style="color:#e74c3c;text-align:center;padding:1rem 0;">Error al cargar historial</p>';
-  });
 }
 
 function renderFin() {
@@ -3341,42 +3258,6 @@ function renderFin() {
 /* El apunte de "Ingresos por Ventas" guarda la ganancia con el costo congelado.
    Si el costo real cambia al enlazar o quitar un gasto, esa fila queda mintiendo:
    hay que ponerla al dia o Finanzas y Ventas se contradicen. */
-function recalcularIngresoDeVenta(ventaId) {
-  var v = ventas.find(function(x) { return x.id === ventaId; });
-  if (!v) return Promise.resolve();
-  // El desglose del costo cambio: la fila de Ventas y su insignia "sin
-  // respaldo" hay que repintarlas aunque no haya ingreso que corregir.
-  renderVentas();
-  if (!v.ingreso_id || !ventaCuenta(v)) return Promise.resolve();
-  var gananciaReal = Math.round((v.monto_total || 0) - costoRealVenta(v));
-  var idx = expenses.findIndex(function(e) { return e.id === v.ingreso_id; });
-  if (idx >= 0 && Math.round(expenses[idx].amount) === gananciaReal) return Promise.resolve();
-  return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + v.ingreso_id, {
-    method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
-    body: JSON.stringify({ monto: gananciaReal })
-  }).then(function(r) {
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-    return r.json();
-  }).then(function(rows) {
-    var g = Array.isArray(rows) ? rows[0] : rows;
-    var i = expenses.findIndex(function(e) { return e.id === v.ingreso_id; });
-    if (i >= 0 && g) expenses[i] = mapGastoRow(g);
-    renderFin();
-  }).catch(function(e) {
-    console.error('Error recalculando el ingreso de la venta:', e);
-    toast('El costo cambió, pero no se pudo actualizar el ingreso en Finanzas');
-  });
-}
-
-function gastosEnlazadosAVenta(ventaId) {
-  return expenses.filter(function(e) { return e.linkVenta === ventaId && e.cat !== 'Ingresos por Ventas'; });
-}
-
-/* Mano de obra que la calculadora ESTIMO para esta venta (por pieza x cantidad). */
-function laborEstimadaVenta(v) {
-  var t = v.costo_detalle && v.costo_detalle.totales;
-  return ((t && t.labor) || 0) * (v.cantidad || 1);
-}
 
 /* Costo real de una venta, y de donde sale cada parte.
 
@@ -3387,67 +3268,6 @@ function laborEstimadaVenta(v) {
 
    Los gastos enlazados de otra categoria si se suman: son costos que aparecieron
    despues y que el calculo no habia previsto. */
-function desgloseCostoVenta(v) {
-  var base = (v.cantidad || 0) * (v.costo_unitario || 0);
-  var enlazados = gastosEnlazadosAVenta(v.id);
-  var laborReal = 0, otros = 0;
-  enlazados.forEach(function(g) {
-    if (g.cat === 'Mano de obra') laborReal += g.amount; else otros += g.amount;
-  });
-  var laborEstimada = laborEstimadaVenta(v);
-  var reemplaza = laborReal > 0;
-  return {
-    base: base,
-    laborEstimada: laborEstimada,
-    laborReal: laborReal,
-    otros: otros,
-    reemplaza: reemplaza,
-    // sin gasto de mano de obra enlazado se conserva el estimado: es lo mejor
-    // que se sabe hasta que aparezca el soporte real
-    total: base - (reemplaza ? laborEstimada : 0) + laborReal + otros,
-    sinRespaldo: laborEstimada > 0 && laborReal === 0
-  };
-}
-
-function costoRealVenta(v) { return desgloseCostoVenta(v).total; }
-
-/* Estado de resultados real, calculado desde `ventas`, no desde el espejo de
-   "Ingresos por Ventas" en gastos (ese guarda la ganancia, no el ingreso). */
-/* Los acumulados van desde el inicio del negocio y NO siguen el filtro de
-   periodo: la pregunta que responden es "cuanta plata ha dejado esto en total". */
-function renderAcumulados() {
-  var ingresos = 0, cogs = 0;
-  ventas.forEach(function(v) {
-    if (!ventaCuenta(v)) return;
-    ingresos += v.monto_total || 0;
-    cogs += costoRealVenta(v);
-  });
-  var operativo = 0, retiros = 0;
-  expenses.forEach(function(e) {
-    if (e.cat === 'Ingresos por Ventas') return;
-    if (e.cat === CAT_RETIRO) { retiros += e.amount; return; }
-    if (!isInv(e.cat)) operativo += e.amount;
-  });
-  var utilidad = ingresos - cogs - operativo;
-  var retenida = utilidad - retiros;
-
-  // Valor del inventario al costo: entradas menos salidas, valorizadas al promedio.
-  var inmovilizado = 0;
-  invSaldosRows().forEach(function(r) { inmovilizado += Math.max(0, r.saldoQty) * r.costoProm; });
-  invJoyasRows().forEach(function(r) { inmovilizado += Math.max(0, r.saldo) * r.costoProm; });
-
-  $('acum-utilidad').textContent = fmt(utilidad);
-  $('acum-retiros').textContent = fmt(retiros);
-  $('acum-retenida').textContent = fmt(retenida);
-  $('acum-inventario').textContent = fmt(inmovilizado);
-  var box = $('acum-ret-box');
-  box.classList.toggle('neg', retenida < 0);
-  box.classList.toggle('pos', retenida > 0);
-  $('acum-hint').innerHTML = retenida > 0 && inmovilizado > retenida
-    ? '⚠️ Tienes ' + fmt(inmovilizado) + ' en inventario pero solo ' + fmt(retenida) +
-      ' de utilidad retenida: parte del material está financiado con plata que pusiste tú, no con ganancia del negocio.'
-    : '💡 Utilidad retenida es la ganancia que se quedó en el negocio. Registra lo que sacas para ti como «Retiro de utilidades» — no es un gasto y no resta de la utilidad del periodo.';
-}
 
 function renderEstadoResultados(gastosDelPeriodo, gastoOperativo, retirosPeriodo) {
   var delPeriodo = ventas.filter(function(v) { return finEnPeriodo({ date: v.fecha }); });
@@ -3455,10 +3275,11 @@ function renderEstadoResultados(gastosDelPeriodo, gastoOperativo, retirosPeriodo
   delPeriodo.forEach(function(v) {
     if (ventaCuenta(v)) {
       ingresos += v.monto_total || 0;
-      cogs += (v.cantidad || 0) * (v.costo_unitario || 0);
-      // Un gasto enlazado a esta venta se consumio en la pieza: es costo de venta,
-      // no inventario. Si no se suma aca, la utilidad queda inflada.
-      cogs += gastosEnlazadosAVenta(v.id).reduce(function(a, g) { return a + g.amount; }, 0);
+      /* Una sola definicion del costo de una venta, la misma que usan
+         Acumulados, la insignia de margen, la exportacion y el auditor.
+         Antes se sumaba aparte el estimado y el real: dos cifras distintas
+         de la misma utilidad en la misma pantalla. */
+      cogs += costoRealVenta(v);
     } else if (v.estado === ESTADO_POR_COBRAR) {
       porCobrar += v.monto_total || 0;
     }
@@ -3502,7 +3323,9 @@ function renderSoportes(gastosDelPeriodo) {
     : '✅ Todo el gasto del periodo tiene soporte.';
 }
 
-/* ===== EXPORT ===== */
+/* Las exportaciones de Finanzas. Ventas e Inventario tienen las suyas dentro
+   de su propio bloque: cada bloque exporta lo suyo. */
+
 function rowsForExport() {
   var headers = ['No. gasto','Fecha','Tipo','Categoria','Descripcion','Proveedor','NIT/Cedula proveedor',
     'No. factura','Forma de pago','IVA pagado','Soporte','Item/tipo material','Cantidad de piedras',
@@ -3559,7 +3382,8 @@ function exportXLSX() {
   download(makeZip(files), 'verde-andino-gastos-' + stamp() + '.xlsx');
 }
 
-/* ===== PDF de comprobantes (sin librerias externas) ===== */
+/* ===== PDF ===== */
+/* Comprobantes en PDF, escritos a mano: sin librerias externas. */
 var PDF_ACCENTS = { 'á':'a','é':'e','í':'i','ó':'o','ú':'u','Á':'A','É':'E','Í':'I','Ó':'O','Ú':'U','ñ':'n','Ñ':'N','ü':'u','Ü':'U','¿':'?','¡':'!' };
 function pdfAsciiSafe(s) {
   return String(s || '').replace(/[áéíóúÁÉÍÓÚñÑüÜ¿¡]/g, function(c) { return PDF_ACCENTS[c] || c; });
@@ -3594,6 +3418,8 @@ function blobToJpeg(blob) {
 var _logoJpegPromise = null;
 function getLogoJpeg() {
   if (!_logoJpegPromise) {
+    /* El unico fetch que NO pasa por sbPedir, y a proposito: es un archivo
+       del propio sitio, no la base. No lleva token ni tiene cuerpo de error. */
     _logoJpegPromise = fetch('logo.webp').then(function(r) { if (!r.ok) throw new Error('logo no disponible'); return r.blob(); })
       .then(blobToJpeg).catch(function() { return null; });
   }
@@ -3750,7 +3576,269 @@ function descargarConsolidadoComprobantes() {
   }).catch(function(err) { console.error(err); toast('Error al generar el PDF consolidado'); });
 }
 
-/* ===== CONTROL DE VENTAS ===== */
+/* ===== VENTAS ===== */
+
+function fichaRow(label, valor, clase) {
+  return '<div class="ficha-row ' + (clase || '') + '"><span class="fl">' + esc(label) + '</span><span class="fv">' + valor + '</span></div>';
+}
+
+/* Ficha tecnica congelada de una joya personalizada (venta manual desde la calculadora) */
+function showFichaVenta(id, ev) {
+  if (ev) ev.stopPropagation();
+  var v = ventas.find(function(x) { return x.id === id; });
+  if (!v || !v.costo_detalle) { toast('Esta venta no tiene ficha técnica'); return; }
+  var d = v.costo_detalle, m = d.metal || {}, t = d.totales || {};
+  $('audit-title').textContent = 'Ficha técnica · ' + v.numero;
+  $('audit-overlay').classList.add('open');
+
+  var h = '';
+  // La ficha describe el calculo original; si el costo se toco a mano despues, hay que decirlo.
+  if (t.costoUnitario && Math.abs(t.costoUnitario - v.costo_unitario) > 1) {
+    h += '<div class="ficha-aviso">El costo se ajustó manualmente después del cálculo: de ' +
+      fmt(t.costoUnitario) + ' a ' + fmt(v.costo_unitario) + '. La ficha refleja el cálculo original.</div>';
+  }
+
+  h += '<div class="ficha-sec">Metal</div>';
+  h += fichaRow('Tipo y ley', esc((m.tipo || '—') + (m.ley ? ' · ' + m.ley : '')));
+  h += fichaRow('Peso total de la pieza', fmtQty(m.pesoTotal || 0, 'g'));
+  // Las fichas viejas guardaban un solo precioGramo para puro y liga.
+  var pPuro = (m.precioGramoPuro !== undefined) ? m.precioGramoPuro : m.precioGramo;
+  var pLiga = (m.precioGramoLiga !== undefined) ? m.precioGramoLiga : m.precioGramo;
+  h += fichaRow('Metal puro' + (m.itemPuro ? ' (' + m.itemPuro + ')' : ''),
+    fmtQty(m.gramosPuro || 0, 'g') + ' × ' + fmt(pPuro || 0) + '/g', 'sub');
+  h += fichaRow('Liga', fmtQty(m.gramosLiga || 0, 'g') + ' × ' + fmt(pLiga || 0) + '/g', 'sub');
+  if (m.mermaPct) h += fichaRow('Merma aplicada', m.mermaPct + '% · consumió ' +
+    fmtQty((m.gramosConsumidoPuro || 0) + (m.gramosConsumidoLiga || 0), 'g'), 'sub');
+  if (m.precioGramoPuro === undefined) h += '<div class="ficha-vacio">Ficha anterior: se calculó con un precio único de ' + fmt(m.precioGramo || 0) + '/g para todo el metal.</div>';
+  h += fichaRow('Costo de metal', fmt(t.metal || 0), 'tot');
+
+  h += '<div class="ficha-sec">Piedras</div>';
+  if ((d.piedras || []).length) {
+    d.piedras.forEach(function(p) {
+      var cant = p.cantidad ? (p.cantidad + (p.cantidad === 1 ? ' piedra · ' : ' piedras · ')) : '';
+      h += fichaRow(p.nombre + ' · ' + cant + fmtQty(p.quilates || 0, 'ct'), fmt(p.costo || 0), 'sub');
+    });
+    h += fichaRow('Costo de piedras', fmt(t.piedras || 0), 'tot');
+  } else { h += '<div class="ficha-vacio">Sin piedras registradas</div>'; }
+
+  h += '<div class="ficha-sec">Mano de obra y otros costos</div>';
+  if ((d.labor || []).length) {
+    d.labor.forEach(function(l) { h += fichaRow(l.nombre, fmt(l.costo || 0), 'sub'); });
+    h += fichaRow('Costo de mano de obra', fmt(t.labor || 0), 'tot');
+  } else { h += '<div class="ficha-vacio">Sin costos de mano de obra registrados</div>'; }
+
+  h += '<div class="ficha-sec">Costo unitario calculado</div>';
+  h += fichaRow('Metal', fmt(t.metal || 0), 'sub');
+  h += fichaRow('Piedras', fmt(t.piedras || 0), 'sub');
+  h += fichaRow('Mano de obra', fmt(t.labor || 0), 'sub');
+  h += fichaRow('Total por pieza', fmt(t.costoUnitario || 0), 'tot');
+  if (d.calculadoEl) h += '<div class="ficha-vacio">Calculado el ' + esc(d.calculadoEl.split('-').reverse().join('/')) + '</div>';
+
+  h += '<div class="ficha-sec">Gastos enlazados en Finanzas</div>';
+  h += '<div id="ficha-gastos"><div class="ficha-vacio">Consultando…</div></div>';
+  $('audit-body').innerHTML = h;
+
+  // Lo realmente pagado, para contrastarlo contra lo calculado.
+  sbPedir('/rest/v1/gastos?select=id,fecha,categoria,descripcion,monto&enlace_venta=eq.' + id + '&order=fecha.asc')
+  .then(function(rows) {
+    rows = rows || [];
+    var cont = $('ficha-gastos');
+    if (!cont) return;
+    if (!rows.length) { cont.innerHTML = '<div class="ficha-vacio">Ningún gasto de Finanzas está enlazado a esta venta todavía.</div>'; return; }
+    var gh = '', suma = 0;
+    rows.forEach(function(g) {
+      suma += parseFloat(g.monto) || 0;
+      gh += fichaRow('#' + g.id + ' · ' + g.categoria + ' · ' + g.descripcion, fmt(parseFloat(g.monto) || 0), 'sub');
+    });
+    gh += fichaRow('Total pagado y enlazado', fmt(suma), 'tot');
+    // De donde sale el numero que usa la contabilidad, paso a paso.
+    var dg = desgloseCostoVenta(v);
+    gh += '<div class="ficha-sec">Costo real de esta venta</div>';
+    gh += fichaRow('Costo congelado al registrarla', fmt(dg.base), 'sub');
+    if (dg.reemplaza) {
+      gh += fichaRow('menos Mano de obra estimada', '−' + fmt(dg.laborEstimada), 'sub');
+      gh += fichaRow('más Mano de obra realmente pagada', fmt(dg.laborReal), 'sub');
+    }
+    if (dg.otros > 0) gh += fichaRow('más Otros gastos enlazados', fmt(dg.otros), 'sub');
+    gh += fichaRow('Costo real usado en contabilidad', fmt(dg.total), 'tot');
+    if (dg.reemplaza) {
+      var dif = dg.laborReal - dg.laborEstimada;
+      gh += '<div class="ficha-vacio">El gasto real <b>reemplaza</b> al estimado, nunca se suman: ' +
+        'por eso el mismo trabajo no se puede contar dos veces. ' +
+        (dif === 0 ? 'Estimaste exacto.'
+          : (dif > 0 ? 'Costó ' + fmt(dif) + ' más de lo estimado.' : 'Costó ' + fmt(-dif) + ' menos de lo estimado.')) +
+        '</div>';
+    }
+    if (dg.sinRespaldo) {
+      gh += '<div class="ficha-aviso">⚠️ Esta pieza declara ' + fmt(dg.laborEstimada) +
+        ' de mano de obra estimada, pero no hay ningún gasto enlazado que la respalde. ' +
+        'Si ya pagaste ese trabajo, regístralo en Finanzas y enlázalo a esta venta: hoy es un costo sin soporte.</div>';
+    }
+    cont.innerHTML = gh;
+  }).catch(function(e) {
+    console.error('Error consultando gastos enlazados:', e);
+    var cont = $('ficha-gastos');
+    if (cont) cont.innerHTML = '<div class="ficha-vacio">No se pudieron consultar los gastos enlazados.</div>';
+  });
+}
+
+function showAuditVenta(id, ev) {
+  if (ev) ev.stopPropagation();
+  var overlay = $('audit-overlay');
+  $('audit-title').textContent = 'Historial de cambios';
+  overlay.classList.add('open');
+  $('audit-body').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  sbPedir('/rest/v1/ventas_audit?venta_id=eq.' + id + '&order=timestamp.desc')
+  .then(function(rows) {
+    rows = rows || [];
+    if (!rows.length) {
+      $('audit-body').innerHTML = '<p style="color:var(--text-3);text-align:center;padding:1rem 0;">Sin cambios registrados</p>';
+      return;
+    }
+    var labels = {
+      fecha:'Fecha', cliente_nombre:'Cliente', cliente_contacto:'Contacto',
+      producto_id:'Producto', cantidad_vendida:'Cantidad', precio_unitario:'Precio de venta',
+      costo_unitario:'Costo unitario', estado:'Estado', metodo_pago:'Metodo de pago',
+      tiene_factura:'Factura DIAN', numero_factura:'No. factura',
+      transportadora:'Transportadora', numero_guia:'No. guia', notas:'Notas'
+    };
+    var fields = Object.keys(labels);
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var ts = new Date(r.timestamp).toLocaleString('es-CO');
+      var opLabel = r.accion === 'update' ? 'Modificacion' : r.accion === 'delete' ? 'Eliminacion' : 'Creacion';
+      html += '<div class="audit-entry">';
+      html += '<div class="audit-op ' + r.accion + '">' + opLabel + '</div>';
+      html += '<div class="audit-time">' + ts + '</div>';
+      if (r.accion === 'update' && r.datos_anteriores && r.datos_nuevos) {
+        html += '<div class="audit-diff">';
+        for (var f = 0; f < fields.length; f++) {
+          var key = fields[f];
+          var oldV = r.datos_anteriores[key];
+          var newV = r.datos_nuevos[key];
+          if (String(oldV || '') !== String(newV || '')) {
+            html += '<div class="changed"><span class="field-name">' + labels[key] + '</span>';
+            html += '<span><span class="old-val">' + esc(oldV) + '</span> ';
+            html += '<span class="new-val">' + esc(newV) + '</span></span></div>';
+          }
+        }
+        html += '</div>';
+      } else if (r.accion === 'delete' && r.datos_anteriores) {
+        html += '<div class="audit-diff">';
+        for (var f2 = 0; f2 < fields.length; f2++) {
+          var key2 = fields[f2];
+          var v2 = r.datos_anteriores[key2];
+          if (v2 !== null && v2 !== undefined && v2 !== '') {
+            html += '<div class="changed"><span class="field-name">' + labels[key2] + '</span><span class="old-val">' + esc(v2) + '</span></div>';
+          }
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    $('audit-body').innerHTML = html;
+  }).catch(function(e) {
+    console.error('Error loading audit:', e);
+    $('audit-body').innerHTML = '<p style="color:#e74c3c;text-align:center;padding:1rem 0;">Error al cargar historial</p>';
+  });
+}
+
+function recalcularIngresoDeVenta(ventaId) {
+  var v = ventas.find(function(x) { return x.id === ventaId; });
+  if (!v) return Promise.resolve();
+  // El desglose del costo cambio: la fila de Ventas y su insignia "sin
+  // respaldo" hay que repintarlas aunque no haya ingreso que corregir.
+  renderVentas();
+  if (!v.ingreso_id || !ventaCuenta(v)) return Promise.resolve();
+  var gananciaReal = Math.round((v.monto_total || 0) - costoRealVenta(v));
+  var idx = expenses.findIndex(function(e) { return e.id === v.ingreso_id; });
+  if (idx >= 0 && Math.round(expenses[idx].amount) === gananciaReal) return Promise.resolve();
+  return sbPedir('/rest/v1/gastos?id=eq.' + v.ingreso_id, {
+    method: 'PATCH', headers: { 'Prefer': 'return=representation' },
+    body: JSON.stringify({ monto: gananciaReal })
+  }).then(function(rows) {
+    var g = Array.isArray(rows) ? rows[0] : rows;
+    var i = expenses.findIndex(function(e) { return e.id === v.ingreso_id; });
+    if (i >= 0 && g) expenses[i] = mapGastoRow(g);
+    renderFin();
+  }).catch(function(e) {
+    console.error('Error recalculando el ingreso de la venta:', e);
+    toast('El costo cambió, pero no se pudo actualizar el ingreso en Finanzas');
+  });
+}
+
+function gastosEnlazadosAVenta(ventaId) {
+  return expenses.filter(function(e) { return e.linkVenta === ventaId && e.cat !== 'Ingresos por Ventas'; });
+}
+
+/* Mano de obra que la calculadora ESTIMO para esta venta (por pieza x cantidad). */
+function laborEstimadaVenta(v) {
+  var t = v.costo_detalle && v.costo_detalle.totales;
+  return ((t && t.labor) || 0) * (v.cantidad || 1);
+}
+
+function desgloseCostoVenta(v) {
+  var base = (v.cantidad || 0) * (v.costo_unitario || 0);
+  var enlazados = gastosEnlazadosAVenta(v.id);
+  var laborReal = 0, otros = 0;
+  enlazados.forEach(function(g) {
+    if (g.cat === 'Mano de obra') laborReal += g.amount; else otros += g.amount;
+  });
+  var laborEstimada = laborEstimadaVenta(v);
+  var reemplaza = laborReal > 0;
+  return {
+    base: base,
+    laborEstimada: laborEstimada,
+    laborReal: laborReal,
+    otros: otros,
+    reemplaza: reemplaza,
+    // sin gasto de mano de obra enlazado se conserva el estimado: es lo mejor
+    // que se sabe hasta que aparezca el soporte real
+    total: base - (reemplaza ? laborEstimada : 0) + laborReal + otros,
+    sinRespaldo: laborEstimada > 0 && laborReal === 0
+  };
+}
+
+function costoRealVenta(v) { return desgloseCostoVenta(v).total; }
+
+/* Estado de resultados real, calculado desde `ventas`, no desde el espejo de
+   "Ingresos por Ventas" en gastos (ese guarda la ganancia, no el ingreso). */
+/* Los acumulados van desde el inicio del negocio y NO siguen el filtro de
+   periodo: la pregunta que responden es "cuanta plata ha dejado esto en total". */
+function renderAcumulados() {
+  var ingresos = 0, cogs = 0;
+  ventas.forEach(function(v) {
+    if (!ventaCuenta(v)) return;
+    ingresos += v.monto_total || 0;
+    cogs += costoRealVenta(v);
+  });
+  var operativo = 0, retiros = 0;
+  expenses.forEach(function(e) {
+    if (e.cat === 'Ingresos por Ventas') return;
+    if (e.cat === CAT_RETIRO) { retiros += e.amount; return; }
+    if (!isInv(e.cat)) operativo += e.amount;
+  });
+  var utilidad = ingresos - cogs - operativo;
+  var retenida = utilidad - retiros;
+
+  // Valor del inventario al costo: entradas menos salidas, valorizadas al promedio.
+  var inmovilizado = 0;
+  invSaldosRows().forEach(function(r) { inmovilizado += Math.max(0, r.saldoQty) * r.costoProm; });
+  invJoyasRows().forEach(function(r) { inmovilizado += Math.max(0, r.saldo) * r.costoProm; });
+
+  $('acum-utilidad').textContent = fmt(utilidad);
+  $('acum-retiros').textContent = fmt(retiros);
+  $('acum-retenida').textContent = fmt(retenida);
+  $('acum-inventario').textContent = fmt(inmovilizado);
+  var box = $('acum-ret-box');
+  box.classList.toggle('neg', retenida < 0);
+  box.classList.toggle('pos', retenida > 0);
+  $('acum-hint').innerHTML = retenida > 0 && inmovilizado > retenida
+    ? '⚠️ Tienes ' + fmt(inmovilizado) + ' en inventario pero solo ' + fmt(retenida) +
+      ' de utilidad retenida: parte del material está financiado con plata que pusiste tú, no con ganancia del negocio.'
+    : '💡 Utilidad retenida es la ganancia que se quedó en el negocio. Registra lo que sacas para ti como «Retiro de utilidades» — no es un gasto y no resta de la utilidad del periodo.';
+}
 var ventas = [];
 var editingIdVenta = null;
 var nextVentaNumberCatalogo = 1;
@@ -3758,8 +3846,13 @@ var nextVentaNumberManual = 1;
 var filtrosVentas = { fechaDesde: '', fechaHasta: '', cliente: '', producto_id: '', estado: '' };
 
 /* Criterio de caja: una venta cuenta como tal cuando ya se cobró.
-   Una cotización no es una venta, y una cancelada dejó de serlo. */
-var ESTADOS_QUE_CUENTAN = ['pagado', 'enviado', 'entregado'];
+   Una cotización no es una venta, y una cancelada dejó de serlo.
+
+   Esta lista vive tambien en github-verde-andino/index.html, que es OTRO
+   repositorio: sin compilacion no hay forma de compartirla, y compilacion no
+   va a haber. Lo que si hay es la marca GEMELA de aqui abajo: verificar.js lee
+   los dos archivos y falla si las dos copias dejan de decir lo mismo. */
+var ESTADOS_QUE_CUENTAN = ['pagado', 'enviado', 'entregado'];  // GEMELA
 var ESTADO_POR_COBRAR = 'pendiente';
 function ventaCuenta(v) { return ESTADOS_QUE_CUENTAN.indexOf(v.estado) >= 0; }
 
@@ -3778,9 +3871,9 @@ function mapVentaRow(r) {
 }
 
 function venLoad() {
-  fetch(SB_URL + '/rest/v1/ventas?select=*&order=fecha.desc,id.desc', { headers: sbHeaders() })
-  .then(r => r.json()).then(rows => {
-    ventas = rows.map(mapVentaRow);
+  sbPedir('/rest/v1/ventas?select=*&order=fecha.desc,id.desc')
+  .then(rows => {
+    ventas = (rows || []).map(mapVentaRow);
     nextVentaNumberCatalogo = Math.max(...ventas.filter(v => v.numero.startsWith('C-'))
       .map(v => parseInt(v.numero.split('-')[1]) || 0), 0) + 1;
     nextVentaNumberManual = Math.max(...ventas.filter(v => v.numero.startsWith('M-'))
@@ -3868,13 +3961,22 @@ function saveVenta() {
   var metodo = $('f-metodo-ven').value;
   var estado = $('f-estado-ven').value;
   var notas = $('f-notas-ven').value.trim();
+  /* Estas cuatro se leian mas abajo, DESPUES de las validaciones que las usan.
+     Por hoisting valian undefined ahi: el aviso de transportadora saltaba
+     siempre —ninguna venta podia guardarse en Enviado ni en Entregado— y la
+     validacion de la factura DIAN no se ejecutaba nunca. Trampa 2. Todo lo
+     que se valida se lee aca arriba, con lo demas. */
+  var tieneFactura = $('f-tiene-factura').checked;
+  var numeroFactura = $('f-numero-factura').value.trim();
+  var transportadora = $('f-transportadora').value.trim();
+  var guia = $('f-guia').value.trim();
 
   if (!fecha || !cliente || isNaN(cantidad) || isNaN(precio)) {
     toast('Completa: fecha, cliente y precios'); return;
   }
   if (esManual && !productoNombre) { toast('Completa el nombre del producto'); return; }
   if (!esManual && !producto_id) { toast('Completa: fecha, cliente, producto y precios'); return; }
-  if (fecha > new Date().toISOString().split('T')[0]) { toast('La fecha no puede ser futura'); return; }
+  if (fecha > fechaHoyLocal()) { toast('La fecha no puede ser futura'); return; }
   if (cantidad <= 0 || precio < 0) { toast('Cantidad y precio deben ser positivos'); return; }
   if (isNaN(costo) || costo < 0) { toast('Completa el costo unitario'); return; }
   if (precio < costo) { toast('Precio no puede ser menor al costo (' + fmt(costo) + ')'); return; }
@@ -3892,10 +3994,6 @@ function saveVenta() {
   var numero = editingVenta ? editingVenta.numero :
     (esManual ? 'M-' + String(nextVentaNumberManual).padStart(3, '0')
               : 'C-' + String(nextVentaNumberCatalogo).padStart(3, '0'));
-  var tieneFactura = $('f-tiene-factura').checked;
-  var numeroFactura = $('f-numero-factura').value.trim();
-  var transportadora = $('f-transportadora').value.trim();
-  var guia = $('f-guia').value.trim();
 
   // Vender mas unidades de las compradas deja el inventario en negativo y el
   // costo de ventas sin respaldo. Se avisa y se exige confirmar.
@@ -3989,11 +4087,8 @@ function sincronizarIngresoVenta(v, ventaActualizada) {
   }
 
   if (deberiaExistir && ingresoId) {
-    fetch(SB_URL + '/rest/v1/gastos?id=eq.' + ingresoId, {
-      method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(gastoBody)
-    }).then(function(r) {
-      if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-      return r.json();
+    sbPedir('/rest/v1/gastos?id=eq.' + ingresoId, {
+      method: 'PATCH', headers: { 'Prefer': 'return=representation' }, body: JSON.stringify(gastoBody)
     }).then(function(rows) {
       var g = Array.isArray(rows) ? rows[0] : rows;
       var i = expenses.findIndex(function(x) { return x.id === ingresoId; });
@@ -4002,17 +4097,14 @@ function sincronizarIngresoVenta(v, ventaActualizada) {
 
   } else if (deberiaExistir && !ingresoId) {
     // La venta paso de cotización/cancelada a un estado real: hay que crear el ingreso.
-    fetch(SB_URL + '/rest/v1/gastos', {
-      method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(gastoBody)
-    }).then(function(r) {
-      if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-      return r.json();
+    sbPedir('/rest/v1/gastos', {
+      method: 'POST', headers: { 'Prefer': 'return=representation' }, body: JSON.stringify(gastoBody)
     }).then(function(rows) {
       var g = Array.isArray(rows) ? rows[0] : rows;
       if (!g) return;
       expenses.unshift(mapGastoRow(g));
-      return fetch(SB_URL + '/rest/v1/ventas?id=eq.' + ventaActualizada.id, {
-        method: 'PATCH', headers: sbHeaders(), body: JSON.stringify({ ingreso_id: g.id })
+      return sbPedir('/rest/v1/ventas?id=eq.' + ventaActualizada.id, {
+        method: 'PATCH', body: JSON.stringify({ ingreso_id: g.id })
       }).then(function() {
         var iv = ventas.findIndex(function(x) { return x.id === ventaActualizada.id; });
         if (iv >= 0) ventas[iv].ingreso_id = g.id;
@@ -4023,9 +4115,8 @@ function sincronizarIngresoVenta(v, ventaActualizada) {
 
   } else if (!deberiaExistir && ingresoId) {
     // Dejo de contar (cotización o cancelada): el ingreso no debe seguir sumando.
-    fetch(SB_URL + '/rest/v1/gastos?id=eq.' + ingresoId, { method: 'DELETE', headers: sbHeaders() })
-      .then(function(r) {
-        if (!r.ok) throw new Error('Error ' + r.status);
+    sbPedir('/rest/v1/gastos?id=eq.' + ingresoId, { method: 'DELETE' })
+      .then(function() {
         expenses = expenses.filter(function(x) { return x.id !== ingresoId; });
         var iv = ventas.findIndex(function(x) { return x.id === ventaActualizada.id; });
         if (iv >= 0) ventas[iv].ingreso_id = null;
@@ -4049,11 +4140,8 @@ function confirmarYGuardarVenta() {
   };
 
   if (v.editingId) {
-    fetch(SB_URL + '/rest/v1/ventas?id=eq.' + v.editingId, {
-      method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ventaBody)
-    }).then(r => {
-      if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
-      return r.json();
+    sbPedir('/rest/v1/ventas?id=eq.' + v.editingId, {
+      method: 'PATCH', headers: { 'Prefer': 'return=representation' }, body: JSON.stringify(ventaBody)
     }).then(rows => {
       var ventaActualizada = Array.isArray(rows) ? rows[0] : rows;
       var idxVenta = ventas.findIndex(x => x.id === v.editingId);
@@ -4084,11 +4172,8 @@ function confirmarYGuardarVenta() {
       cantidad: v.cantidad, unidad: 'u'
     };
     var pasoIngreso = cuentaComoIngreso
-      ? fetch(SB_URL + '/rest/v1/gastos', {
-          method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ingresoBody)
-        }).then(r => {
-          if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
-          return r.json();
+      ? sbPedir('/rest/v1/gastos', {
+          method: 'POST', headers: { 'Prefer': 'return=representation' }, body: JSON.stringify(ingresoBody)
         })
       : Promise.resolve(null);
 
@@ -4099,11 +4184,8 @@ function confirmarYGuardarVenta() {
       if (v.esManual && window._cjFichaPendiente) {
         ventaBody.costo_detalle = Object.assign({}, window._cjFichaPendiente, { calculadoEl: v.fecha });
       }
-      fetch(SB_URL + '/rest/v1/ventas', {
-        method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(ventaBody)
-      }).then(r => {
-        if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
-        return r.json();
+      sbPedir('/rest/v1/ventas', {
+        method: 'POST', headers: { 'Prefer': 'return=representation' }, body: JSON.stringify(ventaBody)
       }).then(rows => {
         var ventaCreada = Array.isArray(rows) ? rows[0] : rows;
         if (!ventaCreada || !ventaCreada.id) { toast('Error: respuesta inesperada de Supabase'); return; }
@@ -4125,7 +4207,7 @@ function confirmarYGuardarVenta() {
         if (!v.esManual && v.producto_id) invCheckAutoOcultar(v.producto_id);
       }).catch(e => {
         console.error(e); toast('Error al guardar venta: ' + e.message);
-        if (ingresoCreado) fetch(SB_URL + '/rest/v1/gastos?id=eq.' + ingresoCreado.id, { method: 'DELETE', headers: sbHeaders() }).catch(function(){});
+        if (ingresoCreado) sbPedir('/rest/v1/gastos?id=eq.' + ingresoCreado.id, { method: 'DELETE' }).catch(function(){});
       });
     }).catch(e => { console.error(e); toast('Error al crear ingreso: ' + e.message); });
   }
@@ -4144,12 +4226,9 @@ function ofrecerRepublicar(productoId) {
     productoId + ' vuelve a tener ' + fila.saldo + (fila.saldo === 1 ? ' unidad' : ' unidades') +
     ', pero sigue oculta en la vitrina. ¿La volvemos a publicar?',
     function() {
-      fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(productoId), {
-        method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+      sbPedir('/rest/v1/productos?id=eq.' + encodeURIComponent(productoId), {
+        method: 'PATCH', headers: { 'Prefer': 'return=representation' },
         body: JSON.stringify({ estado: 'publicado' })
-      }).then(function(r) {
-        if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-        return r.json();
       }).then(function(rows) {
         var actualizado = Array.isArray(rows) ? rows[0] : rows;
         var i = productosCache.findIndex(function(x) { return x.id === productoId; });
@@ -4178,16 +4257,15 @@ function delVenta(id, ev) {
 function delVentaConfirmada(id, v) {
   // La venta referencia al gasto via ingreso_id (FK sin ON DELETE CASCADE), asi que hay
   // que borrar primero la venta y despues el gasto, o la FK rechaza el borrado del gasto.
-  fetch(SB_URL + '/rest/v1/ventas?id=eq.' + id, { method: 'DELETE', headers: sbHeaders() })
-  .then(r => {
-    if (!r.ok) return r.json().then(e => { throw new Error(e.message || 'Error ' + r.status); });
+  sbPedir('/rest/v1/ventas?id=eq.' + id, { method: 'DELETE' })
+  .then(() => {
     ventas = ventas.filter(x => x.id !== id);
     inventarioSalidas = inventarioSalidas.filter(x => x.ventaId !== id);
     renderVentas();
     if (v.ingreso_id) {
-      return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + v.ingreso_id, { method: 'DELETE', headers: sbHeaders() })
-        .then(r2 => {
-          if (!r2.ok) throw new Error('La venta se elimino, pero no se pudo eliminar el ingreso vinculado en Finanzas');
+      return sbPedir('/rest/v1/gastos?id=eq.' + v.ingreso_id, { method: 'DELETE' })
+        .catch(() => { throw new Error('La venta se elimino, pero no se pudo eliminar el ingreso vinculado en Finanzas'); })
+        .then(() => {
           expenses = expenses.filter(x => x.id !== v.ingreso_id);
           renderFin();
         });
@@ -4203,19 +4281,9 @@ function delVentaConfirmada(id, v) {
 /* ---- Filtros del historial de ventas (mismo patron que Finanzas) ---- */
 var venFiltroPeriodo = 'all', venFiltroEstado = 'all';
 
-function venEnPeriodo(v) {
-  if (venFiltroPeriodo === 'all') return true;
-  if (venFiltroPeriodo === '3m') return v.fecha >= finCutoff(3);
-  if (venFiltroPeriodo === '6m') return v.fecha >= finCutoff(6);
-  return v.fecha.substring(0, 7) === venFiltroPeriodo;
-}
+function venEnPeriodo(v) { return periodoContiene(v.fecha, venFiltroPeriodo); }
 
-function venPeriodoLabel() {
-  if (venFiltroPeriodo === 'all') return 'Todo el historial';
-  if (venFiltroPeriodo === '3m') return 'Ultimos 3 meses';
-  if (venFiltroPeriodo === '6m') return 'Ultimos 6 meses';
-  return monthName(venFiltroPeriodo);
-}
+function venPeriodoLabel() { return periodoLabel(venFiltroPeriodo); }
 
 function venSyncFiltros() {
   var selP = $('ven-f-periodo'), selE = $('ven-f-estado');
@@ -4325,6 +4393,11 @@ function editVenta(id, ev) {
   if (ev) ev.stopPropagation();
   var v = ventas.find(x => x.id === id);
   if (!v) return;
+  /* Lo que dejo la calculadora es de OTRA pieza: si se queda puesto, al
+     guardar esta venta se descontaria el material de aquella. cancelEditVenta
+     ya lo limpiaba; abrir una venta para editarla no. */
+  window._cjSalidaPendiente = null;
+  window._cjFichaPendiente = null;
   editingIdVenta = id;
   $('f-numero-ven').value = v.numero;
   $('f-fecha-ven').value = v.fecha;
@@ -4345,8 +4418,9 @@ function editVenta(id, ev) {
     selProd.value = v.producto_id;
     ventaProductoNombreActual = v.producto_nombre || '';
     if (!ventaProductoNombreActual) {
-      fetch(SB_URL + '/rest/v1/productos?id=eq.' + v.producto_id + '&select=descripcion', { headers: sbHeaders() })
-      .then(r => r.json()).then(rows => { if (rows.length > 0) ventaProductoNombreActual = rows[0].descripcion || ''; });
+      sbPedir('/rest/v1/productos?id=eq.' + v.producto_id + '&select=descripcion')
+      .then(rows => { if (rows && rows.length) ventaProductoNombreActual = rows[0].descripcion || ''; })
+      .catch(e => console.error('No se pudo leer el nombre del producto:', e));
     }
   }
   $('f-cantidad-ven').value = v.cantidad;
@@ -4382,7 +4456,7 @@ function cancelEditVenta() {
   $('btn-cancel-ven').style.display = 'none';
   document.querySelectorAll('#tab-ven input, #tab-ven select, #tab-ven textarea').forEach(f => f.value = '');
   document.querySelectorAll('#tab-ven input[type="checkbox"]').forEach(f => f.checked = false);
-  $('f-fecha-ven').value = new Date().toISOString().split('T')[0];
+  $('f-fecha-ven').value = fechaHoyLocal();
   $('f-cantidad-ven').value = '1';
   $('f-estado-ven').value = 'pagado';
   ventaEstadoChanged();
@@ -4425,16 +4499,21 @@ function renderSummaryVentas(visibles) {
 }
 
 function loadProductosDropdown() {
-  fetch(SB_URL + '/rest/v1/productos?select=id,descripcion,precio,costo,estado&estado=eq.publicado', { headers: sbHeaders() })
-  .then(r => r.json()).then(rows => {
+  sbPedir('/rest/v1/productos?select=id,descripcion,precio,costo,estado&estado=eq.publicado')
+  .then(rows => {
     var sel = $('f-producto-ven');
     sel.innerHTML = '<option value="">-- Selecciona producto --</option>';
-    rows.forEach(p => {
+    (rows || []).forEach(p => {
       var opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.id + ' — ' + (p.descripcion || 'Sin descripción');
       sel.appendChild(opt);
     });
+  }).catch(e => {
+    /* Antes esto callaba: el desplegable quedaba vacio y parecia que no habia
+       ninguna pieza publicada. No es lo mismo «no hay» que «no se pudo leer». */
+    console.error('Error cargando la lista de productos:', e);
+    toast('No se pudo cargar la lista de productos: ' + (e.message || 'error de conexion'));
   });
 }
 
@@ -4444,15 +4523,20 @@ function ventaProductoChanged() {
   var producto_id = $('f-producto-ven').value;
   ventaProductoNombreActual = '';
   if (!producto_id) { clearVentaCalculos(); return; }
-  fetch(SB_URL + '/rest/v1/productos?id=eq.' + producto_id + '&select=costo,precio,descripcion', { headers: sbHeaders() })
-  .then(r => r.json()).then(rows => {
-    if (rows.length > 0) {
+  sbPedir('/rest/v1/productos?id=eq.' + producto_id + '&select=costo,precio,descripcion')
+  .then(rows => {
+    if (rows && rows.length) {
       var p = rows[0];
       $('f-costo-ven').value = p.costo;
       $('f-precio-ven').value = p.precio;
       ventaProductoNombreActual = p.descripcion || '';
       ventaCalcGanancia();
     }
+  }).catch(e => {
+    /* Sin costo no se puede calcular la ganancia: mas vale decirlo que dejar
+       los campos en blanco como si la pieza no tuviera costo. */
+    console.error('Error leyendo el producto:', e);
+    toast('No se pudieron leer el costo y el precio de la pieza: ' + (e.message || 'error de conexion'));
   });
 }
 
@@ -4532,7 +4616,7 @@ function exportVentasCSV() {
   var rows = ventasExportRows();
   var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
   download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }),
-    'ventas_' + new Date().toISOString().split('T')[0] + '.csv');
+    'ventas_' + fechaHoyLocal() + '.csv');
   toast('Archivo descargado');
 }
 
@@ -4574,7 +4658,48 @@ function exportVentasXLSX() {
   download(makeZip(files), 'ventas_' + stamp() + '.xlsx');
 }
 
-/* ===== CONTROL DE INVENTARIO ===== */
+/* ===== INVENTARIO ===== */
+
+// Promedio ponderado del ITEM concreto (Oro, Plata, Liga...), no de toda la
+// categoria. Promediar "Metales" junto mezcla oro con plata y arruina el costeo.
+// Reutiliza invEntradasMap(), la misma fuente que alimenta el Control de Inventario.
+function costoPromedioItem(categoria, item) {
+  var e = invEntradasMap()[invItemKey(categoria, item)];
+  return (e && e.qty > 0) ? (e.amount / e.qty) : 0;
+}
+
+// Ultimo precio pagado por un item. Si subio frente al promedio, costear al
+// promedio deja la venta sin plata suficiente para reponer el material.
+function ultimoPrecioItem(categoria, item) {
+  var mejor = null;
+  expenses.forEach(function(e) {
+    if (e.cat !== categoria || !e.qty || e.qty <= 0) return;
+    if ((e.itemInv || 'Sin especificar') !== item) return;
+    if (!mejor || e.date > mejor.date || (e.date === mejor.date && e.id > mejor.id)) mejor = e;
+  });
+  return mejor ? (mejor.amount / mejor.qty) : null;
+}
+
+// Saldo disponible de un item. Devuelve null si el item no existe en el inventario.
+function invSaldoDe(categoria, item) {
+  var rows = invSaldosRows();
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].categoria === categoria && rows[i].item === item) return rows[i].saldoQty;
+  }
+  return null;
+}
+
+// Busca un item de inventario por nombre sin importar mayusculas ni espacios,
+// porque en la calculadora las piedras se escriben a mano.
+function invBuscarItem(categoria, nombre) {
+  var n = String(nombre || '').trim().toLowerCase();
+  if (!n) return null;
+  var rows = invSaldosRows();
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].categoria === categoria && rows[i].item.trim().toLowerCase() === n) return rows[i];
+  }
+  return null;
+}
 var invMatFilterCat = 'all';
 var invMovFilterTipo = 'all';
 
@@ -4606,8 +4731,7 @@ function mapSalidaRow(r) {
 }
 
 function invLoadProductos() {
-  return fetch(SB_URL + '/rest/v1/productos?select=id,descripcion,estado,costo', { headers: sbHeaders() })
-    .then(function(r) { return r.json(); })
+  return sbPedir('/rest/v1/productos?select=id,descripcion,estado,costo')
     .then(function(rows) {
       productosCache = Array.isArray(rows) ? rows : [];
       var sel = $('f-link');
@@ -4615,13 +4739,19 @@ function invLoadProductos() {
     });
 }
 
+/* El formato del id de una pieza. Tambien es gemelo: el publicador de la
+   vitrina numera las piezas con esta misma regla, y si las dos dejaran de
+   coincidir, uno de los dos propondria un id que el otro ya uso. */
+var PRODUCTO_ID_PREFIJO = 'VA-';  // GEMELA
+var PRODUCTO_ID_DIGITOS = 3;      // GEMELA
+
 function nextProductoId() {
   var max = 0;
   productosCache.forEach(function(p) {
     var m = p.id.match(/VA-(\d+)/);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   });
-  return 'VA-' + String(max + 1).padStart(3, '0');
+  return PRODUCTO_ID_PREFIJO + String(max + 1).padStart(PRODUCTO_ID_DIGITOS, '0');
 }
 
 function crearBorradorProducto(gastoId, qty, amount, linkEscrito) {
@@ -4634,23 +4764,17 @@ function crearBorradorProducto(gastoId, qty, amount, linkEscrito) {
     // Si escribio un ID que no existe, se respeta ese ID en vez de inventar otro.
     var newId = idEscrito || nextProductoId();
     var yaEnlazado = !!idEscrito;
-    return fetch(SB_URL + '/rest/v1/productos', {
-      method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+    return sbPedir('/rest/v1/productos', {
+      method: 'POST', headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify({ id: newId, estado: 'borrador', costo: costoUnitario })
-    }).then(function(r) {
-      if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-      return r.json();
     }).then(function(rows) {
       var created = Array.isArray(rows) ? rows[0] : rows;
       productosCache.push(created || { id: newId, estado: 'borrador', costo: costoUnitario });
       if ($('f-link')) renderLinkOptions($('f-link').value);
       if (yaEnlazado) return null; // el gasto ya se guardo con ese ID escrito a mano
-      return fetch(SB_URL + '/rest/v1/gastos?id=eq.' + gastoId, {
-        method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+      return sbPedir('/rest/v1/gastos?id=eq.' + gastoId, {
+        method: 'PATCH', headers: { 'Prefer': 'return=representation' },
         body: JSON.stringify({ enlace_producto: newId })
-      }).then(function(r) {
-        if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-        return r.json();
       });
     }).then(function(rows) {
       var updated = Array.isArray(rows) ? rows[0] : rows;
@@ -4665,14 +4789,47 @@ function crearBorradorProducto(gastoId, qty, amount, linkEscrito) {
   });
 }
 
+/* Si esta lectura falla, NO se puede seguir como si no hubiera salidas: la
+   guarda de descontarMaterial usa esta lista para saber si una venta ya
+   descontó, y con la lista vacia descuenta otra vez. Por eso marca la bandera
+   y avisa, en vez de callar.
+
+   La bandera dice que la lectura FALLO, no que salio bien: asi, mientras nadie
+   informe un fallo, todo sigue funcionando como siempre. Al reves bloqueaba el
+   descuento tambien antes de la primera lectura, que es cuando mas se usa. */
+var salidasIlegibles = false;
+
 function invLoadSalidas() {
-  return fetch(SB_URL + '/rest/v1/inventario_salidas?select=*', { headers: sbHeaders() })
-    .then(function(r) { return r.json(); })
-    .then(function(rows) { inventarioSalidas = (Array.isArray(rows) ? rows : []).map(mapSalidaRow); });
+  return sbPedir('/rest/v1/inventario_salidas?select=*')
+    .then(function(rows) {
+      inventarioSalidas = (Array.isArray(rows) ? rows : []).map(mapSalidaRow);
+      salidasIlegibles = false;
+    })
+    .catch(function(e) {
+      salidasIlegibles = true;
+      inventarioSalidas = [];
+      toast('No se pudieron leer las salidas de inventario. No se va a descontar material hasta que se pueda: ' + (e.message || 'error de conexion'));
+      console.error(e);
+    });
+}
+
+/* Borra las salidas de una venta. Hace falta cuando la venta sigue existiendo
+   y lo que cambio es la cantidad, o cuando dejo de contar: ahi el ON DELETE
+   CASCADE de la base no ayuda, porque no se borra ninguna venta. */
+function retirarSalidasDeVenta(ventaId) {
+  if (!inventarioSalidas.some(function(x) { return x.ventaId === ventaId; })) return Promise.resolve();
+  return sbPedir('/rest/v1/inventario_salidas?venta_id=eq.' + ventaId, { method: 'DELETE' })
+    .then(function() {
+    inventarioSalidas = inventarioSalidas.filter(function(x) { return x.ventaId !== ventaId; });
+  }).catch(function(e) {
+    toast('No se pudo devolver el material de esta venta al inventario: ' + (e.message || 'error de conexion'));
+    console.error(e);
+    throw e;
+  });
 }
 
 function invLoadMinimos() {
-  return fetch(SB_URL + '/rest/v1/inventario_minimos?select=*', { headers: sbHeaders() })
+  return sbPedir('/rest/v1/inventario_minimos?select=*')
     .then(function(r) { return r.ok ? r.json() : []; })
     .then(function(rows) {
       inventarioMinimos = {};
@@ -4739,15 +4896,41 @@ function salidaDesdeFicha(ficha) {
    en memoria. */
 function descontarMaterial(filaVenta, cantidad, fecha) {
   if (!filaVenta || !filaVenta.id) return;
-  if (!ventaCuenta(filaVenta)) return;                       // cotizacion: no toca
-  if (inventarioSalidas.some(function(x) { return x.ventaId === filaVenta.id; })) return;
+
+  /* Si la lectura de salidas fallo, no se sabe cuales hay ya y descontar es
+     apostar a que no se duplica. Mejor no tocar el inventario. */
+  if (salidasIlegibles) return;
+
+  var yaTiene = inventarioSalidas.some(function(x) { return x.ventaId === filaVenta.id; });
+
+  /* Dejo de contar (cancelada, cotizacion) y ya habia descontado: se devuelve
+     el material, igual que se retira el ingreso de Finanzas. */
+  if (!ventaCuenta(filaVenta)) {
+    if (yaTiene) retirarSalidasDeVenta(filaVenta.id);
+    return;
+  }
+
+  /* Ya descontó y sigue contando: se borran las de antes y se vuelven a
+     escribir. No se intenta adivinar si cambio la cantidad —la fila guardada
+     no dice de cuantas unidades salio— y ademas asi tambien se corrige si lo
+     que cambio fue la ficha. El resultado es el mismo si no cambio nada. */
+  if (yaTiene) {
+    retirarSalidasDeVenta(filaVenta.id).then(function() {
+      descontarMaterial(filaVenta, cantidad, fecha);
+    }).catch(function() { /* ya aviso retirarSalidasDeVenta */ });
+    return;
+  }
 
   var ficha = filaVenta.costo_detalle;
   if (!ficha) {
     var enMemoria = ventas.find(function(x) { return x.id === filaVenta.id; });
     ficha = enMemoria && enMemoria.costo_detalle;
   }
-  var material = window._cjSalidaPendiente || salidaDesdeFicha(ficha);
+  /* La ficha de la propia venta manda. La que dejo la calculadora solo sirve
+     para la venta que se acaba de crear, que todavia no tiene costo_detalle
+     guardado; si se usara siempre, abrir otra venta del historial despues de
+     costear descontaria el material de la pieza calculada. */
+  var material = salidaDesdeFicha(ficha) || window._cjSalidaPendiente;
 
   if (!material) {
     // Solo se avisa si la venta PARECE de las que descuentan: manual y con
@@ -4802,13 +4985,10 @@ function registrarSalidasInventario(ventaId, fecha, cantidadVenta, p) {
     }
   });
   if (!rows.length) return;
-  fetch(SB_URL + '/rest/v1/inventario_salidas', {
-    method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(rows)
-  }).then(function(r) {
-    // Sin este control, un fallo del servidor pasaba inadvertido y la venta
-    // quedaba sin descontar material, sin ningun aviso.
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-    return r.json();
+  // Sin comprobar la respuesta, un fallo del servidor pasaba inadvertido y la
+  // venta quedaba sin descontar material, sin ningun aviso. Lo comprueba sbPedir.
+  sbPedir('/rest/v1/inventario_salidas', {
+    method: 'POST', headers: { 'Prefer': 'return=representation' }, body: JSON.stringify(rows)
   })
   .then(function(created) {
     var arr = Array.isArray(created) ? created : [created];
@@ -4885,13 +5065,10 @@ function invGuardarMinimo(categoria, item, valor) {
   var minimo = parseFloat(valor) || 0;
   var key = invItemKey(categoria, item);
   if (invMinimoDe(categoria, item) === minimo) return;
-  fetch(SB_URL + '/rest/v1/inventario_minimos', {
+  sbPedir('/rest/v1/inventario_minimos', {
     method: 'POST',
-    headers: { ...sbHeaders(), 'Prefer': 'return=representation,resolution=merge-duplicates' },
+    headers: { 'Prefer': 'return=representation,resolution=merge-duplicates' },
     body: JSON.stringify({ categoria: categoria, item: item, minimo: minimo })
-  }).then(function(r) {
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.message || 'Error ' + r.status); });
-    return r.json();
   }).then(function(rows) {
     var row = Array.isArray(rows) ? rows[0] : rows;
     inventarioMinimos[key] = { categoria: categoria, item: item, minimo: parseFloat(row ? row.minimo : minimo) };
@@ -4949,14 +5126,15 @@ function invFilterMaterial(btn, cat) {
 function invCheckAutoOcultar(productoId) {
   var producto = productosCache.find(function(p) { return p.id === productoId; });
   if (!producto || producto.estado !== 'publicado') return;
-  var entradas = 0;
-  expenses.forEach(function(e) { if (e.cat === 'Joyas para reventa' && e.link === productoId) entradas += (e.qty || 0); });
-  if (entradas <= 0) return;
-  var vendidas = invJoyaVentasVendidas(productoId);
-  if (vendidas < entradas) return;
-  fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(productoId), {
-    method: 'PATCH', headers: { ...sbHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify({ estado: 'oculto' })
-  }).then(function(r) { return r.ok ? r.json() : null; })
+  /* El saldo de una joya se calcula en invJoyasRows() y en ningun otro lado.
+     Aca se recorria expenses otra vez a mano: si manaña cambia lo que cuenta
+     como entrada, esta copia se queda con la regla vieja. */
+  var fila = invJoyasRows().find(function(r) { return r.id === productoId; });
+  if (!fila || fila.entradas <= 0) return;
+  if (fila.saldo > 0) return;
+  sbPedir('/rest/v1/productos?id=eq.' + encodeURIComponent(productoId), {
+    method: 'PATCH', headers: { 'Prefer': 'return=representation' }, body: JSON.stringify({ estado: 'oculto' })
+  })
   .then(function(rows) {
     var updated = Array.isArray(rows) ? rows[0] : rows;
     if (updated) producto.estado = updated.estado || 'oculto'; else producto.estado = 'oculto';
@@ -5040,7 +5218,8 @@ function invMovimientosRows() {
   });
   // Salida de una joya para reventa: cada venta de catalogo descuenta unidades de esa pieza.
   ventas.forEach(function(v) {
-    if (!v.producto_id) return;
+    // Sin ventaCuenta una cotizacion salia como salida y el saldo no la restaba.
+    if (!v.producto_id || !ventaCuenta(v)) return;
     rows.push({
       fecha: v.fecha, tipo: 'salida', categoria: 'Joyas para reventa',
       item: invJoyaLabel(v.producto_id, v.producto_nombre),
@@ -5083,7 +5262,7 @@ function invRenderMovimientos() {
   rows.forEach(function(r) {
     var qtyLabel = (r.categoria === 'Piedras' && (r.qtyPiedras || r.qtyPiedras === 0))
       ? (r.qtyPiedras + (r.qtyPiedras === 1 ? ' piedra' : ' piedras') + '<span class="inv-sub">' + fmtQty(r.qty, 'ct') + ' ct</span>')
-      : (fmtQty(r.qty, r.unidad) + ' ' + r.unidad);
+      : fmtQty(r.qty, r.unidad);
     html += '<tr><td>' + r.fecha.split('-').reverse().join('/') + '</td>' +
       '<td><span class="cat-badge badge-' + r.tipo + '">' + (r.tipo === 'entrada' ? 'Entrada' : 'Salida') + '</span></td>' +
       '<td><span class="item-name">' + esc(r.item) + '</span><span class="inv-item-cat">' + esc(r.categoria) + '</span></td>' +
@@ -5106,53 +5285,6 @@ function renderInventario() {
   invRenderMaterial();
   invRenderJoyas();
   invRenderMovimientos();
-}
-
-/* ---- Exportacion de Inventario ---- */
-// Arma la hoja de calculo de una tabla: fila 0 en negrita, columnas de moneyCols con formato $.
-function buildSheetXml(rows, moneyCols) {
-  var sheet = '';
-  for (var r = 0; r < rows.length; r++) {
-    var cells = '';
-    for (var c = 0; c < rows[r].length; c++) {
-      var val = rows[r][c], ref = colName(c + 1) + (r + 1);
-      if (val === '' || val === null || val === undefined) continue;
-      if (r > 0 && typeof val === 'number') {
-        var st = moneyCols.indexOf(c) >= 0 ? ' s="2"' : '';
-        cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
-      } else {
-        var s = r === 0 ? ' s="1"' : '';
-        cells += '<c r="' + ref + '" t="inlineStr"' + s + '><is><t>' + xmlEsc(val) + '</t></is></c>';
-      }
-    }
-    sheet += '<row r="' + (r + 1) + '">' + cells + '</row>';
-  }
-  var cols = '<cols>';
-  for (var c2 = 1; c2 <= rows[0].length; c2++) cols += '<col min="' + c2 + '" max="' + c2 + '" width="18" customWidth="1"/>';
-  cols += '</cols>';
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>';
-}
-
-// Un solo archivo .xlsx con varias hojas: sheets = [{ name, rows, moneyCols }]
-function buildXLSXBlob(sheets) {
-  var overrides = '', sheetTags = '', rels = '', files = [];
-  for (var i = 0; i < sheets.length; i++) {
-    var n = i + 1;
-    overrides += '<Override PartName="/xl/worksheets/sheet' + n + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
-    sheetTags += '<sheet name="' + xmlEsc(sheets[i].name) + '" sheetId="' + n + '" r:id="rId' + n + '"/>';
-    rels += '<Relationship Id="rId' + n + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + n + '.xml"/>';
-    files.push({ name: 'xl/worksheets/sheet' + n + '.xml', content: buildSheetXml(sheets[i].rows, sheets[i].moneyCols || []) });
-  }
-  // El id de estilos va despues de todas las hojas para no chocar con ellas.
-  rels += '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
-  files.unshift(
-    { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' + overrides + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
-    { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + sheetTags + '</sheets></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + rels + '</Relationships>' },
-    { name: 'xl/styles.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>' }
-  );
-  return makeZip(files);
 }
 
 function invSaldosExportRows() {
@@ -5216,10 +5348,13 @@ function exportInventarioXLSX() {
   download(buildXLSXBlob(sheets), 'verde-andino-inventario-' + stamp() + '.xlsx');
 }
 
+/* ===== ARRANQUE ===== */
+/* Lo unico que se ejecuta solo al cargar la pagina. Va al final y no se mueve:
+   a diferencia de las funciones, esto SI depende del orden. */
 $('f-amount').addEventListener('input', updateRate);
 $('f-qty').addEventListener('input', updateRate);
-$('f-date').value = new Date().toISOString().split('T')[0];
-$('f-fecha-ven').value = new Date().toISOString().split('T')[0];
+$('f-date').value = fechaHoyLocal();
+$('f-fecha-ven').value = fechaHoyLocal();
 syncCat();
 </script>
 </body>
