@@ -1228,7 +1228,6 @@
         <label>ID del producto <span id="id-lock-note" style="display:none">· no se puede cambiar al editar</span></label>
         <input type="text" id="f-id" placeholder="VA-001" maxlength="20" readonly
                title="Lo asigna el sistema. Para reabastecer una pieza que ya existe, se elige desde el gasto en Finanzas.">
-        <div class="hint">Lo asigna el sistema solo.</div>
       </div>
 
       <div class="field">
@@ -3133,7 +3132,12 @@ function admInitForm() {
   document.getElementById('f-color').value = '';
   document.getElementById('f-genero').value = '';
   document.getElementById('stones-list').innerHTML = '';
-  admAddStone('Esmeralda', 1, '');
+  /* Vacia. Antes toda pieza nueva nacia con una esmeralda de un quilate
+     puesta, que es exactamente lo que se le quito a los otros desplegables:
+     nada describe la pieza hasta que alguien lo escribe. El renglon sigue
+     visible con sus marcas de agua, y admGetStones() ya descarta el renglon
+     sin tipo y ya asume 1 si la cantidad queda vacia. */
+  admAddStone('', '', '');
   admSetCert('No');
   document.getElementById('gallery-body').classList.add('hidden');
   admGalleryOpen = false;
@@ -3156,7 +3160,12 @@ function admResetForm() {
   document.getElementById('f-color').value = '';
   document.getElementById('f-genero').value = '';
   document.getElementById('stones-list').innerHTML = '';
-  admAddStone('Esmeralda', 1, '');
+  /* Vacia. Antes toda pieza nueva nacia con una esmeralda de un quilate
+     puesta, que es exactamente lo que se le quito a los otros desplegables:
+     nada describe la pieza hasta que alguien lo escribe. El renglon sigue
+     visible con sus marcas de agua, y admGetStones() ya descarta el renglon
+     sin tipo y ya asume 1 si la cantidad queda vacia. */
+  admAddStone('', '', '');
   document.getElementById('f-desc').value = '';
   document.getElementById('f-medida').value = '';
   document.getElementById('f-medidaU').value = 'talla';
