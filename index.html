@@ -1428,6 +1428,22 @@ var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 var SB_TOKEN_SALT = 'VDA_2026_TOKEN_SALT_v1';
 function sbGetAdminToken() { return sessionStorage.getItem('va_admin_token') || ''; }
 
+/* Criterio de caja: una venta cuenta como tal cuando ya se cobró. Una
+   cotización no es una venta, y una cancelada dejó de serlo.
+
+   Esta lista vive tambien en panel-deploy.html, que es OTRO repositorio: sin
+   compilacion no hay forma de compartirla, y compilacion no va a haber. Lo que
+   si hay es la marca GEMELA: verificar.js lee los dos archivos y falla si las
+   dos copias dejan de decir lo mismo. Estaba escrita suelta dentro de
+   admSaldoProducto, sin nombre y sin ninguna señal de que tuviera pareja. */
+var ESTADOS_QUE_CUENTAN = ['pagado', 'enviado', 'entregado'];  // GEMELA
+
+/* El formato del id de una pieza, gemelo del que usa el panel para numerar los
+   borradores que crea Finanzas. Si dejaran de coincidir, uno propondria un id
+   que el otro ya uso. */
+var PRODUCTO_ID_PREFIJO = 'VA-';  // GEMELA
+var PRODUCTO_ID_DIGITOS = 3;      // GEMELA
+
 /* Las cabeceras, en un solo sitio. Habia diez objetos escritos a mano en cuatro
    variantes: unos con Content-Type, otros sin el, unos con comillas en las
    llaves y otros sin ellas. La vitrina tiene dos publicos —quien mira el
@@ -2314,7 +2330,7 @@ function admNextId() {
     var m = it.id.match(/VA-(\d+)/);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   });
-  return 'VA-' + String(max + 1).padStart(3, '0');
+  return PRODUCTO_ID_PREFIJO + String(max + 1).padStart(PRODUCTO_ID_DIGITOS, '0');
 }
 
 document.getElementById('photo-input').addEventListener('change', function(e) {
@@ -2881,9 +2897,8 @@ function admSaldoProducto(productId, cb) {
       '&enlace_producto=eq.' + encodeURIComponent(productId)),
     sbPedir('/rest/v1/ventas?select=cantidad_vendida,estado&producto_id=eq.' + encodeURIComponent(productId))
   ]).then(function(res) {
-    var cuentan = ['pagado', 'enviado', 'entregado'];
     var compradas = (res[0] || []).reduce(function(a, g) { return a + (parseFloat(g.cantidad) || 0); }, 0);
-    var vendidas = (res[1] || []).filter(function(v) { return cuentan.indexOf(v.estado) >= 0; })
+    var vendidas = (res[1] || []).filter(function(v) { return ESTADOS_QUE_CUENTAN.indexOf(v.estado) >= 0; })
       .reduce(function(a, v) { return a + (parseFloat(v.cantidad_vendida) || 0); }, 0);
     cb({ compradas: compradas, vendidas: vendidas, saldo: compradas - vendidas });
   }).catch(function(e) {
