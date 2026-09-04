@@ -913,6 +913,7 @@
             <div class="field">
               <label>Tipo de metal</label>
               <select id="cj-tipo-metal" onchange="cjCalcular()">
+                <option value="" selected>Selecciona…</option>
                 <option value="gold">Oro</option>
                 <option value="silver">Plata</option>
               </select>
@@ -921,12 +922,14 @@
               <label>Peso total de la pieza (g)</label>
               <input type="number" id="cj-peso" min="0" step="0.01" placeholder="Ej: 8.00" oninput="cjCalcular()">
             </div>
-            <div class="field" id="cj-wrap-karat">
+            <!-- Escondido de entrada, igual que el de plata: sin metal elegido no se muestra ninguna ley. -->
+            <div class="field" id="cj-wrap-karat" style="display:none;">
               <label>Ley deseada</label>
               <select id="cj-karat" onchange="cjCalcular()">
+                <option value="" selected>Selecciona…</option>
                 <option value="24">24K - 999</option>
                 <option value="22">22K - 916</option>
-                <option value="18" selected>18K - 750</option>
+                <option value="18">18K - 750</option>
                 <option value="14">14K - 585</option>
                 <option value="10">10K - 417</option>
                 <option value="9">9K - 375</option>
@@ -935,9 +938,10 @@
             <div class="field" id="cj-wrap-ley" style="display:none;">
               <label>Ley deseada</label>
               <select id="cj-ley" onchange="cjCalcular()">
+                <option value="" selected>Selecciona…</option>
                 <option value="1000">1000 - Pura</option>
                 <option value="950">950</option>
-                <option value="925" selected>925 - Sterling</option>
+                <option value="925">925 - Sterling</option>
                 <option value="900">900</option>
                 <option value="800">800</option>
                 <option value="720">720</option>
@@ -1051,6 +1055,9 @@
           <div class="field hidden" id="item-inv-metal-field">
             <label for="f-item-inv-metal">Ítem / tipo de material</label>
             <select id="f-item-inv-metal">
+              <!-- Sin esta opcion vacia el desplegable no puede estar «sin elegir»:
+                   siempre valia algo, y ese algo era Oro. -->
+              <option value="">Selecciona…</option>
               <option value="Oro">Oro</option>
               <option value="Plata">Plata</option>
               <option value="Liga">Liga</option>
@@ -1977,9 +1984,11 @@ var cjLaborItems = [];
 var cjLaborIdCounter = 0;
 
 function cjToggleMetal() {
-  var isGold = $('cj-tipo-metal').value === 'gold';
-  $('cj-wrap-karat').style.display = isGold ? '' : 'none';
-  $('cj-wrap-ley').style.display = isGold ? 'none' : '';
+  /* Tres estados, no dos: sin metal elegido no se muestra ninguna ley. Con el
+     «isGold ? oro : plata» de antes, no haber elegido nada contaba como plata. */
+  var tipo = $('cj-tipo-metal').value;
+  $('cj-wrap-karat').style.display = tipo === 'gold' ? '' : 'none';
+  $('cj-wrap-ley').style.display = tipo === 'silver' ? '' : 'none';
 }
 
 function cjAddStone(desc, quilates, costo) {
@@ -2115,22 +2124,23 @@ function cjRenderLabor() {
 
 function cjCalcular() {
   cjToggleMetal();
-  var isGold = $('cj-tipo-metal').value === 'gold';
-  var peso = parseFloat($('cj-peso').value) || 0;
+  var tipoMetal = $('cj-tipo-metal').value;
+  var isGold = tipoMetal === 'gold';
+  var k = isGold ? (parseFloat($('cj-karat').value) || 0) : 0;
+  var ley = tipoMetal === 'silver' ? (parseFloat($('cj-ley').value) || 0) : 0;
+  /* Sin metal o sin ley no hay pieza que costear. Repartir el peso con la ley
+     en cero mandaria TODO el peso a la liga y daria un costo creible pero
+     falso; peor que no dar ninguno. */
+  var faltaLey = !tipoMetal || (isGold ? k <= 0 : ley <= 0);
+  var peso = faltaLey ? 0 : (parseFloat($('cj-peso').value) || 0);
   // Cada componente se costea con el precio de SU propio item de inventario.
-  var itemPuro = isGold ? 'Oro' : 'Plata';
-  var precioPuro = costoPromedioItem('Metales', itemPuro);
+  var itemPuro = tipoMetal ? (isGold ? 'Oro' : 'Plata') : '';
+  var precioPuro = itemPuro ? costoPromedioItem('Metales', itemPuro) : 0;
   var precioLiga = costoPromedioItem('Metales', 'Liga');
-  var gramosPuros = 0, leyLabel = '';
+  var gramosPuros = 0, leyLabel = faltaLey ? '—' : (isGold ? (k + 'K') : ley);
 
-  if (isGold) {
-    var k = parseFloat($('cj-karat').value) || 0;
-    gramosPuros = peso * k / 24;
-    leyLabel = k + 'K';
-  } else {
-    var ley = parseFloat($('cj-ley').value) || 0;
-    gramosPuros = peso * ley / 1000;
-    leyLabel = ley;
+  if (!faltaLey) {
+    gramosPuros = isGold ? (peso * k / 24) : (peso * ley / 1000);
   }
   var gramosLiga = Math.max(peso - gramosPuros, 0);
   // Se compra mas metal del que queda en la pieza: la merma se pierde al fabricar.
@@ -2145,9 +2155,11 @@ function cjCalcular() {
   var faltantes = [];
   if (gramosPuros > 0 && precioPuro <= 0) faltantes.push(itemPuro);
   if (gramosLiga > 0 && precioLiga <= 0) faltantes.push('Liga');
-  $('cj-precio-puro-inline').textContent = precioPuro > 0
-    ? '· ' + fmt(precioPuro) + '/g (' + itemPuro + ')'
-    : '· sin compras de ' + itemPuro;
+  $('cj-precio-puro-inline').textContent = !itemPuro
+    ? '· elegí el tipo de metal y la ley'
+    : (precioPuro > 0
+      ? '· ' + fmt(precioPuro) + '/g (' + itemPuro + ')'
+      : '· sin compras de ' + itemPuro);
   $('cj-precio-puro-inline').style.color = precioPuro > 0 ? '' : '#c0392b';
   $('cj-precio-liga-inline').textContent = precioLiga > 0
     ? '· ' + fmt(precioLiga) + '/g (Liga)'
@@ -2253,7 +2265,16 @@ function cjCargarAVentas() {
   var costo = window._cjCostoTotal || 0;
   if (!costo) { toast('Completa los datos de la joya antes de cargarla a Ventas'); return; }
   if ($('cj-btn-cargar-ventas').disabled) { toast('Falta registrar la compra de ese material en Finanzas'); return; }
-  var isGold = $('cj-tipo-metal').value === 'gold';
+  /* Con peso escrito pero sin metal o sin ley, la ficha saldria diciendo «Plata»
+     por descarte y con la ley vacia. Mejor pararlo que guardar una ficha que
+     describe una pieza que no es. */
+  var tipoMetal = $('cj-tipo-metal').value;
+  var leyEscrita = tipoMetal === 'gold' ? $('cj-karat').value : $('cj-ley').value;
+  if ((parseFloat($('cj-peso').value) || 0) > 0 && (!tipoMetal || !leyEscrita)) {
+    toast('Falta el tipo de metal o la ley: sin eso la ficha diria un metal que no elegiste');
+    return;
+  }
+  var isGold = tipoMetal === 'gold';
   // El item DEBE ser el mismo del inventario ('Oro' / 'Plata'), no "Oro 18K":
   // si no coincide, la salida no cruza con la entrada y el material nunca se descuenta.
   var metalItem = isGold ? 'Oro' : 'Plata';
@@ -2743,11 +2764,14 @@ function verComprobante(path) {
 function clearForm() {
   $('f-desc').value = ''; $('f-prov').value = '';
   $('f-amount').value = ''; $('f-qty').value = ''; $('f-link').value = ''; $('f-link-venta').value = '';
-  $('f-item-inv').value = ''; $('f-item-inv-metal').selectedIndex = 0; $('f-qty-piedras').value = '';
+  $('f-item-inv').value = ''; $('f-item-inv-metal').value = ''; $('f-qty-piedras').value = '';
   $('f-nit').value = ''; $('f-numfactura').value = ''; $('f-formapago').value = '';
   $('f-iva').value = ''; $('f-sin-soporte').checked = false;
   $('f-comprobante').value = ''; $('f-comprobante-hint').textContent = '';
   comprobanteUrl = '';
+  /* La categoria tambien. Dejarla puesta hacia que el gasto siguiente naciera
+     con la categoria del anterior — y con Metales, naciendo ademas como Oro. */
+  $('f-cat').value = ''; syncCat();
   toggleSinSoporte();
   updateRate();
 }
@@ -2783,7 +2807,12 @@ function startEdit(id) {
   $('f-amount').value = e.amount;
   $('f-qty').value = (e.qty || e.qty === 0) ? e.qty : '';
   renderLinkOptions(e.link || ''); renderLinkVentaOptions(e.linkVenta || ''); updateRate();
+  /* Los dos, no solo el de texto. Con categoria Metales el que manda al
+     guardar es el desplegable, y estaba quedando con lo ultimo elegido: abrir
+     la compra de liga mostraba «Oro» y Guardar la convertia en oro, arrastrando
+     el costo promedio del oro. La base estaba bien; mentia la pantalla. */
   $('f-item-inv').value = e.itemInv || '';
+  $('f-item-inv-metal').value = e.itemInv || '';
   $('f-qty-piedras').value = (e.qtyPiedras || e.qtyPiedras === 0) ? e.qtyPiedras : '';
   $('f-nit').value = e.nit || ''; $('f-numfactura').value = e.numFactura || '';
   $('f-formapago').value = e.formaPago || ''; $('f-iva').value = e.ivaMonto || '';
@@ -3215,6 +3244,12 @@ function renderFin() {
     var qtyCell = '';
     if (e.qty && u) {
       qtyCell = fmtQty(e.qty, u.u) + '<br><small>' + fmtShort(e.amount / e.qty) + '/' + u.u + '</small>';
+    } else if (e.qty && e.unit) {
+      /* Un ingreso por venta trae cantidad y unidad pero no esta en UNITS —
+         no es una compra. Sin esto la columna salia vacia aunque el dato
+         estuviera guardado. Va sin precio unitario a proposito: ahi ese
+         renglon seria «ganancia por unidad» y se lee como si fuera un costo. */
+      qtyCell = fmtQty(e.qty, e.unit);
     }
     var descCell = esc(e.desc);
     if (e.link) descCell += ' <span class="link-tag">' + esc(e.link) + '</span>';
@@ -4990,14 +5025,16 @@ function invMovimientosRows() {
       rows.push({
         fecha: e.date, tipo: 'entrada', categoria: e.cat, item: e.itemInv || 'Sin especificar',
         qty: e.qty || 0, qtyPiedras: e.qtyPiedras, unidad: (UNITS[e.cat] || {}).u || '',
-        valor: e.amount, origenLabel: 'gasto #' + e.id, origenIcon: '📋'
+        valor: e.amount, origenLabel: 'gasto #' + e.id, origenIcon: '📋',
+        orden: e.created_at || ''
       });
     } else if (e.cat === 'Joyas para reventa' && e.link) {
       // Compra de piezas terminadas para reventa: entra al inventario por unidades.
       rows.push({
         fecha: e.date, tipo: 'entrada', categoria: e.cat, item: invJoyaLabel(e.link, e.desc),
         qty: e.qty || 0, qtyPiedras: null, unidad: 'u',
-        valor: e.amount, origenLabel: 'gasto #' + e.id, origenIcon: '📋'
+        valor: e.amount, origenLabel: 'gasto #' + e.id, origenIcon: '📋',
+        orden: e.created_at || ''
       });
     }
   });
@@ -5009,7 +5046,8 @@ function invMovimientosRows() {
       item: invJoyaLabel(v.producto_id, v.producto_nombre),
       qty: v.cantidad || 0, qtyPiedras: null, unidad: 'u',
       valor: (v.cantidad || 0) * (v.costo_unitario || 0),
-      origenLabel: 'venta ' + v.numero, origenIcon: '💍'
+      origenLabel: 'venta ' + v.numero, origenIcon: '💍',
+      orden: v.created_at || ''
     });
   });
   inventarioSalidas.forEach(function(s) {
@@ -5020,10 +5058,18 @@ function invMovimientosRows() {
     rows.push({
       fecha: s.fecha, tipo: 'salida', categoria: s.categoria, item: s.item || 'Sin especificar',
       qty: s.cantidad, qtyPiedras: s.cantidadPiedras, unidad: s.unidad,
-      valor: s.cantidad * costoProm, origenLabel: venta ? ('venta ' + venta.numero) : ('venta #' + s.ventaId), origenIcon: '💍'
+      valor: s.cantidad * costoProm, origenLabel: venta ? ('venta ' + venta.numero) : ('venta #' + s.ventaId), origenIcon: '💍',
+      // La salida ocurre al marcar la venta como pagada: esa es su hora.
+      orden: (venta && venta.created_at) || ''
     });
   });
-  rows.sort(function(a, b) { return b.fecha.localeCompare(a.fecha); });
+  /* Dentro del mismo dia manda la hora de registro. Ordenando solo por fecha,
+     todas las entradas quedaban antes que todas las salidas —es el orden en que
+     se arma la lista— y una venta recien pagada aparecia en medio de la tabla. */
+  rows.sort(function(a, b) {
+    if (a.fecha !== b.fecha) return b.fecha.localeCompare(a.fecha);
+    return String(b.orden || '').localeCompare(String(a.orden || ''));
+  });
   return rows;
 }
 
