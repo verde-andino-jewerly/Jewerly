@@ -1422,11 +1422,20 @@ var WA_NUMBER = '573180935276';
 var activeCategory = null;
 
 /* Supabase — base de datos en la nube */
+/* ===== CONFIG ===== */
+/* La conexion con la base y todo lo que la toca. Ninguna otra parte del
+   archivo llama a fetch: para eso esta sbPedir(). */
+
 var SB_URL = 'https://rbvqxrkzepthbbqzkbcg.supabase.co';
 var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJidnF4cmt6ZXB0aGJicXprYmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTQwNTcsImV4cCI6MjEwMTc5MDA1N30.6RA6S7nxFCZdLzyhhX-siEXZrY47jpH9mcaB0wMq0hg';
 /* El admin-token se DERIVA del PIN en sesión (sbGetAdminToken). Nunca aparece hardcoded. */
 var SB_TOKEN_SALT = 'VDA_2026_TOKEN_SALT_v1';
 function sbGetAdminToken() { return sessionStorage.getItem('va_admin_token') || ''; }
+
+/* La fecha de hoy en HORA LOCAL, con guiones. La misma que el panel, y por la
+   misma razon: toISOString() es UTC, y en Colombia (UTC-5) despues de las 7 de
+   la noche devuelve mañana. Un catalogo exportado de noche salia fechado el
+   dia siguiente. */
 
 /* Criterio de caja: una venta cuenta como tal cuando ya se cobró. Una
    cotización no es una venta, y una cancelada dejó de serlo.
@@ -1625,6 +1634,41 @@ function sbCalculatePrice(costo, margen, cb) {
 /* Demo catalog removed for production testing */
 var DEMO_ITEMS = [];
 
+/* ===== UTILIDADES COMPARTIDAS ===== */
+/* Lo que usa el archivo entero. Estaban repartidas entre la tienda y el
+   publicador; son las mismas cuatro que en el panel, con el mismo nombre. */
+
+function fechaHoyLocal() {
+  var d = new Date();
+  return d.getFullYear() +
+    '-' + String(d.getMonth() + 1).padStart(2, '0') +
+    '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function esc(s) {
+  if (!s && s !== 0) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function jsEsc(s) { return String(s).replace(/'/g,"\\'"); }
+
+function fmtPrecio(n) {
+  if (!n) return '';
+  return '$ ' + Math.round(n).toLocaleString('es-CO');
+}
+
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  // Los avisos largos necesitan mas tiempo en pantalla para alcanzar a leerse.
+  var ms = Math.min(7000, Math.max(2000, String(msg).length * 55));
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, ms);
+}
+
+/* ===== MINAS ===== */
+
 /* Deep info on Colombian emerald mines */
 var MINES = {
   muzo: {
@@ -1724,21 +1768,16 @@ function showMine(key) {
   renderMine(key);
 }
 
+/* ===== VITRINA ===== */
+/* La tienda que ve cualquiera: la rejilla, los filtros, la ficha de una
+   pieza, WhatsApp, el modo oscuro y los textos legales. */
+
 function load() { return _sbCache; }
 
-function esc(s) {
-  if (!s && s !== 0) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function jsEsc(s) { return String(s).replace(/'/g,"\\'"); }
 
 /* El formato de precio de la tienda: con espacio y sin decimales. Se llamaba
    fmt(), igual que la del panel, que da '$1.500,00' en vez de '$ 1.500': dos
    funciones distintas con el mismo nombre en los dos archivos del proyecto. */
-function fmtPrecio(n) {
-  if (!n) return '';
-  return '$ ' + Math.round(n).toLocaleString('es-CO');
-}
 
 function stonesText(arr) {
   if (!arr || !arr.length) return '';
@@ -1987,15 +2026,6 @@ function waCustom(e) {
 }
 
 var toastTimer = null;
-function toast(msg) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  // Los avisos largos necesitan mas tiempo en pantalla para alcanzar a leerse.
-  var ms = Math.min(7000, Math.max(2000, String(msg).length * 55));
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, ms);
-}
 
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
 /* Con Supabase, la sincronización entre pestañas ya no depende de localStorage */
@@ -2008,7 +2038,6 @@ function toggleTheme() {
   applyLogoBg();
 }
 
-/* ============ Detect logo edge color for seamless hero bg ============ */
 function applyLogoBg() {
   try {
     var logo = document.getElementById('hero-logo');
@@ -2050,7 +2079,73 @@ function applyLogoBg() {
   } catch(e) {}
 }
 
-/* ============ ADMIN: gate + PIN ============ */
+/* Los textos legales del sitio, y las dos funciones que los muestran. Vivian
+   dentro del publicador por accidente: son de la tienda, los lee cualquiera
+   que entre, y el publicador no los toca.
+   Contenido base para operar como persona natural comerciante en Colombia.
+   Debe revisarlo un abogado antes de considerarlo definitivo. */
+var LEGAL_TEXTOS = {
+  terminos: {
+    titulo: 'Términos y condiciones',
+    html: '<p><b>Identificación del comerciante.</b> Jhojan Stiven Sánchez Rozo, persona natural, NIT 1026305846-1, con domicilio en Bogotá, Colombia. Nombre comercial: Verde Andino Jewelry. Teléfono: +57 318 093 5276. Correo de contacto: <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a>.</p>' +
+      '<p><b>Objeto.</b> Este sitio exhibe joyería con esmeraldas colombianas y otros materiales. La venta se cierra por WhatsApp o por los canales de pago que se habiliten en este sitio. En todos los casos se trata de una <b>venta a distancia y por medios electrónicos</b>, regida por el Estatuto del Consumidor: el cliente conserva su derecho de retracto, la garantía legal y el canal de reclamos descritos en este sitio.</p>' +
+      '<p><b>Precios.</b> Los precios están en pesos colombianos (COP) e incluyen todos los valores a pagar por la pieza. El comerciante es <b>no responsable de IVA</b>, por lo que no se discrimina ni se cobra este impuesto. Los costos de envío se informan por separado antes de cerrar la compra.</p>' +
+      '<p><b>Disponibilidad.</b> Cada pieza es única o de existencias limitadas. La publicación de un artículo no garantiza su disponibilidad; esta se confirma al momento de contactar.</p>' +
+      '<p><b>Entrega.</b> Las piezas de catálogo se entregan normalmente entre <b>2 y 5 días hábiles</b>, con un compromiso máximo de <b>8 días hábiles</b> contados desde que se confirma el pago. Las piezas hechas a la medida llevan su propia fecha de entrega, que se acuerda por escrito con el cliente <b>antes de pagar</b> y queda registrada junto con los datos de la pieza.</p>' +
+      '<p><b>Piezas hechas a la medida.</b> Las joyas fabricadas o personalizadas según especificaciones del cliente requieren un acuerdo previo sobre diseño, materiales, plazo y forma de pago. Por su naturaleza, estas piezas <b>no admiten derecho de retracto</b> (Ley 1480 de 2011, artículo 47).</p>' +
+      '<p><b>Fotografías.</b> Las imágenes buscan reflejar fielmente cada pieza. El color de las gemas y los metales puede verse distinto según la pantalla y la iluminación; esa variación no constituye defecto del producto.</p>' +
+      '<p><b>Propiedad intelectual.</b> Las fotografías, textos, diseños y la marca Verde Andino Jewelry son propiedad del comerciante y no pueden reproducirse sin autorización escrita.</p>' +
+      '<p><b>Ley aplicable.</b> Estos términos se rigen por la legislación colombiana. Cualquier controversia se someterá a los jueces de la República de Colombia.</p>'
+  },
+  datos: {
+    titulo: 'Política de tratamiento de datos personales',
+    html: '<p>En cumplimiento de la <b>Ley 1581 de 2012</b> y el Decreto 1377 de 2013, Jhojan Stiven Sánchez Rozo (NIT 1026305846-1), responsable del tratamiento, informa lo siguiente.</p>' +
+      '<p><b>Qué datos recogemos.</b> Únicamente los que el cliente entrega de forma voluntaria al contactarnos: nombre, número de teléfono o WhatsApp, correo electrónico y dirección de envío. <b>Este sitio no tiene formularios de registro ni de pago</b>, no instala cookies de publicidad y no rastrea la navegación.</p>' +
+      '<p><b>Para qué los usamos.</b> Para responder consultas, cotizar, coordinar el envío de una pieza, gestionar la garantía y llevar el registro contable de la venta. No se usan para publicidad no solicitada salvo autorización expresa, ni se venden ni se comparten con terceros con fines comerciales.</p>' +
+      '<p><b>Con quién se comparten.</b> Solo con la empresa transportadora encargada de la entrega, y con las autoridades cuando exista obligación legal.</p>' +
+      '<p><b>Cuánto tiempo se conservan.</b> Los datos de una venta se conservan el tiempo que exija la normativa contable y tributaria. Los datos de una consulta que no termina en compra se eliminan cuando dejan de ser necesarios.</p>' +
+      '<p><b>Derechos del titular.</b> Conocer, actualizar, rectificar y suprimir sus datos, solicitar prueba de la autorización, ser informado sobre el uso dado a sus datos, presentar quejas ante la Superintendencia de Industria y Comercio y revocar la autorización.</p>' +
+      '<p><b>Cómo ejercerlos.</b> Escribiendo a <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a> con el asunto "Protección de datos". Las consultas se responden en máximo 10 días hábiles y los reclamos en máximo 15 días hábiles, prorrogables conforme a la ley.</p>'
+  },
+  retracto: {
+    titulo: 'Derecho de retracto, reversión del pago y garantía',
+    html: '<p><b>Derecho de retracto.</b> En las ventas a distancia, el cliente puede retractarse dentro de los <b>5 días hábiles</b> siguientes a la entrega, conforme al artículo 47 de la Ley 1480 de 2011. Debe devolver la pieza en el mismo estado en que la recibió, con su empaque y certificado. El costo del transporte de devolución corre por cuenta del cliente. El dinero se reintegra dentro de los <b>15 días calendario</b> siguientes, por el medio de pago que el cliente prefiera (Ley 2439 de 2024).</p>' +
+      '<p><b>Excepción.</b> No aplica el retracto en piezas <b>hechas a la medida o personalizadas</b> según especificaciones del cliente, por expresa disposición de la misma norma.</p>' +
+      '<p><b>Reversión del pago.</b> Cuando el pago se haga con tarjeta o medios electrónicos y el producto no sea entregado, no corresponda a lo solicitado o esté defectuoso, el cliente puede solicitar la reversión del pago dentro de los 5 días hábiles siguientes, según el artículo 51 de la Ley 1480 de 2011.</p>' +
+      '<p><b>Garantía legal.</b> Toda pieza cuenta con <b>garantía legal de 12 meses</b>, contados desde la entrega, sobre defectos de fabricación: soldaduras, engastes que ceden sin causa externa, y fallas del material. Para hacerla efectiva basta con escribirnos con el comprobante de compra.</p>' +
+      '<p><b>Qué no cubre la garantía.</b> El desgaste normal del uso, los golpes, la deformación por fuerza externa, el contacto con químicos, perfumes o cloro, el oscurecimiento natural de la plata, y las reparaciones hechas por terceros.</p>' +
+      '<p><b>Cuidado de las esmeraldas.</b> La esmeralda es una gema delicada. No debe exponerse a limpiadores ultrasónicos, vapor ni productos abrasivos. Se recomienda retirar la joya antes de actividades físicas o de manipular químicos.</p>' +
+      '<p><b>Cómo reclamar.</b> Escríbanos a <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a> o por WhatsApp, citando el número de su pieza o de su certificado y adjuntando fotografías del defecto. <b>Le devolvemos un número de radicado con fecha y hora</b>, con el que puede consultar el estado de su reclamo en cualquier momento. Si el reclamo no se acepta, se lo comunicamos por escrito y sustentado, con las razones de la decisión.</p>' +
+      '<p><b>Plazos que cumplimos.</b> Reparación en <b>30 días hábiles</b>, reposición en <b>10 días hábiles</b> y devolución del dinero en <b>15 días hábiles</b>. Mientras la pieza esté en nuestro poder, la garantía se suspende y esos días se le devuelven. Si la pieza se cambia por completo, la garantía empieza de nuevo.</p>'
+  }
+};
+
+function abrirLegal(clave, ev) {
+  if (ev) ev.preventDefault();
+  var t = LEGAL_TEXTOS[clave];
+  if (!t) return;
+  document.getElementById('legal-titulo').textContent = t.titulo;
+  document.getElementById('legal-cuerpo').innerHTML = t.html;
+  document.getElementById('legal-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function cerrarLegal(ev) {
+  if (ev && ev.target && ev.target.id !== 'legal-modal') return;
+  document.getElementById('legal-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function promoLabel(descPct) {
+  if (descPct < 10) return 'Precio especial';
+  if (descPct < 20) return 'Oferta -' + descPct + '%';
+  if (descPct <= 30) return 'Gran oferta -' + descPct + '%';
+  return 'Super oferta -' + descPct + '%';
+}
+
+/* ===== PUBLICADOR ===== */
+/* Lo que solo ve quien tiene la clave: la puerta y el cargador de piezas.
+   Todo lo de aca lleva el prefijo adm, y no hay nada con prefijo adm fuera. */
 var ADMIN_PARAM = 'panel';
 var ADMIN_TOKEN = 'VDA_' + Math.random().toString(36).substring(2, 15).toUpperCase() + Math.random().toString(36).substring(2, 15).toUpperCase();
 var ADMIN_SESSION_KEY = 'va_admin_unlocked';
@@ -2288,7 +2383,6 @@ function admClosePanel() {
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
-/* ============ ADMIN: cargador de productos ============ */
 var admState = { items: [], nextIdNum: 1 };
 var admPhotoDataUrl = null;
 var admAdditionalPhotos = [];         // Array de base64 strings (NEW)
@@ -2654,67 +2748,9 @@ function admShowMissingFields(missing) {
   document.body.appendChild(ov);
 }
 
-/* ============ TEXTOS LEGALES ============
-   Contenido base para operar como persona natural comerciante en Colombia.
-   Debe revisarlo un abogado antes de considerarlo definitivo. */
-var LEGAL_TEXTOS = {
-  terminos: {
-    titulo: 'Términos y condiciones',
-    html: '<p><b>Identificación del comerciante.</b> Jhojan Stiven Sánchez Rozo, persona natural, NIT 1026305846-1, con domicilio en Bogotá, Colombia. Nombre comercial: Verde Andino Jewelry. Teléfono: +57 318 093 5276. Correo de contacto: <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a>.</p>' +
-      '<p><b>Objeto.</b> Este sitio exhibe joyería con esmeraldas colombianas y otros materiales. La venta se cierra por WhatsApp o por los canales de pago que se habiliten en este sitio. En todos los casos se trata de una <b>venta a distancia y por medios electrónicos</b>, regida por el Estatuto del Consumidor: el cliente conserva su derecho de retracto, la garantía legal y el canal de reclamos descritos en este sitio.</p>' +
-      '<p><b>Precios.</b> Los precios están en pesos colombianos (COP) e incluyen todos los valores a pagar por la pieza. El comerciante es <b>no responsable de IVA</b>, por lo que no se discrimina ni se cobra este impuesto. Los costos de envío se informan por separado antes de cerrar la compra.</p>' +
-      '<p><b>Disponibilidad.</b> Cada pieza es única o de existencias limitadas. La publicación de un artículo no garantiza su disponibilidad; esta se confirma al momento de contactar.</p>' +
-      '<p><b>Entrega.</b> Las piezas de catálogo se entregan normalmente entre <b>2 y 5 días hábiles</b>, con un compromiso máximo de <b>8 días hábiles</b> contados desde que se confirma el pago. Las piezas hechas a la medida llevan su propia fecha de entrega, que se acuerda por escrito con el cliente <b>antes de pagar</b> y queda registrada junto con los datos de la pieza.</p>' +
-      '<p><b>Piezas hechas a la medida.</b> Las joyas fabricadas o personalizadas según especificaciones del cliente requieren un acuerdo previo sobre diseño, materiales, plazo y forma de pago. Por su naturaleza, estas piezas <b>no admiten derecho de retracto</b> (Ley 1480 de 2011, artículo 47).</p>' +
-      '<p><b>Fotografías.</b> Las imágenes buscan reflejar fielmente cada pieza. El color de las gemas y los metales puede verse distinto según la pantalla y la iluminación; esa variación no constituye defecto del producto.</p>' +
-      '<p><b>Propiedad intelectual.</b> Las fotografías, textos, diseños y la marca Verde Andino Jewelry son propiedad del comerciante y no pueden reproducirse sin autorización escrita.</p>' +
-      '<p><b>Ley aplicable.</b> Estos términos se rigen por la legislación colombiana. Cualquier controversia se someterá a los jueces de la República de Colombia.</p>'
-  },
-  datos: {
-    titulo: 'Política de tratamiento de datos personales',
-    html: '<p>En cumplimiento de la <b>Ley 1581 de 2012</b> y el Decreto 1377 de 2013, Jhojan Stiven Sánchez Rozo (NIT 1026305846-1), responsable del tratamiento, informa lo siguiente.</p>' +
-      '<p><b>Qué datos recogemos.</b> Únicamente los que el cliente entrega de forma voluntaria al contactarnos: nombre, número de teléfono o WhatsApp, correo electrónico y dirección de envío. <b>Este sitio no tiene formularios de registro ni de pago</b>, no instala cookies de publicidad y no rastrea la navegación.</p>' +
-      '<p><b>Para qué los usamos.</b> Para responder consultas, cotizar, coordinar el envío de una pieza, gestionar la garantía y llevar el registro contable de la venta. No se usan para publicidad no solicitada salvo autorización expresa, ni se venden ni se comparten con terceros con fines comerciales.</p>' +
-      '<p><b>Con quién se comparten.</b> Solo con la empresa transportadora encargada de la entrega, y con las autoridades cuando exista obligación legal.</p>' +
-      '<p><b>Cuánto tiempo se conservan.</b> Los datos de una venta se conservan el tiempo que exija la normativa contable y tributaria. Los datos de una consulta que no termina en compra se eliminan cuando dejan de ser necesarios.</p>' +
-      '<p><b>Derechos del titular.</b> Conocer, actualizar, rectificar y suprimir sus datos, solicitar prueba de la autorización, ser informado sobre el uso dado a sus datos, presentar quejas ante la Superintendencia de Industria y Comercio y revocar la autorización.</p>' +
-      '<p><b>Cómo ejercerlos.</b> Escribiendo a <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a> con el asunto "Protección de datos". Las consultas se responden en máximo 10 días hábiles y los reclamos en máximo 15 días hábiles, prorrogables conforme a la ley.</p>'
-  },
-  retracto: {
-    titulo: 'Derecho de retracto, reversión del pago y garantía',
-    html: '<p><b>Derecho de retracto.</b> En las ventas a distancia, el cliente puede retractarse dentro de los <b>5 días hábiles</b> siguientes a la entrega, conforme al artículo 47 de la Ley 1480 de 2011. Debe devolver la pieza en el mismo estado en que la recibió, con su empaque y certificado. El costo del transporte de devolución corre por cuenta del cliente. El dinero se reintegra dentro de los <b>15 días calendario</b> siguientes, por el medio de pago que el cliente prefiera (Ley 2439 de 2024).</p>' +
-      '<p><b>Excepción.</b> No aplica el retracto en piezas <b>hechas a la medida o personalizadas</b> según especificaciones del cliente, por expresa disposición de la misma norma.</p>' +
-      '<p><b>Reversión del pago.</b> Cuando el pago se haga con tarjeta o medios electrónicos y el producto no sea entregado, no corresponda a lo solicitado o esté defectuoso, el cliente puede solicitar la reversión del pago dentro de los 5 días hábiles siguientes, según el artículo 51 de la Ley 1480 de 2011.</p>' +
-      '<p><b>Garantía legal.</b> Toda pieza cuenta con <b>garantía legal de 12 meses</b>, contados desde la entrega, sobre defectos de fabricación: soldaduras, engastes que ceden sin causa externa, y fallas del material. Para hacerla efectiva basta con escribirnos con el comprobante de compra.</p>' +
-      '<p><b>Qué no cubre la garantía.</b> El desgaste normal del uso, los golpes, la deformación por fuerza externa, el contacto con químicos, perfumes o cloro, el oscurecimiento natural de la plata, y las reparaciones hechas por terceros.</p>' +
-      '<p><b>Cuidado de las esmeraldas.</b> La esmeralda es una gema delicada. No debe exponerse a limpiadores ultrasónicos, vapor ni productos abrasivos. Se recomienda retirar la joya antes de actividades físicas o de manipular químicos.</p>' +
-      '<p><b>Cómo reclamar.</b> Escríbanos a <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a> o por WhatsApp, citando el número de su pieza o de su certificado y adjuntando fotografías del defecto. <b>Le devolvemos un número de radicado con fecha y hora</b>, con el que puede consultar el estado de su reclamo en cualquier momento. Si el reclamo no se acepta, se lo comunicamos por escrito y sustentado, con las razones de la decisión.</p>' +
-      '<p><b>Plazos que cumplimos.</b> Reparación en <b>30 días hábiles</b>, reposición en <b>10 días hábiles</b> y devolución del dinero en <b>15 días hábiles</b>. Mientras la pieza esté en nuestro poder, la garantía se suspende y esos días se le devuelven. Si la pieza se cambia por completo, la garantía empieza de nuevo.</p>'
-  }
-};
 
-function abrirLegal(clave, ev) {
-  if (ev) ev.preventDefault();
-  var t = LEGAL_TEXTOS[clave];
-  if (!t) return;
-  document.getElementById('legal-titulo').textContent = t.titulo;
-  document.getElementById('legal-cuerpo').innerHTML = t.html;
-  document.getElementById('legal-modal').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
 
-function cerrarLegal(ev) {
-  if (ev && ev.target && ev.target.id !== 'legal-modal') return;
-  document.getElementById('legal-modal').classList.remove('open');
-  document.body.style.overflow = '';
-}
 
-function promoLabel(descPct) {
-  if (descPct < 10) return 'Precio especial';
-  if (descPct < 20) return 'Oferta -' + descPct + '%';
-  if (descPct <= 30) return 'Gran oferta -' + descPct + '%';
-  return 'Super oferta -' + descPct + '%';
-}
 /* Configuracion del negocio: el margen solo cubre el material; la operacion
    (publicidad, empaque, envios) hay que repartirla entre las piezas vendidas.
    Sin esto, un 20% puede ser perdida en las piezas de bajo costo. */
@@ -3333,7 +3369,7 @@ function admExportCSV() {
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href = url; a.download = 'verde-andino-catalogo-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.href = url; a.download = 'verde-andino-catalogo-' + fechaHoyLocal() + '.csv';
   a.click();
   URL.revokeObjectURL(url);
   toast('CSV descargado');
@@ -3522,7 +3558,7 @@ function admExportPDF() {
     col++;
     if (col >= 2) { col = 0; y += cardH + rowGap; }
   });
-  pdf.save('verde-andino-catalogo-' + new Date().toISOString().slice(0,10) + '.pdf');
+  pdf.save('verde-andino-catalogo-' + fechaHoyLocal() + '.pdf');
   toast('Catálogo PDF descargado');
 }
 
