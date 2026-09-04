@@ -1427,6 +1427,56 @@ var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 /* El admin-token se DERIVA del PIN en sesión (sbGetAdminToken). Nunca aparece hardcoded. */
 var SB_TOKEN_SALT = 'VDA_2026_TOKEN_SALT_v1';
 function sbGetAdminToken() { return sessionStorage.getItem('va_admin_token') || ''; }
+
+/* Las cabeceras, en un solo sitio. Habia diez objetos escritos a mano en cuatro
+   variantes: unos con Content-Type, otros sin el, unos con comillas en las
+   llaves y otros sin ellas. La vitrina tiene dos publicos —quien mira el
+   catalogo, sin token, y quien publica, con el—, y eso es lo unico que cambia. */
+function sbCabeceras(publico) {
+  var h = {
+    'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+    'Content-Type': 'application/json'
+  };
+  if (!publico) h['x-admin-token'] = sbGetAdminToken();
+  return h;
+}
+
+/* Todo lo que sale a la red pasa por aca. Es la misma ayudante que el panel,
+   por la misma razon: un 401, un 400 de PostgREST o la red caida NO llegan
+   como datos, llegan con cuerpo de error y con r.ok en falso. Tratarlos como
+   datos hacia que un catalogo ilegible se leyera como catalogo vacio, y de ahi
+   que el publicador propusiera VA-001 y lo sobrescribiera.
+
+   Devuelve el cuerpo ya interpretado, o null si no vino ninguno. Si algo sale
+   mal LANZA, con el mensaje del servidor dentro —los avisos de RLS y de margen
+   minimo lo leen de ahi—. El .catch sigue siendo de cada sitio. */
+function sbPedir(ruta, opciones) {
+  var o = opciones || {};
+  var cabeceras = sbCabeceras(o.publico);
+  if (o.headers) {
+    for (var k in o.headers) {
+      if (Object.prototype.hasOwnProperty.call(o.headers, k)) cabeceras[k] = o.headers[k];
+    }
+  }
+  var destino = ruta.indexOf('http') === 0 ? ruta : SB_URL + ruta;
+  return fetch(destino, { method: o.method || 'GET', headers: cabeceras, body: o.body })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(cuerpo) {
+          var detalle = '';
+          try { var j = JSON.parse(cuerpo); detalle = j.message || j.error_description || j.error || ''; }
+          catch (e) { detalle = (cuerpo || '').slice(0, 200); }
+          var err = new Error('Error ' + r.status + (detalle ? ': ' + detalle : ''));
+          /* Con estado puesto, el servidor contesto y dijo que no. Sin estado,
+             no hubo servidor: no es lo mismo y hay que poder distinguirlo. */
+          err.estado = r.status;
+          throw err;
+        });
+      }
+      if (r.status === 204) return null;
+      return r.json().catch(function() { return null; });
+    });
+}
 var _sbCache = [];
 var _sbRequestLog = []; // Rate limiting: { endpoint, timestamp }
 
@@ -1475,10 +1525,8 @@ function itemToSb(it) {
 var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,fotos,created_at';
 function sbFetchPublic(cb) {
   if (!sbCheckRateLimit('GET /productos')) { if (cb) cb(_sbCache); return; }
-  fetch(SB_URL + '/rest/v1/productos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', {
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-  }).then(function(r) { return r.json(); })
-    .then(function(rows) { _sbCache = rows.map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; }); if (cb) cb(_sbCache); })
+  sbPedir('/rest/v1/productos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', { publico: true })
+    .then(function(rows) { _sbCache = (rows || []).map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; }); if (cb) cb(_sbCache); })
     .catch(function(e) { console.error('Error cargando:', e); if (cb) cb(_sbCache); });
 }
 /* Fetch admin: incluye todas las columnas. Requiere x-admin-token. */
@@ -1489,14 +1537,9 @@ var admCatalogoIlegible = false;
 
 function sbFetchAdmin(cb) {
   if (!sbCheckRateLimit('GET /productos-admin')) { if (cb) cb(_sbCache); return; }
-  fetch(SB_URL + '/rest/v1/productos?select=*&order=created_at.desc', {
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
-  }).then(function(r) {
-    if (!r.ok) throw new Error('Error ' + r.status);
-    return r.json();
-  })
+  sbPedir('/rest/v1/productos?select=*&order=created_at.desc')
     .then(function(rows) {
-      var items = rows.map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; });
+      var items = (rows || []).map(sbToItem).filter(function(it){ return it.id !== ADMIN_PROBE_ID; });
       admCatalogoIlegible = false;
       if (cb) cb(items);
     })
@@ -1514,14 +1557,11 @@ function sbFetchAdmin(cb) {
 function sbFetchAll(cb) { sbFetchPublic(cb); }
 function sbUpsert(item, cb) {
   if (!sbCheckRateLimit('POST /productos')) { toast('Demasiadas solicitudes'); if (cb) cb(false); return; }
-  fetch(SB_URL + '/rest/v1/productos', {
+  sbPedir('/rest/v1/productos', {
     method: 'POST',
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-      'Content-Type': 'application/json',
-      'x-admin-token': sbGetAdminToken(),
-      'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(itemToSb(item))
-  }).then(function(r) { if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t); }); if (cb) cb(true); })
+  }).then(function() { if (cb) cb(true); })
     .catch(function(e) {
       console.error('Error guardando:', e);
       if (typeof admIsRlsError === 'function' && admIsRlsError(e.message)) {
@@ -1541,12 +1581,10 @@ function sbUpsert(item, cb) {
 }
 function sbDeleteItem(id, cb) {
   if (!sbCheckRateLimit('DELETE /productos')) { toast('Demasiadas solicitudes'); if (cb) cb(false); return; }
-  fetch(SB_URL + '/rest/v1/productos?id=eq.' + encodeURIComponent(id), {
+  sbPedir('/rest/v1/productos?id=eq.' + encodeURIComponent(id), {
     method: 'DELETE',
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-      'x-admin-token': sbGetAdminToken(),
-      'Prefer': 'return=minimal' }
-  }).then(function(r) { if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t); }); if (cb) cb(true); })
+    headers: { 'Prefer': 'return=minimal' }
+  }).then(function() { if (cb) cb(true); })
     .catch(function(e) {
       console.error('Error eliminando:', e);
       if (typeof admIsRlsError === 'function' && admIsRlsError(e.message)) {
@@ -1561,17 +1599,10 @@ function sbDeleteItem(id, cb) {
 function sbCalculatePrice(costo, margen, cb) {
   // Fallback local por si la Edge Function falla — evita bloquear el flujo
   var fallback = Math.round((costo || 0) * (1 + (margen || 0) / 100));
-  var url = SB_URL + '/functions/v1/calculate-price';
-  fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SB_KEY,
-      'Authorization': 'Bearer ' + SB_KEY
-    },
+  sbPedir('/functions/v1/calculate-price', {
+    method: 'POST', publico: true,
     body: JSON.stringify({ costo: costo, margen: margen })
-  }).then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(function(data) { if (cb) cb(data.precio || fallback); })
+  }).then(function(data) { if (cb) cb((data && data.precio) || fallback); })
     .catch(function(e) { console.warn('Edge Function no disponible, usando cálculo local:', e); if (cb) cb(fallback); });
 }
 
@@ -2172,16 +2203,11 @@ function admProbeAuth(cb) {
     certificado: 'No', cert_num: '', precio: 0, foto_url: null,
     proveedor: '', costo: 0, margen: 0, notas: '', updated_at: new Date().toISOString()
   };
-  fetch(SB_URL + '/rest/v1/productos', {
+  sbPedir('/rest/v1/productos', {
     method: 'POST',
-    headers: {
-      'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-      'Content-Type': 'application/json',
-      'x-admin-token': sbGetAdminToken(),
-      'Prefer': 'resolution=merge-duplicates,return=minimal'
-    },
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(body)
-  }).then(function(r) { cb(r.ok); })
+  }).then(function() { cb(true); })
     .catch(function() { cb(false); });
 }
 function admUnlockPanel() {
@@ -2561,10 +2587,9 @@ function admHistorialProducto(id) {
     '<button style="width:100%;padding:12px;background:var(--gold);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;margin-top:16px;" onclick="this.closest(\'div\').parentElement.remove();">Cerrar</button></div>';
   document.body.appendChild(ov);
 
-  fetch(SB_URL + '/rest/v1/productos_audit?producto_id=eq.' + encodeURIComponent(id) + '&order=timestamp.desc&limit=40', {
-    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
-  }).then(function(r) { return r.ok ? r.json() : []; })
+  sbPedir('/rest/v1/productos_audit?producto_id=eq.' + encodeURIComponent(id) + '&order=timestamp.desc&limit=40')
     .then(function(filas) {
+      filas = filas || [];
       var c = document.getElementById('hist-cuerpo');
       if (!c) return;
       if (!filas.length) { c.innerHTML = '<p style="color:var(--text-3);">Sin cambios registrados.</p>'; return; }
@@ -2679,9 +2704,7 @@ function promoLabel(descPct) {
    Sin esto, un 20% puede ser perdida en las piezas de bajo costo. */
 var admConfigNegocio = null;
 function admLoadConfigNegocio() {
-  fetch(SB_URL + '/rest/v1/config_negocio?id=eq.1&select=*', {
-    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
-  }).then(function(r) { return r.ok ? r.json() : []; })
+  sbPedir('/rest/v1/config_negocio?id=eq.1&select=*')
     .then(function(rows) {
       admConfigNegocio = (Array.isArray(rows) ? rows[0] : rows) || null;
       if (document.getElementById('margen-preview')) admPreviewMargen();
@@ -2850,13 +2873,13 @@ function admSaveProduct() {
 /* Saldo real de una pieza: unidades compradas menos vendidas en ventas que
    cuentan. Republicar con saldo 0 deja la vitrina ofreciendo algo que no existe. */
 function admSaldoProducto(productId, cb) {
-  var base = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() };
+  /* Las dos lecturas tienen que salir bien las dos: con una sola, el saldo
+     que se calcula es falso y republicar deja la vitrina ofreciendo algo que
+     no existe. Antes un fallo se leia como «cero compradas» o «cero vendidas». */
   Promise.all([
-    fetch(SB_URL + '/rest/v1/gastos?select=cantidad&categoria=eq.' + encodeURIComponent('Joyas para reventa') +
-      '&enlace_producto=eq.' + encodeURIComponent(productId), { headers: base })
-      .then(function(r) { return r.ok ? r.json() : []; }),
-    fetch(SB_URL + '/rest/v1/ventas?select=cantidad_vendida,estado&producto_id=eq.' + encodeURIComponent(productId),
-      { headers: base }).then(function(r) { return r.ok ? r.json() : []; })
+    sbPedir('/rest/v1/gastos?select=cantidad&categoria=eq.' + encodeURIComponent('Joyas para reventa') +
+      '&enlace_producto=eq.' + encodeURIComponent(productId)),
+    sbPedir('/rest/v1/ventas?select=cantidad_vendida,estado&producto_id=eq.' + encodeURIComponent(productId))
   ]).then(function(res) {
     var cuentan = ['pagado', 'enviado', 'entregado'];
     var compradas = (res[0] || []).reduce(function(a, g) { return a + (parseFloat(g.cantidad) || 0); }, 0);
@@ -2886,12 +2909,7 @@ function admShowSinStock(id, saldo) {
 }
 
 function admCheckGastoEnlazado(productId, cb) {
-  fetch(SB_URL + '/rest/v1/gastos?select=id&categoria=eq.' + encodeURIComponent('Joyas para reventa') + '&enlace_producto=eq.' + encodeURIComponent(productId) + '&limit=1', {
-    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'x-admin-token': sbGetAdminToken() }
-  }).then(function(r) {
-    if (!r.ok) throw new Error('Error ' + r.status);
-    return r.json();
-  })
+  sbPedir('/rest/v1/gastos?select=id&categoria=eq.' + encodeURIComponent('Joyas para reventa') + '&enlace_producto=eq.' + encodeURIComponent(productId) + '&limit=1')
     .then(function(rows) { cb(Array.isArray(rows) && rows.length > 0); })
     .catch(function(e) {
       /* null no es false: «no pude preguntarlo» no es «no lo tiene». Con false
