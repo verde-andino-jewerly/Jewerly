@@ -244,13 +244,36 @@
     color: var(--blue, #2e5fa3); background: var(--blue-bg, #e8f0fb); padding: 0.15rem 0.5rem; border-radius: 5px;
   }
   .inv-auto-tag { font-size: 0.65rem; color: var(--text-3); margin-top: 0.2rem; font-style: italic; }
+  /* Los badge-* se arman por interpolacion —badge-' + tipo, badge-' + estado—,
+     asi que ninguna de estas reglas aparece escrita entera en el archivo. Al
+     lado de cada grupo va quien lo produce, porque un grep no lo encuentra.
+
+     La base .badge faltaba: las ventas pedian class="badge badge-<estado>" y
+     no existia ni la base ni una sola de las seis variantes de estado, asi que
+     la columna Estado salia como texto pelado en toda la tabla. */
+  .badge {
+    display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap;
+    text-transform: capitalize; color: var(--text-2); background: var(--bg-alt);
+  }
+
+  /* estado de una venta (renderVentas) — los tres primeros son los que cuentan
+     como ingreso, y van en verde; ver ESTADOS_QUE_CUENTAN. */
+  .badge-pagado { background: var(--esm-l); color: var(--esm); }
+  .badge-enviado { background: var(--blue-bg, #e8f0fb); color: var(--blue, #2e5fa3); }
+  .badge-entregado { background: var(--esm-l); color: var(--esm); }
+  .badge-cotización { background: var(--bg-alt); color: var(--text-3); }
+  .badge-pendiente { background: var(--gold-l); color: var(--gold); }
+  .badge-cancelada { background: var(--red-bg, #fbedeb); color: var(--red, #b03a2e); }
+
+  /* tipo de movimiento de inventario (invMovimientosRows) */
   .badge-entrada { background: var(--esm-l); color: var(--esm); }
   .badge-salida { background: var(--red-bg, #fbedeb); color: var(--red, #b03a2e); }
+
+  /* estado de la pieza en la vitrina (invJoyasRows) */
   .badge-publicado { background: var(--esm-l); color: var(--esm); }
   .badge-oculto { background: var(--bg-alt); color: var(--text-3); }
   .badge-borrador { background: var(--gold-l); color: var(--gold); }
-  .badge-disponible { background: var(--esm-l); color: var(--esm); }
-  .badge-vendida { background: var(--red-bg, #fbedeb); color: var(--red, #b03a2e); }
   .badge-sincosto { background: var(--red-bg, #fbedeb); color: var(--red, #b03a2e); }
 
   .switch-container {
@@ -1668,9 +1691,15 @@ function sbPedir(ruta, opciones) {
    pintaba la palabra «null» en pantalla; la de fmtQty se tragaba la unidad.
    Estan aca, una sola vez, para que ninguna area sea duena de ellas. */
 
-/* ---- Exportacion de Inventario ---- */
-// Arma la hoja de calculo de una tabla: fila 0 en negrita, columnas de moneyCols con formato $.
-function buildSheetXml(rows, moneyCols) {
+/* ---- Exportacion a hoja de calculo ---- */
+/* Arma la hoja: fila 0 en negrita, las columnas de moneyCols con formato $.
+
+   widths es opcional y va por columna, en el orden de las cabeceras. Sin el,
+   todas salen a 18. No es adorno: la descripcion de un gasto y el desglose del
+   metal de una venta se cortan a 18 y el archivo hay que ensancharlo a mano
+   cada vez. Gastos y Ventas traian cada uno su propia copia de esta funcion
+   solo para poder fijar sus anchos; con el parametro sobran las dos copias. */
+function buildSheetXml(rows, moneyCols, widths) {
   var sheet = '';
   for (var r = 0; r < rows.length; r++) {
     var cells = '';
@@ -1688,12 +1717,15 @@ function buildSheetXml(rows, moneyCols) {
     sheet += '<row r="' + (r + 1) + '">' + cells + '</row>';
   }
   var cols = '<cols>';
-  for (var c2 = 1; c2 <= rows[0].length; c2++) cols += '<col min="' + c2 + '" max="' + c2 + '" width="18" customWidth="1"/>';
+  for (var c2 = 1; c2 <= rows[0].length; c2++) {
+    var ancho = (widths && widths[c2 - 1]) || 18;
+    cols += '<col min="' + c2 + '" max="' + c2 + '" width="' + ancho + '" customWidth="1"/>';
+  }
   cols += '</cols>';
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>';
 }
 
-// Un solo archivo .xlsx con varias hojas: sheets = [{ name, rows, moneyCols }]
+// Un solo archivo .xlsx con varias hojas: sheets = [{ name, rows, moneyCols, widths }]
 function buildXLSXBlob(sheets) {
   var overrides = '', sheetTags = '', rels = '', files = [];
   for (var i = 0; i < sheets.length; i++) {
@@ -1701,7 +1733,7 @@ function buildXLSXBlob(sheets) {
     overrides += '<Override PartName="/xl/worksheets/sheet' + n + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
     sheetTags += '<sheet name="' + xmlEsc(sheets[i].name) + '" sheetId="' + n + '" r:id="rId' + n + '"/>';
     rels += '<Relationship Id="rId' + n + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + n + '.xml"/>';
-    files.push({ name: 'xl/worksheets/sheet' + n + '.xml', content: buildSheetXml(sheets[i].rows, sheets[i].moneyCols || []) });
+    files.push({ name: 'xl/worksheets/sheet' + n + '.xml', content: buildSheetXml(sheets[i].rows, sheets[i].moneyCols || [], sheets[i].widths) });
   }
   // El id de estilos va despues de todas las hojas para no chocar con ellas.
   rels += '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
@@ -1769,6 +1801,17 @@ function csvEsc(v) {
   if (v === null || v === undefined) return '';
   var s = String(v);
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+/* Baja un CSV ya escapado. Los tres exportadores repetian estas dos lineas y
+   cada uno se habia desviado por su lado: dos escribian el BOM como byte crudo
+   dentro del archivo fuente (invisible al leerlo, y lo pierde cualquier editor
+   que reguarde con otra codificacion) y el tercero con la secuencia de escape.
+   El BOM no es opcional: sin el, Excel en Windows abre el CSV en ANSI y parte
+   todas las tildes. Aqui va escapado, que es la forma que se ve al leer. */
+function descargarCSV(lineas, nombre) {
+  var texto = '\uFEFF' + lineas.join('\r\n');
+  download(new Blob([texto], { type: 'text/csv;charset=utf-8' }), nombre);
 }
 
 function crcTable() {
@@ -3337,40 +3380,18 @@ function rowsForExport() {
 }
 
 function exportCSV() {
-  var rows = rowsForExport();
-  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
-  download(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }),
-    'verde-andino-gastos-' + stamp() + '.csv');
+  var lineas = rowsForExport().map(function(r) { return r.map(csvEsc).join(','); });
+  descargarCSV(lineas, 'verde-andino-gastos-' + stamp() + '.csv');
 }
 
 function exportXLSX() {
-  var rows = rowsForExport();
-  var sheet = '';
-  for (var r = 0; r < rows.length; r++) {
-    var cells = '';
-    for (var c = 0; c < rows[r].length; c++) {
-      var val = rows[r][c], ref = colName(c+1) + (r+1);
-      if (val === '' || val === null || val === undefined) continue;
-      if (r > 0 && typeof val === 'number') {
-        var st = (c === 9 || c === 15 || c === 16) ? ' s="2"' : '';
-        cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
-      } else {
-        var s = r === 0 ? ' s="1"' : '';
-        cells += '<c r="' + ref + '" t="inlineStr"' + s + '><is><t>' + xmlEsc(val) + '</t></is></c>';
-      }
-    }
-    sheet += '<row r="' + (r+1) + '">' + cells + '</row>';
-  }
-  var cols = '<cols><col min="1" max="1" width="9" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/><col min="5" max="5" width="34" customWidth="1"/><col min="6" max="6" width="22" customWidth="1"/><col min="7" max="7" width="18" customWidth="1"/><col min="8" max="8" width="16" customWidth="1"/><col min="9" max="9" width="16" customWidth="1"/><col min="10" max="10" width="12" customWidth="1"/><col min="11" max="11" width="12" customWidth="1"/><col min="12" max="12" width="20" customWidth="1"/><col min="13" max="13" width="14" customWidth="1"/><col min="14" max="14" width="10" customWidth="1"/><col min="15" max="15" width="8" customWidth="1"/><col min="16" max="16" width="15" customWidth="1"/><col min="17" max="17" width="16" customWidth="1"/><col min="18" max="18" width="12" customWidth="1"/><col min="19" max="19" width="16" customWidth="1"/></cols>';
-  var files = [
-    { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
-    { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Gastos" sheetId="1" r:id="rId1"/></sheets></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
-    { name: 'xl/styles.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>' },
-    { name: 'xl/worksheets/sheet1.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>' }
-  ];
-  download(makeZip(files), 'verde-andino-gastos-' + stamp() + '.xlsx');
+  /* Los anchos son los mismos que traia la copia que vivia aqui: la descripcion
+     y el proveedor necesitan sitio, el resto no. */
+  download(buildXLSXBlob([{
+    name: 'Gastos', rows: rowsForExport(),
+    moneyCols: [9, 15, 16],   // IVA pagado, precio unitario, monto
+    widths: [9, 11, 12, 20, 34, 22, 18, 16, 16, 12, 12, 20, 14, 10, 8, 15, 16, 12, 16]
+  }]), 'verde-andino-gastos-' + stamp() + '.xlsx');
 }
 
 /* ===== PDF ===== */
@@ -4607,49 +4628,25 @@ function ventasExportRows() {
 
 function exportVentasCSV() {
   if (ventas.length === 0) { toast('Sin ventas para exportar'); return; }
-  var rows = ventasExportRows();
-  var lines = rows.map(function(r) { return r.map(csvEsc).join(','); });
-  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }),
-    'ventas_' + fechaHoyLocal() + '.csv');
+  var lineas = ventasExportRows().map(function(r) { return r.map(csvEsc).join(','); });
+  /* Con stamp(), igual que los otros cinco exportadores y que su propio .xlsx.
+     Antes usaba fechaHoyLocal() y las dos descargas de la misma pantalla salian
+     con el nombre en dos formatos distintos. */
+  descargarCSV(lineas, 'ventas_' + stamp() + '.csv');
   toast('Archivo descargado');
 }
 
 function exportVentasXLSX() {
   if (ventas.length === 0) { toast('Sin ventas para exportar'); return; }
   var rows = ventasExportRows();
-  var sheet = '';
-  for (var r = 0; r < rows.length; r++) {
-    var cells = '';
-    for (var c = 0; c < rows[r].length; c++) {
-      var val = rows[r][c], ref = colName(c+1) + (r+1);
-      if (val === '' || val === null || val === undefined) continue;
-      if (r > 0 && typeof val === 'number') {
-        // dinero: precio, monto, costo, ganancia y el desglose del costo
-        var st = [7, 8, 9, 10, 20, 21, 22].indexOf(c) >= 0 ? ' s="2"' : '';
-        cells += '<c r="' + ref + '"' + st + '><v>' + val + '</v></c>';
-      } else {
-        var s = r === 0 ? ' s="1"' : '';
-        cells += '<c r="' + ref + '" t="inlineStr"' + s + '><is><t>' + xmlEsc(val) + '</t></is></c>';
-      }
-    }
-    sheet += '<row r="' + (r+1) + '">' + cells + '</row>';
-  }
-  var cols = '<cols>';
-  for (var c = 1; c <= rows[0].length; c++) {
-    // las dos ultimas columnas llevan texto largo (detalle del metal y gastos enlazados)
-    var w = c >= rows[0].length - 1 ? 32 : 12;
-    cols += '<col min="' + c + '" max="' + c + '" width="' + w + '" customWidth="1"/>';
-  }
-  cols += '</cols>';
-  var files = [
-    { name: '[Content_Types].xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
-    { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Ventas" sheetId="1" r:id="rId1"/></sheets></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
-    { name: 'xl/styles.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>' },
-    { name: 'xl/worksheets/sheet1.xml', content: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>' + sheet + '</sheetData></worksheet>' }
-  ];
-  download(makeZip(files), 'ventas_' + stamp() + '.xlsx');
+  /* Las dos ultimas columnas llevan texto largo —el detalle del metal y los
+     gastos enlazados—; el resto cabe en 12. */
+  var widths = rows[0].map(function(_, c) { return c >= rows[0].length - 2 ? 32 : 12; });
+  download(buildXLSXBlob([{
+    name: 'Ventas', rows: rows,
+    moneyCols: [7, 8, 9, 10, 20, 21, 22],   // precio, monto, costo, ganancia y el desglose
+    widths: widths
+  }]), 'ventas_' + stamp() + '.xlsx');
 }
 
 /* ===== INVENTARIO ===== */
@@ -5326,14 +5323,14 @@ function invHayDatos(sheets) {
 function exportInventarioCSV() {
   var sheets = invExportSheets();
   if (!invHayDatos(sheets)) { toast('Sin datos de inventario para exportar'); return; }
-  var lines = [];
+  var lineas = [];
   sheets.forEach(function(s, i) {
-    if (i > 0) lines.push('', '');
-    lines.push(csvEsc(s.name.toUpperCase()));
-    if (s.rows.length <= 1) { lines.push('(sin registros)'); return; }
-    s.rows.forEach(function(r) { lines.push(r.map(csvEsc).join(',')); });
+    if (i > 0) lineas.push('', '');
+    lineas.push(csvEsc(s.name.toUpperCase()));
+    if (s.rows.length <= 1) { lineas.push('(sin registros)'); return; }
+    s.rows.forEach(function(r) { lineas.push(r.map(csvEsc).join(',')); });
   });
-  download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'verde-andino-inventario-' + stamp() + '.csv');
+  descargarCSV(lineas, 'verde-andino-inventario-' + stamp() + '.csv');
 }
 
 function exportInventarioXLSX() {
