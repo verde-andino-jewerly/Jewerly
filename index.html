@@ -592,6 +592,9 @@
     letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
   }
   .modal-share:hover { border-color: var(--gold); color: var(--gold); }
+  .modal-cart-add { flex: 1; padding: 0.9rem 1rem; background: var(--esm); color: #fff; border: none; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; font-family: inherit; cursor: pointer; }
+  .modal-cart-add:hover { background: var(--esm-d); }
+  .modal-cart-add.en-carrito { background: var(--text-3); cursor: default; }
 
   /* ============ CAROUSEL ============ */
   .carousel-container {
@@ -719,9 +722,46 @@
   }
   .toast.show { opacity: 1; }
 
+  .cart-btn {
+    position: fixed; top: 0.9rem; right: 3.6rem; z-index: 90;
+    background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.08); border-radius: 50%;
+    width: 34px; height: 34px; cursor: pointer; font-size: 0.95rem;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px); color: #1A1714;
+  }
+  :root[data-theme="dark"] .cart-btn { background: rgba(30,28,25,0.85); color: #EDE8E0; border-color: rgba(255,255,255,0.1); }
+  .cart-badge {
+    position: absolute; top: -4px; right: -4px; background: var(--esm); color: #fff;
+    font-size: 0.6rem; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; padding: 0 3px;
+  }
+  .cart-badge:empty { display: none; }
+  .cart-modal { max-width: 420px; }
+  .cart-body { padding: 1.3rem 1.5rem 1.6rem; }
+  .cart-title { font-family: Georgia, serif; font-size: 1.15rem; margin-bottom: 1rem; }
+  .cart-empty { color: var(--text-3); font-size: 0.85rem; padding: 1.5rem 0; text-align: center; }
+  .cart-item { display: flex; gap: 0.7rem; padding: 0.7rem 0; border-bottom: 1px solid var(--border-s); align-items: center; }
+  .cart-item img, .cart-item-ph { width: 52px; height: 52px; object-fit: cover; background: var(--bg-alt); flex-shrink: 0; }
+  .cart-item-info { flex: 1; min-width: 0; }
+  .cart-item-desc { font-size: 0.82rem; margin-bottom: 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cart-item-price { font-size: 0.8rem; color: var(--gold); }
+  .cart-item-quitar { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 1.1rem; padding: 0.2rem 0.4rem; }
+  .cart-item-quitar:hover { color: #c0392b; }
+  .cart-total { display: flex; justify-content: space-between; align-items: baseline; padding: 1rem 0; margin-top: 0.3rem; border-top: 1px solid var(--border); font-family: Georgia, serif; font-size: 1.15rem; }
+  .cart-total b { color: var(--gold); font-weight: 400; }
+  .checkout-form { display: flex; flex-direction: column; gap: 0.7rem; }
+  .checkout-form label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); display: block; margin-bottom: 0.25rem; }
+  .checkout-form input { width: 100%; padding: 0.65rem 0.75rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.85rem; }
+  .checkout-form input:focus { outline: none; border-color: var(--esm); }
+  .checkout-resumen { font-size: 0.8rem; color: var(--text-2); padding: 0.8rem 0; border-top: 1px solid var(--border-s); border-bottom: 1px solid var(--border-s); margin: 0.4rem 0; }
+  .checkout-resumen div { display: flex; justify-content: space-between; padding: 0.2rem 0; }
+  .checkout-estado { text-align: center; padding: 2rem 1rem; }
+  .checkout-estado .icono { font-size: 2.5rem; margin-bottom: 0.8rem; }
+
 </style>
 
 <button class="theme-btn" onclick="toggleTheme()" title="Cambiar tema">◑</button>
+<button class="cart-btn" onclick="abrirCarrito()" title="Carrito" aria-label="Ver carrito">🛍<span class="cart-badge" id="cart-badge"></span></button>
 
 <!-- ============ HERO ============ -->
 <section class="hero" id="hero">
@@ -940,6 +980,55 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="cart-modal" onclick="cerrarCarrito(event)">
+  <div class="modal cart-modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="cerrarCarrito()" aria-label="Cerrar">×</button>
+    <div class="cart-body">
+      <div class="cart-title">Tu selección</div>
+      <div id="cart-lista"></div>
+      <div class="cart-total" id="cart-total-wrap" style="display:none">
+        <span>Total</span><b id="cart-total"></b>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-esm" style="flex:1" id="cart-btn-checkout" onclick="abrirCheckout()">Finalizar compra</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="checkout-modal" onclick="cerrarCheckout(event)">
+  <div class="modal cart-modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="cerrarCheckout()" aria-label="Cerrar">×</button>
+    <div class="cart-body" id="checkout-body">
+      <div class="cart-title">Datos de envío</div>
+      <div class="checkout-resumen" id="checkout-resumen"></div>
+      <form class="checkout-form" onsubmit="return confirmarCheckout(event)">
+        <div>
+          <label for="co-nombre">Nombre completo</label>
+          <input id="co-nombre" required autocomplete="name">
+        </div>
+        <div>
+          <label for="co-telefono">Teléfono (WhatsApp)</label>
+          <input id="co-telefono" required autocomplete="tel" inputmode="tel">
+        </div>
+        <div>
+          <label for="co-email">Correo</label>
+          <input id="co-email" type="email" required autocomplete="email">
+        </div>
+        <div>
+          <label for="co-direccion">Dirección</label>
+          <input id="co-direccion" required autocomplete="street-address">
+        </div>
+        <div>
+          <label for="co-ciudad">Ciudad</label>
+          <input id="co-ciudad" required autocomplete="address-level2">
+        </div>
+        <button class="btn btn-esm" type="submit" id="checkout-submit" style="margin-top:0.4rem">Pagar con Wompi</button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <a href="#" onclick="waGeneral(event)" class="float-wa" title="WhatsApp" aria-label="Contactar por WhatsApp">
   <svg width="30" height="30" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
     <path fill="#ffffff" fill-rule="evenodd" clip-rule="evenodd" d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.86 9.86 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24a8.2 8.2 0 0 1 5.83 2.42 8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.69 8.23-8.24 8.23Zm4.52-6.16c-.25-.13-1.47-.72-1.69-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.79.97-.14.16-.29.19-.54.06-.25-.12-1.05-.38-1.99-1.23-.74-.65-1.23-1.46-1.38-1.71-.14-.25-.01-.38.11-.51.11-.11.25-.29.37-.44.13-.15.17-.25.25-.42.09-.16.04-.31-.02-.44-.06-.12-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.43h-.47c-.16 0-.42.06-.64.31-.22.25-.84.82-.84 2s.86 2.32.98 2.48c.12.17 1.69 2.58 4.1 3.62.57.25 1.02.39 1.37.5.57.19 1.1.16 1.51.1.46-.07 1.42-.58 1.62-1.15.2-.56.2-1.05.14-1.15-.06-.1-.22-.16-.47-.29Z"/>
@@ -962,6 +1051,9 @@
 <script>
 var KEY = 'va_catalog_v3';
 var WA_NUMBER = '573180935276';
+var WOMPI_PUBLIC_KEY = '';
+var WOMPI_CHECKOUT_URL = 'https://checkout.wompi.co/p/';
+var CART_KEY = 'va_cart_v1';
 var activeCategory = null;
 
 /* Supabase — base de datos en la nube */
@@ -1443,6 +1535,9 @@ function openModal(id) {
           '</div>';
       })() : '<div class="modal-price">' + fmtPrecio(it.precio) + '</div>') +
       '<div class="modal-actions">' +
+        '<button class="modal-cart-add' + (carritoTiene(it.id) ? ' en-carrito' : '') + '" id="modal-cart-btn" onclick="carritoAgregarDesdeModal(\'' + jsEsc(it.id) + '\')">' + (carritoTiene(it.id) ? 'En tu selección' : 'Agregar a mi selección') + '</button>' +
+      '</div>' +
+      '<div class="modal-actions">' +
         '<a class="modal-wa" href="' + waLink + '" target="_blank" rel="noopener">Preguntar por WhatsApp</a>' +
         '<button class="modal-share" onclick="sharePiece(\'' + jsEsc(it.id) + '\')" title="Compartir">Compartir</button>' +
       '</div>' +
@@ -1610,8 +1705,182 @@ if (eduAcc) {
     }
   });
 }
+function carritoLeer() {
+  try { return JSON.parse(localStorage.getItem(CART_KEY) || '[]'); }
+  catch (error) { return []; }
+}
+function carritoGuardar(lista) {
+  localStorage.setItem(CART_KEY, JSON.stringify(lista));
+  renderCarritoBadge();
+}
+function carritoTiene(id) { return carritoLeer().indexOf(id) !== -1; }
+function carritoAgregar(id) {
+  var lista = carritoLeer();
+  if (lista.indexOf(id) === -1) lista.push(id);
+  carritoGuardar(lista);
+}
+function carritoQuitar(id) {
+  carritoGuardar(carritoLeer().filter(function(x) { return x !== id; }));
+  renderCarrito();
+}
+function carritoAgregarDesdeModal(id) {
+  if (carritoTiene(id)) { toast('Esa pieza ya esta en tu seleccion'); return; }
+  carritoAgregar(id);
+  toast('Agregada a tu seleccion');
+  var btn = document.getElementById('modal-cart-btn');
+  if (btn) { btn.textContent = 'En tu seleccion'; btn.classList.add('en-carrito'); }
+}
+function renderCarritoBadge() {
+  var badge = document.getElementById('cart-badge');
+  if (!badge) return;
+  var cantidad = carritoLeer().length;
+  badge.textContent = cantidad > 0 ? String(cantidad) : '';
+}
+function abrirCarrito() {
+  renderCarrito();
+  document.getElementById('cart-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function cerrarCarrito(evento) {
+  if (evento && evento.target && evento.target.id !== 'cart-modal' && !evento.target.classList.contains('modal-close')) return;
+  document.getElementById('cart-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function renderCarrito() {
+  var ids = carritoLeer();
+  var lista = document.getElementById('cart-lista');
+  var totalWrap = document.getElementById('cart-total-wrap');
+  var btnCheckout = document.getElementById('cart-btn-checkout');
+  if (ids.length === 0) {
+    lista.innerHTML = '<div class="cart-empty">Tu seleccion esta vacia. Explora el catalogo y agrega las piezas que te interesen.</div>';
+    totalWrap.style.display = 'none';
+    btnCheckout.disabled = true;
+    return;
+  }
+  var total = 0;
+  var html = '';
+  ids.forEach(function(id) {
+    var pieza = findItem(id);
+    if (!pieza) return;
+    var precio = pieza.precioOferta || pieza.precio;
+    total += precio;
+    var img = pieza.foto ? '<img src="' + pieza.foto + '" alt="">' : '<div class="cart-item-ph"></div>';
+    html += '<div class="cart-item">' + img +
+      '<div class="cart-item-info">' +
+        '<div class="cart-item-desc">' + esc(pieza.descripcion) + '</div>' +
+        '<div class="cart-item-price">' + fmtPrecio(precio) + '</div>' +
+      '</div>' +
+      '<button class="cart-item-quitar" onclick="carritoQuitar(\'' + jsEsc(id) + '\')" title="Quitar" aria-label="Quitar">×</button>' +
+    '</div>';
+  });
+  lista.innerHTML = html;
+  totalWrap.style.display = 'flex';
+  document.getElementById('cart-total').textContent = fmtPrecio(total);
+  btnCheckout.disabled = false;
+}
+function abrirCheckout() {
+  var ids = carritoLeer();
+  if (ids.length === 0) return;
+  var total = 0;
+  var resumen = '';
+  ids.forEach(function(id) {
+    var pieza = findItem(id);
+    if (!pieza) return;
+    var precio = pieza.precioOferta || pieza.precio;
+    total += precio;
+    resumen += '<div><span>' + esc(pieza.descripcion) + '</span><span>' + fmtPrecio(precio) + '</span></div>';
+  });
+  resumen += '<div style="font-weight:600;border-top:1px solid var(--border);margin-top:0.4rem;padding-top:0.4rem;"><span>Total</span><span>' + fmtPrecio(total) + '</span></div>';
+  document.getElementById('checkout-resumen').innerHTML = resumen;
+  cerrarCarrito();
+  document.getElementById('checkout-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function cerrarCheckout(evento) {
+  if (evento && evento.target && evento.target.id !== 'checkout-modal' && !evento.target.classList.contains('modal-close')) return;
+  document.getElementById('checkout-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function confirmarCheckout(evento) {
+  evento.preventDefault();
+  var ids = carritoLeer();
+  if (ids.length === 0) { toast('Tu seleccion esta vacia'); return false; }
+  var comprador = {
+    nombre: document.getElementById('co-nombre').value.trim(),
+    telefono: document.getElementById('co-telefono').value.trim(),
+    email: document.getElementById('co-email').value.trim(),
+    direccion: document.getElementById('co-direccion').value.trim(),
+    ciudad: document.getElementById('co-ciudad').value.trim()
+  };
+  var boton = document.getElementById('checkout-submit');
+  boton.disabled = true;
+  boton.textContent = 'Procesando...';
+  var items = ids.map(function(id) { return { producto_id: id }; });
+  sbPedir('/rest/v1/rpc/crear_pedido_web', {
+    method: 'POST', publico: true,
+    body: JSON.stringify({ p_items: items, p_comprador: comprador })
+  }).then(function(filas) {
+    var pedido = Array.isArray(filas) ? filas[0] : filas;
+    if (!pedido || !pedido.referencia_pago) throw new Error('El pedido no devolvio referencia');
+    return sbPedir(SB_URL + '/functions/v1/wompi-firmar', {
+      method: 'POST', publico: true,
+      body: JSON.stringify({ referencia: pedido.referencia_pago })
+    });
+  }).then(function(firma) {
+    if (!firma || !firma.signature) throw new Error('No se pudo firmar el pago');
+    localStorage.removeItem(CART_KEY);
+    renderCarritoBadge();
+    var destino = location.origin + location.pathname + '?pedido=' + firma.referencia;
+    var url = WOMPI_CHECKOUT_URL +
+      '?public-key=' + encodeURIComponent(firma.publicKey || WOMPI_PUBLIC_KEY) +
+      '&currency=' + encodeURIComponent(firma.currency) +
+      '&amount-in-cents=' + encodeURIComponent(firma.amountInCents) +
+      '&reference=' + encodeURIComponent(firma.referencia) +
+      '&signature:integrity=' + encodeURIComponent(firma.signature) +
+      '&redirect-url=' + encodeURIComponent(destino);
+    location.href = url;
+  }).catch(function(error) {
+    console.error('Error en checkout:', error);
+    toast(error.message || 'No se pudo procesar el pedido. Intenta de nuevo.');
+    boton.disabled = false;
+    boton.textContent = 'Pagar con Wompi';
+  });
+  return false;
+}
+function manejarRegresoDePago() {
+  var params = new URLSearchParams(location.search);
+  var referencia = params.get('pedido');
+  if (!referencia) return;
+  document.getElementById('checkout-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  var cuerpo = document.getElementById('checkout-body');
+  var intentos = 0;
+  function revisar() {
+    intentos++;
+    sbPedir('/rest/v1/rpc/estado_pedido_web', {
+      method: 'POST', publico: true,
+      body: JSON.stringify({ p_referencia: referencia })
+    }).then(function(estado) {
+      if (estado === 'pagado') {
+        cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">✓</div><div class="cart-title">¡Gracias por tu compra!</div><p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem;">Te vamos a escribir por WhatsApp para coordinar el envio.</p></div>';
+      } else if (estado === 'cancelada') {
+        cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">✕</div><div class="cart-title">El pago no se completo</div><p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem;">Puedes intentar de nuevo desde tu seleccion.</p></div>';
+      } else if (intentos < 15) {
+        setTimeout(revisar, 2000);
+      } else {
+        cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">...</div><div class="cart-title">Confirmando tu pago</div><p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem;">Puede tardar unos minutos. Te avisamos por WhatsApp en cuanto quede listo.</p></div>';
+      }
+    }).catch(function() {
+      cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">...</div><div class="cart-title">Confirmando tu pago</div></div>';
+    });
+  }
+  revisar();
+}
+
 applyFilters();
 sbFetchAll(function() { applyFilters(); });
 var lg = document.getElementById('hero-logo');
 if (lg.complete) applyLogoBg(); else lg.addEventListener('load', applyLogoBg);
+renderCarritoBadge();
+manejarRegresoDePago();
 </script>
