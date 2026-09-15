@@ -1,6 +1,6 @@
-// Firma la transaccion antes de mandar al comprador a pagar con Wompi.
-// El secreto de integridad NUNCA puede vivir en el HTML de la vitrina
-// (cualquiera lo veria); por eso esta funcion corre en el servidor.
+// Firma la transaccion antes de mandar al comprador a pagar con Bold.
+// La llave secreta NUNCA puede vivir en el HTML de la vitrina (cualquiera la
+// veria); por eso esta funcion corre en el servidor.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -55,20 +55,23 @@ serve(async (req) => {
     }
 
     const total = filas.reduce((acumulado, fila) => acumulado + Number(fila.monto_total), 0)
-    const amountInCents = Math.round(total * 100)
+    // Bold recibe el monto en pesos enteros, sin decimales (a diferencia de
+    // Wompi, no va multiplicado por 100).
+    const amount = Math.round(total)
     const currency = 'COP'
-    const secreto = Deno.env.get('WOMPI_INTEGRITY_SECRET')!
+    const secreto = Deno.env.get('BOLD_SECRET_KEY')!
 
-    const checksum = await sha256Hex(referencia + amountInCents + currency + secreto)
+    // Firma de integridad de Bold: SHA256(identificador + monto + divisa + llave secreta)
+    const signature = await sha256Hex(referencia + amount + currency + secreto)
 
     return new Response(JSON.stringify({
-      referencia, amountInCents, currency, signature: checksum,
-      publicKey: Deno.env.get('WOMPI_PUBLIC_KEY') || '',
+      referencia, amount, currency, signature,
+      apiKey: Deno.env.get('BOLD_API_KEY') || '',
     }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (e) {
-    console.error('wompi-firmar:', e)
+    console.error('bold-firmar:', e)
     return new Response(JSON.stringify({ error: 'Error al firmar el pedido' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
