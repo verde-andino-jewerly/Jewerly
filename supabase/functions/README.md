@@ -1,5 +1,24 @@
 # Supabase Edge Functions — Verde Andino Jewelry
 
+## `bold-firmar` y `bold-webhook`
+
+Checkout con carrito de la vitrina (Fase 1), pasarela **Bold**.
+
+- **`bold-firmar`**: llamada por la vitrina (llave `anon`) antes de abrir el
+  checkout. Lee el monto real de `ventas` (nunca del navegador) y devuelve la
+  firma de integridad `SHA256(referencia + monto + moneda + llave_secreta)`
+  que exige Bold, junto con la llave de identidad publica.
+- **`bold-webhook`**: recibe el aviso de Bold cuando el pago se resuelve.
+  Valida la firma HMAC-SHA256 del evento (`x-bold-signature`) y llama a
+  `confirmar_pago_web`/`cancelar_pago_web` con la llave `service_role`. Es la
+  unica fuente de verdad del pago -- la redireccion del navegador de vuelta a
+  la vitrina se puede interrumpir o falsificar, este webhook no.
+
+Ambas requieren los secrets `BOLD_API_KEY` y `BOLD_SECRET_KEY` configurados en
+Supabase -> Edge Functions -> Secrets (nunca en codigo, chat ni documentacion).
+Detalle completo del modelo de datos en `../../REFERENCIA-TECNICA.md`
+(seccion Pedidos web), en la raiz del proyecto.
+
 ## `calculate-price`
 
 Calcula el precio de venta a partir de costo y margen, en el servidor.
