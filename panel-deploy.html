@@ -26,9 +26,9 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #141210; --bg-card: #1E1C19; --bg-alt: #252320; --bg-hover: #2A2825;
+      --bg: #1C1A17; --bg-card: #252320; --bg-alt: #2C2926; --bg-hover: #342F2B;
       --text: #EDE8E0; --text-2: #A09A92; --text-3: #706B65;
-      --border: #2E2B27; --border-s: #252320;
+      --border: #363330; --border-s: #2C2926;
       --gold: #D4A017; --gold-l: #3A3020; --gold-bg: #1E1B15;
       --esm: #4FA87C; --esm-l: #1B3A2A;
       --red: #E57373; --red-bg: #2E1A1A;
@@ -3552,7 +3552,7 @@ function saveExpense() {
      Antes se podia dejar la casilla sin marcar y no adjuntar nada: el gasto
      quedaba contando como deducible sin serlo, y para cuando eso se nota ya
      nadie se acuerda de si hubo factura. */
-  if (!sinSoporte && !numFactura && !comprobante) {
+  if (cat !== CAT_RETIRO && !sinSoporte && !numFactura && !comprobante) {
     toast('Falta el soporte: adjunta el comprobante o escribe el numero de factura. Si no hay papel, marca «sin factura ni recibo»');
     return;
   }
@@ -4427,6 +4427,7 @@ function mapVentaRow(r) {
     ganancia_bruta: parseFloat(r.ganancia_bruta), metodo_pago: r.metodo_pago || '', estado: r.estado,
     tiene_factura: r.tiene_factura, numero_factura: r.numero_factura,
     transportadora: r.transportadora || '', numero_guia: r.numero_guia || '', notas: r.notas || '',
+    canal: r.canal || 'manual', referencia_pago: r.referencia_pago || '',
     ingreso_id: r.ingreso_id, costo_detalle: r.costo_detalle || null,
     created_at: r.created_at, updated_at: r.updated_at
   };
@@ -4640,7 +4641,9 @@ function sincronizarIngresoVenta(v, ventaActualizada) {
     proveedor: v.cliente, monto: ventaActualizada.ganancia_bruta, enlace_producto: v.producto_id,
     // Las unidades vendidas: sin esto la fila salia con la cantidad en blanco.
     // No crea entrada de inventario: eso solo lo hacen Metales, Piedras y Empaque.
-    cantidad: v.cantidad, unidad: 'u'
+    cantidad: v.cantidad, unidad: 'u',
+    forma_pago: ventaActualizada.metodo_pago || null,
+    numero_factura: ventaActualizada.tiene_factura ? (ventaActualizada.numero_factura || null) : null
   };
 
   function fallo(e) {
@@ -4731,7 +4734,9 @@ function confirmarYGuardarVenta() {
       fecha: v.fecha, categoria: 'Ingresos por Ventas',
       descripcion: 'Venta #' + v.numero + ': ' + (v.producto_nombre || v.producto_id) + ' a ' + v.cliente,
       proveedor: v.cliente, monto: v.ganancia, enlace_producto: v.producto_id,
-      cantidad: v.cantidad, unidad: 'u'
+      cantidad: v.cantidad, unidad: 'u',
+      forma_pago: v.metodo || null,
+      numero_factura: v.tieneFactura ? (v.numeroFactura || null) : null
     };
     var pasoIngreso = cuentaComoIngreso
       ? sbPedir('/rest/v1/gastos', {
@@ -4919,6 +4924,7 @@ function renderVentas() {
     if (isEdited) clienteCell += ' <span class="edited-badge" onclick="showAuditVenta(' + v.id + ', event)" title="Ver historial de cambios">&#9998; editado</span>';
     var productoCell = esc(v.producto_nombre);
     if (!v.producto_id) productoCell += ' <span class="cat-badge" style="background:var(--blue-bg,#e8f0fb);color:var(--blue,#2e5fa3);" title="Venta manual, fuera de catálogo">manual</span>';
+    if (v.canal === 'web') productoCell += ' <span class="cat-badge" style="background:#e8f5ec;color:#1f6f4a;" title="Pedido hecho por el comprador desde la vitrina, pagado en línea">🌐 web</span>';
     // Solo las ventas que vinieron de la Calculadora de Joya Personalizada tienen ficha.
     var fichaBtn = v.costo_detalle
       ? '<button class="btn-small" onclick="showFichaVenta(' + v.id + ', event)" title="Ficha técnica de la pieza">🔍</button>'
