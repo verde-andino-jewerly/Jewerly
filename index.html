@@ -830,6 +830,13 @@
   .checkout-form label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); display: block; margin-bottom: 0.25rem; }
   .checkout-form input { width: 100%; padding: 0.65rem 0.75rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.85rem; }
   .checkout-form input:focus { outline: none; border-color: var(--esm); }
+  .checkout-form select, .checkout-form textarea { width: 100%; padding: 0.65rem 0.75rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.85rem; }
+  .checkout-form select:focus, .checkout-form textarea:focus { outline: none; border-color: var(--esm); }
+  .checkout-form textarea { resize: vertical; min-height: 72px; }
+  .encargo-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.15rem; }
+  .encargo-chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.65rem; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; font-size: 0.78rem; color: var(--text-2); background: var(--bg); user-select: none; }
+  .encargo-chip input { position: absolute; opacity: 0; pointer-events: none; }
+  .encargo-chip:has(input:checked) { border-color: var(--esm); background: var(--esm-bg); color: var(--esm); }
   .checkout-resumen { font-size: 0.8rem; color: var(--text-2); padding: 0.8rem 0; border-top: 1px solid var(--border-s); border-bottom: 1px solid var(--border-s); margin: 0.4rem 0; }
   .checkout-resumen div { display: flex; justify-content: space-between; padding: 0.2rem 0; }
   .checkout-estado { text-align: center; padding: 2rem 1rem; }
@@ -946,7 +953,7 @@
     <div class="custom-cta">
       <h3>¿Buscas algo único?</h3>
       <p>Mandamos a hacer piezas personalizadas con talleres de confianza y joyeros profesionales. Elige el metal, la piedra y el diseño.</p>
-      <a href="#" onclick="waCustom(event)" class="btn btn-esm">Consultar pieza a la medida</a>
+      <a href="#" onclick="abrirEncargo(event)" class="btn btn-esm">Solicitar encargo personalizado</a>
     </div>
   </div>
 </section>
@@ -1103,6 +1110,69 @@
           <input id="co-ciudad" required autocomplete="address-level2">
         </div>
         <button class="btn btn-esm" type="submit" id="checkout-submit" style="margin-top:0.4rem">Continuar al pago</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="encargo-modal" onclick="cerrarEncargo(event)">
+  <div class="modal cart-modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="cerrarEncargo()" aria-label="Cerrar">×</button>
+    <div class="cart-body">
+      <div class="cart-title">Encargo personalizado</div>
+      <p style="color:var(--text-2);font-size:0.85rem;margin:0.35rem 0 1rem;">Cuéntanos qué pieza tienes en mente. Enviamos tu solicitud a nuestros joyeros por WhatsApp con toda la información.</p>
+      <form class="checkout-form" onsubmit="return enviarEncargo(event)">
+        <div>
+          <label for="enc-tipo">Tipo de pieza</label>
+          <select id="enc-tipo" required>
+            <option value="">Elige…</option>
+            <option>Anillo</option>
+            <option>Collar / Cadena</option>
+            <option>Aretes</option>
+            <option>Pulsera</option>
+            <option>Dije / Colgante</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div>
+          <label for="enc-descripcion">Cómo la imaginas</label>
+          <textarea id="enc-descripcion" required placeholder="Ej: anillo solitario para propuesta, banda delgada, esmeralda ovalada de ~1ct"></textarea>
+        </div>
+        <div>
+          <label>Metal preferido</label>
+          <div class="encargo-chips" id="enc-metal-chips">
+            <label class="encargo-chip"><input type="checkbox" value="Oro amarillo 18k"> Oro amarillo 18k</label>
+            <label class="encargo-chip"><input type="checkbox" value="Oro blanco 18k"> Oro blanco 18k</label>
+            <label class="encargo-chip"><input type="checkbox" value="Oro rosa 18k"> Oro rosa 18k</label>
+            <label class="encargo-chip"><input type="checkbox" value="Plata 950"> Plata 950</label>
+            <label class="encargo-chip"><input type="checkbox" value="Me da igual"> Me da igual</label>
+          </div>
+        </div>
+        <div>
+          <label>Piedra</label>
+          <div class="encargo-chips" id="enc-piedra-chips">
+            <label class="encargo-chip"><input type="radio" name="enc-piedra" value="Con esmeralda" checked> Con esmeralda</label>
+            <label class="encargo-chip"><input type="radio" name="enc-piedra" value="Sin piedras"> Sin piedras</label>
+            <label class="encargo-chip"><input type="radio" name="enc-piedra" value="Otra piedra"> Otra piedra</label>
+          </div>
+        </div>
+        <div>
+          <label for="enc-presupuesto">Presupuesto aproximado (COP)</label>
+          <input id="enc-presupuesto" required placeholder="Ej: $2.000.000 – $4.000.000">
+        </div>
+        <div>
+          <label for="enc-plazo">Plazo deseado</label>
+          <input id="enc-plazo" placeholder="Ej: en 3 semanas, para una fecha específica, sin apuro">
+        </div>
+        <div>
+          <label for="enc-nombre">Tu nombre</label>
+          <input id="enc-nombre" required autocomplete="name">
+        </div>
+        <div>
+          <label for="enc-telefono">WhatsApp de contacto</label>
+          <input id="enc-telefono" required autocomplete="tel" inputmode="tel" placeholder="Ej: +57 300 123 4567">
+        </div>
+        <button class="btn btn-esm" type="submit" style="margin-top:0.4rem">Enviar por WhatsApp</button>
       </form>
     </div>
   </div>
@@ -1679,9 +1749,58 @@ function waGeneral(e) {
   window.open('https://wa.me/' + WA_NUMBER + '?text=' + t, '_blank');
 }
 function waCustom(e) {
+  // Wrapper legacy: hoy delega al modal de encargos personalizados.
+  abrirEncargo(e);
+}
+function abrirEncargo(e) {
   if (e) e.preventDefault();
-  var t = encodeURIComponent('Hola, quiero consultar por una pieza a la medida.');
-  window.open('https://wa.me/' + WA_NUMBER + '?text=' + t, '_blank');
+  document.getElementById('encargo-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  trackEvent('encargo_abierto');
+}
+function cerrarEncargo(evento) {
+  if (evento && evento.target && evento.target.id !== 'encargo-modal' && !evento.target.classList.contains('modal-close')) return;
+  document.getElementById('encargo-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function enviarEncargo(evento) {
+  evento.preventDefault();
+  var val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  var metales = Array.prototype.slice.call(
+    document.querySelectorAll('#enc-metal-chips input[type=checkbox]:checked')
+  ).map(function(i) { return i.value; });
+  var piedra = (document.querySelector('#enc-piedra-chips input[name="enc-piedra"]:checked') || {}).value || '';
+  var tipo = val('enc-tipo');
+  var descripcion = val('enc-descripcion');
+  var presupuesto = val('enc-presupuesto');
+  var plazo = val('enc-plazo');
+  var nombre = val('enc-nombre');
+  var telefono = val('enc-telefono');
+  if (!tipo || !descripcion || !presupuesto || !nombre || !telefono) {
+    toast('Completa los campos obligatorios');
+    return false;
+  }
+  var lineas = [
+    'Hola, quiero un encargo personalizado.',
+    '',
+    'Tipo: ' + tipo,
+    'Descripcion: ' + descripcion,
+    'Metal: ' + (metales.length ? metales.join(', ') : 'sin preferencia'),
+    'Piedra: ' + (piedra || 'sin preferencia'),
+    'Presupuesto: ' + presupuesto
+  ];
+  if (plazo) lineas.push('Plazo: ' + plazo);
+  lineas.push('', 'Contacto: ' + nombre + ' (' + telefono + ')');
+  var texto = encodeURIComponent(lineas.join('\n'));
+  window.open('https://wa.me/' + WA_NUMBER + '?text=' + texto, '_blank');
+  trackEvent('encargo_enviado', {
+    tipo: tipo,
+    presupuesto: presupuesto,
+    con_esmeralda: piedra === 'Con esmeralda'
+  });
+  toast('Enviando tu solicitud por WhatsApp');
+  setTimeout(function() { cerrarEncargo(); }, 400);
+  return false;
 }
 
 var toastTimer = null;
