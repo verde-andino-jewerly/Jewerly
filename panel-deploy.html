@@ -1358,7 +1358,7 @@
           </div>
           <div class="field">
             <label for="cfg-piezas-mes">Piezas que esperas vender al mes</label>
-            <input type="number" id="cfg-piezas-mes" min="0.01" step="1" placeholder="8">
+            <input type="number" id="cfg-piezas-mes" min="1" step="1" placeholder="8">
             <div class="hint">Sé realista: si pones de más, el cargo por pieza queda bajo y no cubres la operación.</div>
           </div>
           <div class="field">
@@ -1606,7 +1606,14 @@
           </div>
           <div class="field" id="f-guia-wrapper" style="display: none;">
             <label for="f-guia">Número de guía</label>
-            <input type="text" id="f-guia" placeholder="Ej: 1234567890">
+            <input type="text" id="f-guia" placeholder="Ej: 1234567890" oninput="actualizarBotonWhatsapp()">
+          </div>
+          <div id="f-whatsapp-envio-wrapper" style="display:none; margin-top:0.5rem;">
+            <a id="f-whatsapp-envio-link" href="#" target="_blank" rel="noopener"
+               style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.45rem 0.9rem;background:#25D366;color:#fff;border-radius:6px;font-size:0.82rem;font-weight:600;text-decoration:none;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.552 4.116 1.52 5.847L.055 23.03a.749.749 0 00.93.93l5.183-1.465A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.81 9.81 0 01-5.032-1.384l-.36-.214-3.733 1.057 1.057-3.733-.214-.36A9.81 9.81 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+              Notificar por WhatsApp
+            </a>
           </div>
           <div class="field">
             <label for="f-notas-ven">Notas</label>
@@ -2178,7 +2185,7 @@ function sbUpsert(item, cb) {
   if (!sbCheckRateLimit('POST /productos')) { toast('Demasiadas solicitudes'); if (cb) cb(false); return; }
   sbPedir('/rest/v1/rpc/upsert_producto_admin', {
     method: 'POST',
-    body: JSON.stringify(itemToSb(item))
+    body: JSON.stringify({ data: itemToSb(item) })
   }).then(function() { if (cb) cb(true); })
     .catch(function(e) {
       console.error('Error guardando:', e);
@@ -2311,6 +2318,10 @@ function esc(s) {
      resultado, o mover una linea de un archivo al otro cambia lo que sale. */
   if (!s && s !== 0) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function jsEsc(s) {
+  if (!s && s !== 0) return '';
+  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 }
 
 function stamp() {
@@ -4999,6 +5010,7 @@ function editVenta(id, ev) {
   ventaEstadoChanged();
   $('f-transportadora').value = v.transportadora || '';
   $('f-guia').value = v.numero_guia || '';
+  actualizarBotonWhatsapp();
   $('f-tiene-factura').checked = v.tiene_factura || false;
   $('f-numero-factura').value = v.numero_factura || '';
   toggleNumeroFactura();
@@ -5131,6 +5143,33 @@ function ventaEstadoChanged() {
   } else {
     transportWrapper.style.display = 'none';
     guiaWrapper.style.display = 'none';
+  }
+  actualizarBotonWhatsapp();
+}
+
+function actualizarBotonWhatsapp() {
+  var wrapper = $('f-whatsapp-envio-wrapper');
+  if (!wrapper) return;
+  var estado = $('f-estado-ven').value;
+  var guia = $('f-guia').value.trim();
+  var transportadora = $('f-transportadora').value.trim();
+  if ((estado === 'enviado' || estado === 'entregado') && guia) {
+    var cliente = $('f-cliente').value.trim() || 'cliente';
+    var contacto = $('f-contacto').value.trim();
+    var digitos = contacto.replace(/\D/g, '');
+    var msg = 'Hola ' + cliente + ', tu pedido Verde Andino está en camino 🚀\n' +
+      (transportadora ? 'Transportadora: ' + transportadora + '\n' : '') +
+      'Número de guía: ' + guia;
+    var link = $('f-whatsapp-envio-link');
+    if (digitos.length >= 10) {
+      var tel = digitos.length === 10 ? '57' + digitos : digitos;
+      link.href = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(msg);
+    } else {
+      link.href = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(msg);
+    }
+    wrapper.style.display = 'block';
+  } else {
+    wrapper.style.display = 'none';
   }
 }
 
@@ -5892,7 +5931,12 @@ function exportInventarioXLSX() {
 /* Adaptadores para contexto de panel */
 function admConfirm(msg, onYes, opts) { pvConfirmar(msg, onYes, opts); }
 function admClosePanel() { switchTab('calc'); }
-function toggleTheme() {}
+function toggleTheme() {
+  var root = document.documentElement;
+  var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  root.dataset.theme = next;
+  try { localStorage.setItem('va_theme', next); } catch(e) {}
+}
 function applyFilters() {}
 var admProdInited = false;
 function admInitProdOnce() {
@@ -7056,6 +7100,7 @@ function admExportPDF() {
 /* ===== ARRANQUE ===== */
 /* Lo unico que se ejecuta solo al cargar la pagina. Va al final y no se mueve:
    a diferencia de las funciones, esto SI depende del orden. */
+try { var _t = localStorage.getItem('va_theme'); if (_t) document.documentElement.dataset.theme = _t; } catch(e) {}
 $('f-amount').addEventListener('input', updateRate);
 $('f-qty').addEventListener('input', updateRate);
 $('f-date').value = fechaHoyLocal();

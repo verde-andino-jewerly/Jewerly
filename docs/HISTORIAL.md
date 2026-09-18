@@ -97,9 +97,31 @@ Son HTMLs autocontenidos con su propio `localStorage`; no comparten datos con la
 
 ## Pendientes / ideas a futuro
 
-- **Auth real con Supabase Auth** — reemplazar PIN + `x-admin-token` por JWT cuando escale la operación.
+Los marcados con **[documentado]** son vacíos confirmados en operación real
+(novena vuelta, 18/09/2026). Los demás son ideas de evolución.
+
+### Vacíos documentados (verificados en vivo)
+
+- **[documentado] Seguimiento de envío visible para el comprador.** La página
+  `?pedido=REF` solo muestra estado (pendiente/pagado). No muestra guía, transportadora
+  ni fecha estimada. El administrador las envía manualmente por WhatsApp. No hay integración
+  automática entre el panel y la página de seguimiento del comprador.
+
+- **[documentado] Encargos personalizados desde la vitrina.** No hay formulario de encargo.
+  Los clientes que quieren una pieza personalizada deben contactar por WhatsApp o correo.
+
+- **[documentado] Historial por cliente.** En la pestaña Ventas no hay filtro por nombre
+  o teléfono. Para ver el historial de un cliente específico hay que buscar en la lista
+  o exportar el CSV.
+
+- **[documentado] Múltiples unidades en el carrito.** El carrito es un set: cada referencia
+  aparece una sola vez, sin contador de unidades. Para pedir varias unidades del mismo diseño
+  el comprador debe contactar directamente.
+
+### Ideas de evolución
+
+- **Auth real con Supabase Auth** — reemplazar `x-admin-token` por JWT cuando escale la operación.
 - **Storage bucket** para fotos grandes en vez de base64 embebido (reduciría el tamaño de las filas de `productos`).
-- **Video en productos** — investigar soporte para videos de demostración.
+- **Video en productos** — soporte para videos de demostración.
 - **Generador de publicaciones para redes** desde el panel privado.
-- **Inventario y estadísticas** (visitas, productos más vistos).
-- **Dominio propio** cuando esté decidido el nombre comercial final.
+- **Estadísticas de visitas** (productos más vistos, conversión carrito/pago).
