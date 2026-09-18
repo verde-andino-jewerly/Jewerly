@@ -23,96 +23,64 @@ Detalle completo del modelo de datos en `../../REFERENCIA-TECNICA.md`
 
 Calcula el precio de venta a partir de costo y margen, en el servidor.
 
-**Propósito:** Evitar que costos y márgenes viajen en solicitudes del cliente.
+**Proposito:** Evitar que costos y margenes viajen en solicitudes del cliente.
 
 ### Endpoint
 
-```
 POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/calculate-price
-```
 
 ### Request
 
-```json
-{
-  "costo": 2000000,
-  "margen": 100
-}
-```
+{ "costo": 2000000, "margen": 100 }
 
 ### Response
 
-```json
-{
-  "precio": 4000000
-}
-```
+{ "precio": 4000000 }
 
-### Fórmula
+### Formula
 
-```
-precio = costo × (1 + margen/100)
-```
+precio = costo x (1 + margen/100)
 
 Ejemplo:
 - costo: 2,000,000 COP
 - margen: 100% (doblar el precio)
 - precio: 4,000,000 COP
 
-## Cómo deployar en Supabase
+## Como deployar en Supabase
 
-### Opción 1: CLI (recomendado)
+### Opcion 1: MCP de Supabase desde Claude Code (recomendado)
 
-```bash
-# Instalar Supabase CLI (si no está)
-npm install -g supabase
+Con el MCP de Supabase conectado en Claude Code, se despliega directamente
+pasando el contenido del archivo index.ts. No requiere CLI ni acceso al dashboard.
 
-# Desde la raíz del repo
-supabase functions deploy calculate-price
+### Opcion 2: CLI
 
-# Verificar que está deployada
-supabase functions list
-```
+    npm install -g supabase
+    supabase functions deploy calculate-price
+    supabase functions list
 
-### Opción 2: Dashboard Supabase
+### Opcion 3: Dashboard Supabase
 
-1. Ve a **Edge Functions** en el dashboard
-2. Click en **"Create a new function"**
-3. Nombre: `calculate-price`
-4. Copia todo el contenido de `index.ts` en el editor
-5. Click **Deploy**
+1. Ve a Edge Functions en el dashboard
+2. Click en "Create a new function"
+3. Nombre: calculate-price
+4. Copia todo el contenido de index.ts en el editor
+5. Click Deploy
 
-### Autenticación
+## CORS y x-admin-token — regla obligatoria
 
-La función está públicamente accesible (no requiere API key). Para restringir:
+El panel manda x-admin-token en cada peticion. Las Edge Functions deben
+incluirlo en Access-Control-Allow-Headers de la respuesta OPTIONS, o el
+navegador bloqueara la peticion antes de enviarla.
 
-Agregar validación en la función:
-```typescript
-const token = req.headers.get('x-admin-token')
-if (token !== 'VDA_ADMIN_SECRET') {
-  return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
-}
-```
+Plantilla base para toda Edge Function nueva:
 
-## Cómo usar desde index.html
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-token',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    }
 
-```javascript
-function sbCalculatePrice(costo, margen, cb) {
-  var url = 'https://PROJECT_ID.supabase.co/functions/v1/calculate-price';
-  fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ costo: costo, margen: margen })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) { if (cb) cb(data.precio); })
-    .catch(function(e) { console.error('Error:', e); if (cb) cb(0); });
-}
+    if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-// Uso:
-sbCalculatePrice(2000000, 100, function(precio) {
-  console.log('Precio calculado:', precio);
-});
-```
-
-Reemplaza `PROJECT_ID` con tu ID real (encuentra en Supabase Settings → General).
+Ver trampa 18 en TRAMPAS.md del proyecto principal.
