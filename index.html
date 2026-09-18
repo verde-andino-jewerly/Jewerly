@@ -1643,12 +1643,14 @@ function openModal(id) {
 
   document.getElementById('modal').classList.add('open');
   document.body.style.overflow = 'hidden';
+  if (!_skipUrlPush) _setUrlProducto(it);
 }
 
 function closeModal(e) {
   if (e && e.target && e.target.id !== 'modal' && !e.target.classList.contains('modal-close')) return;
   document.getElementById('modal').classList.remove('open');
   document.body.style.overflow = '';
+  _restaurarUrl();
 }
 
 function sharePiece(id) {
@@ -1963,6 +1965,124 @@ function confirmarCheckout(evento) {
   });
   return false;
 }
+// Deep-link ?p=ID: URL canonica por producto. Actualiza <title>, meta OG/Twitter,
+// canonical e inyecta JSON-LD Product cuando se abre una ficha. Convive con
+// ?pedido=REF del retorno de pago (nunca se pisan).
+var _HEAD_ORIG = {
+  title: document.title,
+  desc: (document.querySelector('meta[name="description"]') || {}).content || '',
+  ogTitle: (document.querySelector('meta[property="og:title"]') || {}).content || '',
+  ogDesc: (document.querySelector('meta[property="og:description"]') || {}).content || '',
+  ogUrl: (document.querySelector('meta[property="og:url"]') || {}).content || '',
+  ogImage: (document.querySelector('meta[property="og:image"]') || {}).content || '',
+  twTitle: (document.querySelector('meta[name="twitter:title"]') || {}).content || '',
+  twDesc: (document.querySelector('meta[name="twitter:description"]') || {}).content || '',
+  twImage: (document.querySelector('meta[name="twitter:image"]') || {}).content || '',
+  canonical: (document.querySelector('link[rel="canonical"]') || {}).href || (location.origin + '/')
+};
+var _skipUrlPush = false;
+
+function _setMetaContent(sel, val) {
+  var el = document.querySelector(sel);
+  if (el) el.setAttribute('content', val);
+}
+function _setLinkHref(sel, val) {
+  var el = document.querySelector(sel);
+  if (el) el.setAttribute('href', val);
+}
+function _urlProducto(id) {
+  return location.origin + location.pathname + '?p=' + encodeURIComponent(id);
+}
+function _fotoAbsProducto(it) {
+  var raw = (it.fotos && it.fotos[0]) || it.foto || '';
+  // Solo http(s) sirve para crawlers OG; base64 no. Fallback a imagen de marca.
+  return /^https?:\/\//i.test(raw) ? raw : _HEAD_ORIG.ogImage;
+}
+function _setUrlProducto(it) {
+  var url = _urlProducto(it.id);
+  try { history.pushState({ p: it.id }, '', url); } catch (_) {}
+  var titulo = 'Verde Andino Jewelry — ' + it.id + (it.descripcion ? ' · ' + String(it.descripcion).slice(0, 70) : '');
+  var precio = it.precioOferta || it.precio;
+  var descripcion = (it.descripcion || 'Pieza única de Verde Andino Jewelry') + (precio ? ' — ' + fmtPrecio(precio) : '');
+  var imagen = _fotoAbsProducto(it);
+  document.title = titulo;
+  _setMetaContent('meta[name="description"]', descripcion);
+  _setMetaContent('meta[property="og:title"]', titulo);
+  _setMetaContent('meta[property="og:description"]', descripcion);
+  _setMetaContent('meta[property="og:url"]', url);
+  _setMetaContent('meta[property="og:image"]', imagen);
+  _setMetaContent('meta[name="twitter:title"]', titulo);
+  _setMetaContent('meta[name="twitter:description"]', descripcion);
+  _setMetaContent('meta[name="twitter:image"]', imagen);
+  _setLinkHref('link[rel="canonical"]', url);
+  var prev = document.getElementById('product-jsonld');
+  if (prev) prev.remove();
+  if (precio) {
+    var data = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      sku: it.id,
+      name: titulo,
+      description: descripcion,
+      image: imagen,
+      brand: { '@type': 'Brand', name: 'Verde Andino Jewelry' },
+      offers: {
+        '@type': 'Offer',
+        url: url,
+        priceCurrency: 'COP',
+        price: Math.round(precio),
+        availability: 'https://schema.org/InStock'
+      }
+    };
+    var s = document.createElement('script');
+    s.type = 'application/ld+json';
+    s.id = 'product-jsonld';
+    s.textContent = JSON.stringify(data);
+    document.head.appendChild(s);
+  }
+}
+function _restaurarUrl() {
+  // No pisar ?pedido=REF: el retorno de pago maneja esa URL aparte.
+  var qp = new URLSearchParams(location.search);
+  if (qp.has('pedido')) return;
+  if (qp.has('p')) {
+    try { history.pushState({}, '', location.origin + location.pathname); } catch (_) {}
+  }
+  document.title = _HEAD_ORIG.title;
+  _setMetaContent('meta[name="description"]', _HEAD_ORIG.desc);
+  _setMetaContent('meta[property="og:title"]', _HEAD_ORIG.ogTitle);
+  _setMetaContent('meta[property="og:description"]', _HEAD_ORIG.ogDesc);
+  _setMetaContent('meta[property="og:url"]', _HEAD_ORIG.ogUrl);
+  _setMetaContent('meta[property="og:image"]', _HEAD_ORIG.ogImage);
+  _setMetaContent('meta[name="twitter:title"]', _HEAD_ORIG.twTitle);
+  _setMetaContent('meta[name="twitter:description"]', _HEAD_ORIG.twDesc);
+  _setMetaContent('meta[name="twitter:image"]', _HEAD_ORIG.twImage);
+  _setLinkHref('link[rel="canonical"]', _HEAD_ORIG.canonical);
+  var s = document.getElementById('product-jsonld');
+  if (s) s.remove();
+}
+function abrirProductoDesdeUrl() {
+  var qp = new URLSearchParams(location.search);
+  var id = qp.get('p');
+  if (!id) return;
+  if (document.getElementById('checkout-modal').classList.contains('open')) return;
+  if (findItem(id)) openModal(id);
+}
+window.addEventListener('popstate', function() {
+  var qp = new URLSearchParams(location.search);
+  var pid = qp.get('p');
+  var modal = document.getElementById('modal');
+  if (pid && findItem(pid)) {
+    _skipUrlPush = true;
+    openModal(pid);
+    _skipUrlPush = false;
+  } else if (modal && modal.classList.contains('open')) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    _restaurarUrl();
+  }
+});
+
 function manejarRegresoDePago() {
   var params = new URLSearchParams(location.search);
   var referencia = params.get('pedido');
@@ -1994,7 +2114,7 @@ function manejarRegresoDePago() {
 }
 
 applyFilters();
-sbFetchAll(function() { applyFilters(); });
+sbFetchAll(function() { applyFilters(); abrirProductoDesdeUrl(); });
 var lg = document.getElementById('hero-logo');
 if (lg.complete) applyLogoBg(); else lg.addEventListener('load', applyLogoBg);
 renderCarritoBadge();
