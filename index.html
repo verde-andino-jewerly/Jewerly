@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Verde Andino Jewelry — Esmeraldas de Colombia</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://rbvqxrkzepthbbqzkbcg.supabase.co https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://checkout.bold.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://rbvqxrkzepthbbqzkbcg.supabase.co; frame-src https://checkout.bold.co;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://rbvqxrkzepthbbqzkbcg.supabase.co https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://checkout.bold.co https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://rbvqxrkzepthbbqzkbcg.supabase.co https://cloudflareinsights.com; frame-src https://checkout.bold.co;">
 <meta name="description" content="Joyería con esmeraldas colombianas de Muzo, Chivor y Coscuez. Piezas únicas en oro y plata, con certificado de origen. Envíos en Colombia con pago seguro.">
 <meta name="keywords" content="esmeraldas Colombia, joyería esmeralda, Muzo, Chivor, Coscuez, oro con esmeralda, plata con esmeralda, joyería fina Colombia">
 <meta name="robots" content="index,follow,max-image-preview:large">
@@ -72,6 +72,12 @@
   ]
 }
 </script>
+
+<!-- Cloudflare Web Analytics: reemplazar TOKEN_CFWA por el token del dashboard.
+     SPA:true captura pageviews de pushState (deep-link ?p=id).
+     Sin cookies, sin banner (Ley 1581 CO / GDPR ok). -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token":"TOKEN_CFWA","spa":true}'></script>
 <style>
   :root {
     --bg: #FAF8F5; --bg-card: #FFFFFF; --bg-alt: #F5F2ED; --bg-hover: #FDFCFA;
@@ -1636,7 +1642,7 @@ function openModal(id) {
         '<button class="modal-cart-add' + (carritoTiene(it.id) ? ' en-carrito' : '') + '" id="modal-cart-btn" onclick="carritoAgregarDesdeModal(\'' + jsEsc(it.id) + '\')">' + (carritoTiene(it.id) ? 'En tu selección' : 'Agregar a mi selección') + '</button>' +
       '</div>' +
       '<div class="modal-actions">' +
-        '<a class="modal-wa" href="' + waLink + '" target="_blank" rel="noopener">Preguntar por WhatsApp</a>' +
+        '<a class="modal-wa" href="' + waLink + '" target="_blank" rel="noopener" onclick="trackEvent(\'whatsapp_click\', { origen: \'ficha\', id_producto: \'' + jsEsc(it.id) + '\' })">Preguntar por WhatsApp</a>' +
         '<button class="modal-share" onclick="sharePiece(\'' + jsEsc(it.id) + '\')" title="Compartir">Compartir</button>' +
       '</div>' +
     '</div>';
@@ -1668,6 +1674,7 @@ function sharePiece(id) {
 
 function waGeneral(e) {
   if (e) e.preventDefault();
+  trackEvent('whatsapp_click', { origen: 'general' });
   var t = encodeURIComponent('Hola, me gustaría saber más de Verde Andino Jewelry.');
   window.open('https://wa.me/' + WA_NUMBER + '?text=' + t, '_blank');
 }
@@ -1826,6 +1833,11 @@ function carritoQuitar(id) {
 function carritoAgregarDesdeModal(id) {
   if (carritoTiene(id)) { toast('Esa pieza ya esta en tu seleccion'); return; }
   carritoAgregar(id);
+  var pieza = findItem(id);
+  trackEvent('carrito_agregar', {
+    id_producto: id,
+    precio: pieza ? (pieza.precioOferta || pieza.precio || 0) : 0
+  });
   toast('Agregada a tu seleccion');
   var btn = document.getElementById('modal-cart-btn');
   if (btn) { btn.textContent = 'En tu seleccion'; btn.classList.add('en-carrito'); }
@@ -1895,6 +1907,7 @@ function abrirCheckout() {
   cerrarCarrito();
   document.getElementById('checkout-modal').classList.add('open');
   document.body.style.overflow = 'hidden';
+  trackEvent('checkout_iniciado', { items_count: ids.length, total: total });
 }
 function cerrarCheckout(evento) {
   if (evento && evento.target && evento.target.id !== 'checkout-modal' && !evento.target.classList.contains('modal-close')) return;
@@ -1930,6 +1943,7 @@ function confirmarCheckout(evento) {
   }).then(function(filas) {
     var pedido = Array.isArray(filas) ? filas[0] : filas;
     if (!pedido || !pedido.referencia_pago) throw new Error('El pedido no devolvio referencia');
+    trackEvent('checkout_confirmado', { referencia: pedido.referencia_pago, items_count: items.length });
     return sbPedir(SB_URL + '/functions/v1/bold-firmar', {
       method: 'POST', publico: true,
       body: JSON.stringify({ referencia: pedido.referencia_pago })
@@ -1943,6 +1957,7 @@ function confirmarCheckout(evento) {
       '<button class="btn btn-esm" type="button" id="bold-pagar-btn" style="margin-top:0.4rem">Pagar con Bold</button>';
     cargarBoldWidget(function() {
       document.getElementById('bold-pagar-btn').onclick = function() {
+        trackEvent('pago_iniciado_bold', { referencia: firma.referencia, monto: firma.amount });
         localStorage.removeItem(CART_KEY);
         renderCarritoBadge();
         new BoldCheckout({
@@ -1965,6 +1980,29 @@ function confirmarCheckout(evento) {
   });
   return false;
 }
+// Analytics: helper unico para eventos de negocio. Hoy Cloudflare Web Analytics
+// (free) solo registra pageviews automaticos (incluye pushState) y outbound
+// clicks (WhatsApp queda cubierto). Custom events requieren CFWA Pro
+// (window.__cfBeacon.sendEvent) o un proveedor complementario (Plausible/Umami).
+// Este helper llama al backend cuando este disponible y hace no-op en caso
+// contrario, dejando log local para debug. Los hooks del flujo ya estan puestos.
+function trackEvent(nombre, props) {
+  try {
+    var beacon = window.__cfBeacon;
+    if (beacon && typeof beacon.sendEvent === 'function') {
+      beacon.sendEvent(nombre, props || {});
+    } else if (typeof window.plausible === 'function') {
+      window.plausible(nombre, props ? { props: props } : undefined);
+    } else if (typeof window.umami === 'object' && window.umami && typeof window.umami.track === 'function') {
+      window.umami.track(nombre, props || {});
+    } else {
+      // Sin backend de custom events. Log local para no perder trazabilidad
+      // durante debug; no aparece en produccion silencioso porque es debug.
+      if (window.console && console.debug) console.debug('trackEvent', nombre, props || {});
+    }
+  } catch (_) { /* nunca fallar el flujo por analytics */ }
+}
+
 // Deep-link ?p=ID: URL canonica por producto. Actualiza <title>, meta OG/Twitter,
 // canonical e inyecta JSON-LD Product cuando se abre una ficha. Convive con
 // ?pedido=REF del retorno de pago (nunca se pisan).
@@ -2040,6 +2078,7 @@ function _setUrlProducto(it) {
     s.textContent = JSON.stringify(data);
     document.head.appendChild(s);
   }
+  trackEvent('ver_producto', { id_producto: it.id, precio: precio || 0 });
 }
 function _restaurarUrl() {
   // No pisar ?pedido=REF: el retorno de pago maneja esa URL aparte.
@@ -2098,8 +2137,10 @@ function manejarRegresoDePago() {
       body: JSON.stringify({ p_referencia: referencia })
     }).then(function(estado) {
       if (estado === 'pagado') {
+        if (!window.__pagoTrackeado) { window.__pagoTrackeado = true; trackEvent('pago_confirmado', { referencia: referencia }); }
         cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">✓</div><div class="cart-title">¡Gracias por tu compra!</div><p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem;">Te vamos a escribir por WhatsApp para coordinar el envio.</p></div>';
       } else if (estado === 'cancelada') {
+        if (!window.__pagoTrackeado) { window.__pagoTrackeado = true; trackEvent('pago_cancelado', { referencia: referencia }); }
         cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">✕</div><div class="cart-title">El pago no se completo</div><p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem;">Puedes intentar de nuevo desde tu seleccion.</p></div>';
       } else if (intentos < 15) {
         setTimeout(revisar, 2000);
