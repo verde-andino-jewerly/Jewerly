@@ -1054,6 +1054,32 @@ var WA_NUMBER = '573180935276';
 var CART_KEY = 'va_cart_v1';
 var activeCategory = null;
 
+/* Carrusel del modal de producto */
+var admCurrentCarouselIndex = 0;
+var admCurrentCarouselPhotos = [];
+function admUpdateCarouselState() {
+  var track = document.getElementById('carousel-track');
+  if (!track) return;
+  track.style.transform = 'translateX(-' + (admCurrentCarouselIndex * 100) + '%)';
+  document.querySelectorAll('.carousel-dot').forEach(function(d, i) {
+    d.classList.toggle('active', i === admCurrentCarouselIndex);
+  });
+}
+function admCarouselPrev() {
+  if (!admCurrentCarouselPhotos.length) return;
+  admCurrentCarouselIndex = (admCurrentCarouselIndex - 1 + admCurrentCarouselPhotos.length) % admCurrentCarouselPhotos.length;
+  admUpdateCarouselState();
+}
+function admCarouselNext() {
+  if (!admCurrentCarouselPhotos.length) return;
+  admCurrentCarouselIndex = (admCurrentCarouselIndex + 1) % admCurrentCarouselPhotos.length;
+  admUpdateCarouselState();
+}
+function admCarouselGoTo(idx) {
+  admCurrentCarouselIndex = idx;
+  admUpdateCarouselState();
+}
+
 /* Supabase — base de datos en la nube */
 /* ===== CONFIG ===== */
 /* La conexion con la base y todo lo que la toca. Ninguna otra parte del
@@ -1466,6 +1492,7 @@ function findItem(id) {
 }
 
 function openModal(id) {
+  if (document.getElementById('checkout-modal').classList.contains('open')) return;
   var it = findItem(id);
   if (!it) return;
 
@@ -1834,8 +1861,6 @@ function confirmarCheckout(evento) {
     });
   }).then(function(firma) {
     if (!firma || !firma.signature) throw new Error('No se pudo firmar el pago');
-    localStorage.removeItem(CART_KEY);
-    renderCarritoBadge();
     var destino = location.origin + location.pathname + '?pedido=' + firma.referencia;
     var cuerpo = document.getElementById('checkout-body');
     cuerpo.innerHTML = '<div class="cart-title">Confirma tu pago</div>' +
@@ -1843,6 +1868,8 @@ function confirmarCheckout(evento) {
       '<button class="btn btn-esm" type="button" id="bold-pagar-btn" style="margin-top:0.4rem">Pagar con Bold</button>';
     cargarBoldWidget(function() {
       document.getElementById('bold-pagar-btn').onclick = function() {
+        localStorage.removeItem(CART_KEY);
+        renderCarritoBadge();
         new BoldCheckout({
           apiKey: firma.apiKey,
           orderId: firma.referencia,
