@@ -1,8 +1,8 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+﻿import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-token',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Método no permitido' }), {
+    return new Response(JSON.stringify({ error: 'MÃ©todo no permitido' }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
@@ -23,7 +23,7 @@ serve(async (req) => {
     const { costo, margen } = await req.json()
 
     if (typeof costo !== 'number' || typeof margen !== 'number') {
-      return new Response(JSON.stringify({ error: 'costo y margen deben ser números' }), {
+      return new Response(JSON.stringify({ error: 'costo y margen deben ser nÃºmeros' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
