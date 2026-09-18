@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /panel-deploy.html
+Disallow: /docs-privado/
+
+Sitemap: https://verdeandino.app/sitemap.xml
