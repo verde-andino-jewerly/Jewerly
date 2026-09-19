@@ -281,6 +281,25 @@
     font-family: inherit; cursor: pointer;
   }
   .sort-select:focus { outline: none; border-color: var(--gold); }
+  .filter-toggle { position: relative; padding: 0.5rem 0.9rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.85rem; cursor: pointer; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.4rem; }
+  .filter-toggle:hover { border-color: var(--gold); color: var(--gold); }
+  .filter-toggle.abierto { border-color: var(--esm); color: var(--esm); }
+  .filter-toggle-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--esm); color: #fff; font-size: 0.65rem; font-weight: 600; }
+  .filter-toggle-badge:empty { display: none; }
+  .filter-panel { display: none; margin-top: 0.7rem; padding: 0.9rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); }
+  .filter-panel.abierto { display: block; }
+  .filter-panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .filter-panel-grid { grid-template-columns: 1fr; } }
+  .filter-section-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 0.45rem; display: block; }
+  .precio-inputs { display: flex; align-items: center; gap: 0.5rem; }
+  .precio-inputs input { flex: 1; min-width: 0; padding: 0.5rem 0.6rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.85rem; font-family: inherit; border-radius: 4px; }
+  .precio-inputs input:focus { outline: none; border-color: var(--esm); }
+  .precio-inputs span { color: var(--text-3); font-size: 0.85rem; }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .filter-chip { display: inline-flex; align-items: center; padding: 0.35rem 0.65rem; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; font-size: 0.78rem; color: var(--text-2); background: var(--bg); user-select: none; }
+  .filter-chip.activo { border-color: var(--esm); background: var(--esm-bg); color: var(--esm); }
+  .filter-clear { background: none; border: none; color: var(--text-2); font-size: 0.8rem; cursor: pointer; padding: 0.35rem 0; text-decoration: underline; margin-top: 0.6rem; }
+  .filter-clear:hover { color: #c0392b; }
   .filter-pills {
     display: flex; gap: 0.4rem; flex-wrap: wrap;
     margin-bottom: 1rem;
@@ -925,6 +944,45 @@
         <option value="price-desc">Precio: mayor a menor</option>
         <option value="cat">Por categoría</option>
       </select>
+      <button type="button" class="filter-toggle" id="filter-toggle" onclick="toggleFilterPanel()" aria-expanded="false" aria-controls="filter-panel">
+        <span>Filtros</span>
+        <span class="filter-toggle-badge" id="filter-toggle-badge"></span>
+      </button>
+    </div>
+    <div class="filter-panel" id="filter-panel" role="region" aria-label="Filtros avanzados">
+      <div class="filter-panel-grid">
+        <div>
+          <label class="filter-section-label" for="precio-min">Rango de precio (COP)</label>
+          <div class="precio-inputs">
+            <input type="number" inputmode="numeric" min="0" placeholder="Mínimo" id="precio-min" oninput="onPrecioInput()">
+            <span>—</span>
+            <input type="number" inputmode="numeric" min="0" placeholder="Máximo" id="precio-max" oninput="onPrecioInput()">
+          </div>
+        </div>
+        <div>
+          <span class="filter-section-label">Metal</span>
+          <div class="filter-chips" id="filter-metal-chips">
+            <button type="button" class="filter-chip" data-metal="oro amarillo" onclick="toggleMetalFilter(this)">Oro amarillo</button>
+            <button type="button" class="filter-chip" data-metal="oro blanco" onclick="toggleMetalFilter(this)">Oro blanco</button>
+            <button type="button" class="filter-chip" data-metal="oro rosa" onclick="toggleMetalFilter(this)">Oro rosa</button>
+            <button type="button" class="filter-chip" data-metal="plata" onclick="toggleMetalFilter(this)">Plata</button>
+          </div>
+        </div>
+        <div>
+          <span class="filter-section-label">Piedras</span>
+          <div class="filter-chips" id="filter-piedra-chips">
+            <button type="button" class="filter-chip" data-piedra="esmeralda" onclick="setPiedraFilter(this)">Con esmeralda</button>
+            <button type="button" class="filter-chip" data-piedra="sin" onclick="setPiedraFilter(this)">Sin piedras</button>
+          </div>
+        </div>
+        <div>
+          <span class="filter-section-label">Oferta</span>
+          <div class="filter-chips" id="filter-oferta-chips">
+            <button type="button" class="filter-chip" data-oferta="1" onclick="toggleOfertaFilter(this)">Solo en oferta</button>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="filter-clear" onclick="clearFilters()">Limpiar filtros</button>
     </div>
     <div class="filter-pills" id="pills"></div>
     <div class="count-info" id="count-info" style="display:none"></div>
@@ -1221,6 +1279,13 @@ var KEY = 'va_catalog_v3';
 var WA_NUMBER = '573180935276';
 var CART_KEY = 'va_cart_v1';
 var activeCategory = null;
+// Filtros avanzados del catálogo (solo memoria, no persisten en URL)
+var activeMetals = [];       // e.g. ['oro amarillo', 'plata']
+var activePiedra = '';       // '' | 'esmeralda' | 'sin'
+var activePrecioMin = null;  // number | null
+var activePrecioMax = null;  // number | null
+var activeOferta = false;
+var _precioTimer = null;
 
 /* Carrusel del modal de producto */
 var admCurrentCarouselIndex = 0;
@@ -1580,6 +1645,64 @@ function renderPills(items) {
 
 function setCategory(c) { activeCategory = c; applyFilters(); }
 
+function toggleFilterPanel() {
+  var panel = document.getElementById('filter-panel');
+  var toggle = document.getElementById('filter-toggle');
+  var abierto = panel.classList.toggle('abierto');
+  toggle.classList.toggle('abierto', abierto);
+  toggle.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+}
+function toggleMetalFilter(btn) {
+  var v = btn.getAttribute('data-metal');
+  var i = activeMetals.indexOf(v);
+  if (i >= 0) activeMetals.splice(i, 1); else activeMetals.push(v);
+  btn.classList.toggle('activo');
+  applyFilters();
+}
+function setPiedraFilter(btn) {
+  var v = btn.getAttribute('data-piedra');
+  activePiedra = (activePiedra === v) ? '' : v;
+  // Solo un chip activo entre los de piedras
+  document.querySelectorAll('#filter-piedra-chips .filter-chip').forEach(function(c) {
+    c.classList.toggle('activo', c.getAttribute('data-piedra') === activePiedra);
+  });
+  applyFilters();
+}
+function toggleOfertaFilter(btn) {
+  activeOferta = !activeOferta;
+  btn.classList.toggle('activo', activeOferta);
+  applyFilters();
+}
+function onPrecioInput() {
+  clearTimeout(_precioTimer);
+  _precioTimer = setTimeout(function() {
+    var mn = parseInt(document.getElementById('precio-min').value, 10);
+    var mx = parseInt(document.getElementById('precio-max').value, 10);
+    activePrecioMin = (mn > 0) ? mn : null;
+    activePrecioMax = (mx > 0) ? mx : null;
+    applyFilters();
+  }, 250);
+}
+function clearFilters() {
+  activeMetals = [];
+  activePiedra = '';
+  activePrecioMin = null;
+  activePrecioMax = null;
+  activeOferta = false;
+  document.getElementById('precio-min').value = '';
+  document.getElementById('precio-max').value = '';
+  document.querySelectorAll('#filter-panel .filter-chip').forEach(function(c) { c.classList.remove('activo'); });
+  applyFilters();
+}
+function _contarFiltrosActivos() {
+  var n = 0;
+  if (activeMetals.length) n += 1;
+  if (activePiedra) n += 1;
+  if (activePrecioMin !== null || activePrecioMax !== null) n += 1;
+  if (activeOferta) n += 1;
+  return n;
+}
+
 function applyFilters() {
   var items = publicItems();
   var q = document.getElementById('search').value.toLowerCase().trim();
@@ -1594,6 +1717,24 @@ function applyFilters() {
       var hay = [it.descripcion, it.categoria, it.estilo, it.metal, it.ley, it.color, it.genero, stonesText(it.piedras), it.id].join(' ').toLowerCase();
       if (hay.indexOf(q) < 0) return false;
     }
+    var precioEfectivo = it.precioOferta || it.precio || 0;
+    if (activePrecioMin !== null && precioEfectivo < activePrecioMin) return false;
+    if (activePrecioMax !== null && precioEfectivo > activePrecioMax) return false;
+    if (activeMetals.length) {
+      var metalStr = (it.metal || '').toLowerCase();
+      var match = false;
+      for (var i = 0; i < activeMetals.length; i++) {
+        if (metalStr.indexOf(activeMetals[i]) >= 0) { match = true; break; }
+      }
+      if (!match) return false;
+    }
+    if (activePiedra === 'esmeralda') {
+      var piedrasStr = stonesText(it.piedras).toLowerCase();
+      if (piedrasStr.indexOf('esmeralda') < 0) return false;
+    } else if (activePiedra === 'sin') {
+      if (it.piedras && it.piedras.length) return false;
+    }
+    if (activeOferta && !it.precioOferta) return false;
     return true;
   });
 
@@ -1606,6 +1747,11 @@ function applyFilters() {
 
   renderPills(items);
   renderGrid(filtered, items.length);
+  var badge = document.getElementById('filter-toggle-badge');
+  if (badge) {
+    var n = _contarFiltrosActivos();
+    badge.textContent = n > 0 ? String(n) : '';
+  }
 
   var info = document.getElementById('count-info');
   if (items.length === 0) {
