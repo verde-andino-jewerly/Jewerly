@@ -843,8 +843,23 @@
   .encargo-chip:has(input:checked) { border-color: var(--esm); background: var(--esm-bg); color: var(--esm); }
   .checkout-resumen { font-size: 0.8rem; color: var(--text-2); padding: 0.8rem 0; border-top: 1px solid var(--border-s); border-bottom: 1px solid var(--border-s); margin: 0.4rem 0; }
   .checkout-resumen div { display: flex; justify-content: space-between; padding: 0.2rem 0; }
-  .checkout-estado { text-align: center; padding: 2rem 1rem; }
-  .checkout-estado .icono { font-size: 2.5rem; margin-bottom: 0.8rem; }
+  .checkout-estado { text-align: center; padding: 1.5rem 1rem; }
+  .checkout-estado .icono { font-size: 2.5rem; margin-bottom: 0.8rem; display: inline-flex; align-items: center; justify-content: center; }
+  .checkout-estado .icono.ok { color: var(--esm); }
+  .checkout-estado .icono.err { color: #c0392b; }
+  .pedido-ref { display: inline-block; margin: 0.4rem 0 0.9rem; padding: 0.35rem 0.7rem; border-radius: 999px; background: var(--bg-alt); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; color: var(--text); border: 1px solid var(--border); user-select: all; }
+  .spinner { width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--esm); animation: va-spin 0.9s linear infinite; margin: 0 auto 0.7rem; }
+  @keyframes va-spin { to { transform: rotate(360deg); } }
+  .cross-sell { margin-top: 1.3rem; padding-top: 1rem; border-top: 1px solid var(--border); text-align: left; }
+  .cross-sell-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 0.6rem; }
+  .cross-sell-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.55rem; }
+  .cross-sell-card { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .cross-sell-card:hover { border-color: var(--esm); }
+  .cross-sell-card img, .cross-sell-card .ph { width: 100%; aspect-ratio: 1/1; object-fit: cover; background: var(--bg-alt); border-radius: 4px; }
+  .cross-sell-card .desc { font-size: 0.72rem; color: var(--text); line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .cross-sell-card .precio { font-size: 0.75rem; color: var(--gold); font-weight: 600; }
+  .checkout-estado .btn { display: inline-block; margin-top: 0.35rem; }
+  .checkout-estado .btn-linea { display: block; width: 100%; margin-top: 0.5rem; }
 
 </style>
 </head>
@@ -2094,6 +2109,12 @@ function cerrarCheckout(evento) {
   if (evento && evento.target && evento.target.id !== 'checkout-modal' && !evento.target.classList.contains('modal-close')) return;
   document.getElementById('checkout-modal').classList.remove('open');
   document.body.style.overflow = '';
+  // Si llegamos desde ?pedido=REF, limpiar la URL al cerrar para no reabrir
+  // el flujo si el cliente recarga o comparte el link.
+  var qp = new URLSearchParams(location.search);
+  if (qp.has('pedido')) {
+    try { history.replaceState({}, '', location.origin + location.pathname); } catch (_) {}
+  }
 }
 function cargarBoldWidget(cb) {
   if (window.__boldWidgetListo) { cb(); return; }
@@ -2309,13 +2330,95 @@ window.addEventListener('popstate', function() {
   }
 });
 
+// Helpers para la pagina de retorno de pago (?pedido=REF).
+function _waConReferencia(referencia, mensajeBase) {
+  var t = encodeURIComponent(mensajeBase + ' Referencia: ' + referencia);
+  return 'https://wa.me/' + WA_NUMBER + '?text=' + t;
+}
+function _crossSellHtml() {
+  var pool = publicItems().filter(function(x) { return x && (x.foto || (x.fotos && x.fotos[0])); });
+  if (pool.length === 0) return '';
+  // Baraja simple y toma 3
+  for (var i = pool.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+  }
+  var picks = pool.slice(0, 3);
+  var cards = picks.map(function(p) {
+    var precio = p.precioOferta || p.precio || 0;
+    var foto = (p.fotos && p.fotos[0]) || p.foto;
+    var img = foto ? '<img src="' + foto + '" alt="">' : '<div class="ph"></div>';
+    return '<button type="button" class="cross-sell-card" onclick="_verProductoDesdeCrossSell(\'' + jsEsc(p.id) + '\')">' +
+      img +
+      '<div class="desc">' + esc(p.descripcion || p.id) + '</div>' +
+      '<div class="precio">' + fmtPrecio(precio) + '</div>' +
+    '</button>';
+  }).join('');
+  return '<div class="cross-sell"><div class="cross-sell-title">Explora otras piezas</div><div class="cross-sell-grid">' + cards + '</div></div>';
+}
+function _verProductoDesdeCrossSell(id) {
+  trackEvent('pago_confirmado_cross_sell_click', { id_producto: id });
+  cerrarCheckout();
+  setTimeout(function() { if (findItem(id)) openModal(id); }, 50);
+}
+function _renderEstadoPago(estado, referencia, opciones) {
+  opciones = opciones || {};
+  var cuerpo = document.getElementById('checkout-body');
+  var refChip = '<div class="pedido-ref" title="Toca para seleccionar">Referencia: ' + esc(referencia) + '</div>';
+  var wa = _waConReferencia(referencia,
+    estado === 'pagado' ? 'Hola, acabo de completar el pago y quiero coordinar el envio.'
+    : estado === 'cancelada' ? 'Hola, tuve un problema al pagar y necesito ayuda.'
+    : 'Hola, mi pago aparece pendiente y quiero confirmar el estado.');
+  if (estado === 'pagado') {
+    cuerpo.innerHTML =
+      '<div class="checkout-estado">' +
+        '<div class="icono ok">✓</div>' +
+        '<div class="cart-title">¡Pago confirmado!</div>' +
+        refChip +
+        '<p style="color:var(--text-2);font-size:0.85rem;margin:0 0 1rem;">Vamos a coordinar el envio por WhatsApp. Guarda tu referencia por si nos escribes.</p>' +
+        '<a class="btn btn-esm btn-linea" href="' + wa + '" target="_blank" rel="noopener" onclick="trackEvent(\'pago_confirmado_wa_click\', { referencia: \'' + jsEsc(referencia) + '\' })">Escribir por WhatsApp</a>' +
+        '<button type="button" class="btn btn-linea" style="background:transparent;color:var(--text-2);border:1px solid var(--border)" onclick="cerrarCheckout()">Cerrar y seguir explorando</button>' +
+        _crossSellHtml() +
+      '</div>';
+  } else if (estado === 'cancelada') {
+    cuerpo.innerHTML =
+      '<div class="checkout-estado">' +
+        '<div class="icono err">✕</div>' +
+        '<div class="cart-title">El pago no se completó</div>' +
+        refChip +
+        '<p style="color:var(--text-2);font-size:0.85rem;margin:0 0 1rem;">Puedes elegir tus piezas de nuevo en el catálogo. Si necesitas ayuda con el pago, escríbenos.</p>' +
+        '<a class="btn btn-esm btn-linea" href="' + wa + '" target="_blank" rel="noopener" onclick="trackEvent(\'pago_cancelado_wa_click\', { referencia: \'' + jsEsc(referencia) + '\' })">Escribir por WhatsApp</a>' +
+        '<button type="button" class="btn btn-linea" style="background:transparent;color:var(--text-2);border:1px solid var(--border)" onclick="cerrarCheckout()">Volver al catálogo</button>' +
+      '</div>';
+  } else if (opciones.timeout) {
+    // Polling agotado: le damos la salida al cliente sin perder la esperanza.
+    cuerpo.innerHTML =
+      '<div class="checkout-estado">' +
+        '<div class="spinner" aria-hidden="true"></div>' +
+        '<div class="cart-title">Confirmando tu pago</div>' +
+        refChip +
+        '<p style="color:var(--text-2);font-size:0.85rem;margin:0 0 1rem;">Puede tomar unos minutos. Te avisamos por WhatsApp en cuanto quede listo.</p>' +
+        '<a class="btn btn-esm btn-linea" href="' + wa + '" target="_blank" rel="noopener">Escribir por WhatsApp con mi referencia</a>' +
+        '<button type="button" class="btn btn-linea" style="background:transparent;color:var(--text-2);border:1px solid var(--border)" onclick="cerrarCheckout()">Cerrar</button>' +
+      '</div>';
+  } else {
+    // Polling en curso
+    cuerpo.innerHTML =
+      '<div class="checkout-estado">' +
+        '<div class="spinner" aria-hidden="true"></div>' +
+        '<div class="cart-title">Confirmando tu pago</div>' +
+        refChip +
+        '<p style="color:var(--text-2);font-size:0.85rem;margin:0;">Puede tomar hasta un minuto. Bold nos avisa por webhook y actualizamos automáticamente.</p>' +
+      '</div>';
+  }
+}
 function manejarRegresoDePago() {
   var params = new URLSearchParams(location.search);
   var referencia = params.get('pedido');
   if (!referencia) return;
   document.getElementById('checkout-modal').classList.add('open');
   document.body.style.overflow = 'hidden';
-  var cuerpo = document.getElementById('checkout-body');
+  _renderEstadoPago('pendiente', referencia);
   var intentos = 0;
   function revisar() {
     intentos++;
@@ -2325,17 +2428,20 @@ function manejarRegresoDePago() {
     }).then(function(estado) {
       if (estado === 'pagado') {
         if (!window.__pagoTrackeado) { window.__pagoTrackeado = true; trackEvent('pago_confirmado', { referencia: referencia }); }
-        cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">✓</div><div class="cart-title">¡Gracias por tu compra!</div><p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem;">Te vamos a escribir por WhatsApp para coordinar el envio.</p></div>';
+        _renderEstadoPago('pagado', referencia);
       } else if (estado === 'cancelada') {
         if (!window.__pagoTrackeado) { window.__pagoTrackeado = true; trackEvent('pago_cancelado', { referencia: referencia }); }
-        cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">✕</div><div class="cart-title">El pago no se completo</div><p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem;">Puedes intentar de nuevo desde tu seleccion.</p></div>';
+        _renderEstadoPago('cancelada', referencia);
       } else if (intentos < 15) {
         setTimeout(revisar, 2000);
       } else {
-        cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">...</div><div class="cart-title">Confirmando tu pago</div><p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem;">Puede tardar unos minutos. Te avisamos por WhatsApp en cuanto quede listo.</p></div>';
+        _renderEstadoPago('pendiente', referencia, { timeout: true });
       }
     }).catch(function() {
-      cuerpo.innerHTML = '<div class="checkout-estado"><div class="icono">...</div><div class="cart-title">Confirmando tu pago</div></div>';
+      // Fallo de red al consultar; sigue mostrando pendiente pero no reintenta
+      // en bucle infinito. Un reintento cada 3s por hasta 15 vueltas.
+      if (intentos < 15) setTimeout(revisar, 3000);
+      else _renderEstadoPago('pendiente', referencia, { timeout: true });
     });
   }
   revisar();
