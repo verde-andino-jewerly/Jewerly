@@ -54,6 +54,12 @@ serve(async (req) => {
     if (tipo === 'SALE_APPROVED') {
       const { error } = await supabase.rpc('confirmar_pago_web', { p_referencia: referencia })
       if (error) throw error
+      // Dispara el email transaccional de confirmacion. Best-effort: si falla
+      // no revertimos el pago ni bloqueamos el webhook, solo se loguea. La
+      // idempotencia esta en ventas.email_sent_at.
+      dispararEmailPagado(referencia).catch((e) => {
+        console.error('bold-webhook: fallo el envio de email', referencia, e)
+      })
     } else if (tipo === 'SALE_REJECTED') {
       const { error } = await supabase.rpc('cancelar_pago_web', { p_referencia: referencia })
       if (error) throw error
@@ -69,3 +75,20 @@ serve(async (req) => {
 
   return new Response('ok', { status: 200 })
 })
+
+async function dispararEmailPagado(referencia: string): Promise<void> {
+  const url = (Deno.env.get('SUPABASE_URL') || '') + '/functions/v1/send-payment-confirmed'
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + key,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ referencia }),
+  })
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '')
+    throw new Error('send-payment-confirmed ' + resp.status + ' ' + txt)
+  }
+}
