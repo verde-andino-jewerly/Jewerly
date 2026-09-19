@@ -415,6 +415,25 @@
     text-transform: uppercase; letter-spacing: 0.1em;
     margin-left: 0.35rem; font-weight: 600;
   }
+  .stock-chip {
+    display: inline-block; font-size: 0.6rem; font-weight: 600;
+    padding: 0.2rem 0.5rem; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin-top: 0.4rem;
+  }
+  .stock-chip.last { background: var(--esm-bg); color: var(--esm); border: 1px solid var(--esm); }
+  .stock-chip.reserved { background: rgba(148,142,134,0.15); color: var(--text-3); border: 1px solid var(--text-3); }
+  .stock-chip.some { background: rgba(31,111,74,0.08); color: var(--esm); }
+  .modal-stock-chip {
+    display: inline-block; font-size: 0.75rem; font-weight: 600;
+    padding: 0.3rem 0.7rem; border-radius: 4px;
+    letter-spacing: 0.05em; margin: 0.5rem 0;
+  }
+  .modal-stock-chip.last { background: var(--esm-bg); color: var(--esm); border: 1px solid var(--esm); }
+  .modal-stock-chip.reserved { background: rgba(148,142,134,0.15); color: var(--text-3); }
+  .modal-cart-add:disabled, .modal-cart-add.reservada {
+    background: var(--text-3) !important; cursor: not-allowed !important; opacity: 0.7;
+  }
 
   .empty {
     text-align: center; padding: 3rem 1.5rem;
@@ -1397,6 +1416,10 @@ var I18N = {
     'encargo.enviar': 'Enviar por WhatsApp',
     'modal.add': 'Agregar a mi selección',
     'modal.add.more': 'Sumar otra ({n} en carrito)',
+    'modal.add.reserved': 'Reservada por otro cliente',
+    'stock.last': 'Última pieza disponible',
+    'stock.reserved': 'Reservada',
+    'stock.some': '{n} disponibles',
     'modal.wa': 'Preguntar por WhatsApp',
     'modal.share': 'Compartir',
     'modal.ficha': 'Ficha PDF',
@@ -1486,6 +1509,10 @@ var I18N = {
     'encargo.enviar': 'Send via WhatsApp',
     'modal.add': 'Add to my selection',
     'modal.add.more': 'Add another ({n} in cart)',
+    'modal.add.reserved': 'Reserved by another customer',
+    'stock.last': 'Last one available',
+    'stock.reserved': 'Reserved',
+    'stock.some': '{n} available',
     'modal.wa': 'Ask on WhatsApp',
     'modal.share': 'Share',
     'modal.ficha': 'PDF sheet',
@@ -1737,6 +1764,12 @@ function sbCheckRateLimit(endpoint) {
 }
 
 function sbToItem(r) {
+  var stockRaw = r.stock;
+  var stock = stockRaw == null ? null : Number(stockRaw);
+  var dispRaw = r.disponibles;
+  // Fallback: si el fetch pega directo a productos (sin la view), disponibles
+  // no viene. Usamos stock como aproximacion optimista para no ocultar piezas.
+  var disponibles = dispRaw == null ? (stock == null ? null : stock) : Number(dispRaw);
   return {
     id: r.id, estado: r.estado || 'publicado', categoria: r.categoria, estilo: r.estilo,
     metal: r.metal, ley: r.ley, color: r.color, genero: r.genero,
@@ -1747,15 +1780,18 @@ function sbToItem(r) {
     fotos: (r.fotos && Array.isArray(r.fotos) && r.fotos.length > 0) ? r.fotos : (r.foto_url ? [r.foto_url] : []),
     proveedor: r.proveedor || '', costo: Number(r.costo) || 0,
     margen: Number(r.margen) || 100, notas: r.notas || '',
+    stock: stock, disponibles: disponibles,
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
     updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
   };
 }
-/* Columnas PÚBLICAS: nunca incluir cert_num, proveedor, costo, margen, notas — son admin. */
-var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,fotos,created_at';
+/* Columnas PÚBLICAS: nunca incluir cert_num, proveedor, costo, margen, notas — son admin.
+   Leemos de la view productos_publicos que ya filtra a estado='publicado' y añade
+   el campo calculado disponibles = stock - ocupadas (pendientes + confirmadas). */
+var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,fotos,created_at,stock,disponibles';
 function sbFetchPublic(cb) {
-  if (!sbCheckRateLimit('GET /productos')) { if (cb) cb(_sbCache); return; }
-  sbPedir('/rest/v1/productos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', { publico: true })
+  if (!sbCheckRateLimit('GET /productos_publicos')) { if (cb) cb(_sbCache); return; }
+  sbPedir('/rest/v1/productos_publicos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', { publico: true })
     .then(function(rows) { _sbCache = (rows || []).map(sbToItem).filter(function(it){ return it.id !== 'VA-__auth_probe__'; }); if (cb) cb(_sbCache); })
     .catch(function(e) { console.error('Error cargando:', e); if (cb) cb(_sbCache); });
 }
@@ -2099,6 +2135,23 @@ function applyFilters() {
   document.querySelector('.collection-tools').style.display = items.length === 0 ? 'none' : 'flex';
 }
 
+// Chip de stock para la tarjeta del catalogo. Solo aparece en casos de
+// urgencia (1 disponible) o cuando esta reservada. Con stock alto/normal
+// no ensucia el diseno.
+function _stockChipCard(it) {
+  var d = it.disponibles;
+  if (d == null) return '';
+  if (d <= 0) return '<div class="stock-chip reserved">' + esc(t('stock.reserved')) + '</div>';
+  if (d === 1) return '<div class="stock-chip last">' + esc(t('stock.last')) + '</div>';
+  return '';
+}
+function _stockChipModal(it) {
+  var d = it.disponibles;
+  if (d == null) return '';
+  if (d <= 0) return '<div class="modal-stock-chip reserved">' + esc(t('stock.reserved')) + '</div>';
+  if (d === 1) return '<div class="modal-stock-chip last">' + esc(t('stock.last')) + '</div>';
+  return '';
+}
 function renderGrid(items, totalPublic) {
   var g = document.getElementById('grid');
   if (!items.length && totalPublic > 0) {
@@ -2115,6 +2168,7 @@ function renderGrid(items, totalPublic) {
     var demoBadge = it._demo ? '<span class="card-demo-badge">Muestra</span>' : '';
     var esFav = wishlistTiene(it.id);
     var favBtn = '<button type="button" class="fav-btn card-fav' + (esFav ? ' on' : '') + '" data-fav-id="' + jsEsc(it.id) + '" onclick="wishlistToggleDesdeCard(event, \'' + jsEsc(it.id) + '\')" aria-pressed="' + (esFav ? 'true' : 'false') + '" title="' + (esFav ? 'Quitar de favoritos' : 'Guardar en favoritos') + '" aria-label="Favorito">' + (esFav ? '♥' : '♡') + '</button>';
+    var stockChip = _stockChipCard(it);
     h += '<div class="card" onclick="openModal(\'' + jsEsc(it.id) + '\')">' +
       favBtn +
       img +
@@ -2122,6 +2176,7 @@ function renderGrid(items, totalPublic) {
         '<div class="card-cat">' + esc(it.categoria) + (it.estilo ? ' · ' + esc(it.estilo) : '') + demoBadge + '</div>' +
         '<div class="card-desc">' + esc(it.descripcion) + '</div>' +
         '<div class="card-meta">' + esc(meta) + '</div>' +
+        stockChip +
         (it.precioOferta ? (function() {
           var desc = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
           var label = promoLabel(desc);
@@ -2202,6 +2257,7 @@ function openModal(id) {
       '<div class="modal-desc">' + esc(it.descripcion) + '</div>' +
       '<div class="modal-details">' + details + '</div>' +
       cert +
+      _stockChipModal(it) +
       (it.precioOferta ? (function() {
         var desc = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
         var label = promoLabel(desc);
@@ -2212,7 +2268,13 @@ function openModal(id) {
           '</div>';
       })() : '<div class="modal-price">' + fmtPrecio(it.precio) + '</div>') +
       '<div class="modal-actions" style="align-items:center">' +
-        '<button class="modal-cart-add' + (carritoTiene(it.id) ? ' en-carrito' : '') + '" id="modal-cart-btn" onclick="carritoAgregarDesdeModal(\'' + jsEsc(it.id) + '\')">' + esc(carritoTiene(it.id) ? t('modal.add.more', { n: carritoCantidad(it.id) }) : t('modal.add')) + '</button>' +
+        (function() {
+          var reservada = it.disponibles != null && it.disponibles <= 0;
+          if (reservada) {
+            return '<button class="modal-cart-add reservada" id="modal-cart-btn" disabled title="' + esc(t('modal.add.reserved')) + '">' + esc(t('modal.add.reserved')) + '</button>';
+          }
+          return '<button class="modal-cart-add' + (carritoTiene(it.id) ? ' en-carrito' : '') + '" id="modal-cart-btn" onclick="carritoAgregarDesdeModal(\'' + jsEsc(it.id) + '\')">' + esc(carritoTiene(it.id) ? t('modal.add.more', { n: carritoCantidad(it.id) }) : t('modal.add')) + '</button>';
+        })() +
         '<button type="button" class="fav-btn modal-fav" id="modal-fav-btn" onclick="wishlistToggleDesdeModal(\'' + jsEsc(it.id) + '\')" aria-pressed="' + (wishlistTiene(it.id) ? 'true' : 'false') + '" title="' + (wishlistTiene(it.id) ? 'Quitar de favoritos' : 'Guardar en favoritos') + '" aria-label="Favorito">' + (wishlistTiene(it.id) ? '♥' : '♡') + '</button>' +
       '</div>' +
       '<div class="modal-actions">' +
