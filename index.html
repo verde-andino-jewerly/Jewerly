@@ -415,6 +415,25 @@
     text-transform: uppercase; letter-spacing: 0.1em;
     margin-left: 0.35rem; font-weight: 600;
   }
+  .stock-chip {
+    display: inline-block; font-size: 0.6rem; font-weight: 600;
+    padding: 0.2rem 0.5rem; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin-top: 0.4rem;
+  }
+  .stock-chip.last { background: var(--esm-bg); color: var(--esm); border: 1px solid var(--esm); }
+  .stock-chip.reserved { background: rgba(148,142,134,0.15); color: var(--text-3); border: 1px solid var(--text-3); }
+  .stock-chip.some { background: rgba(31,111,74,0.08); color: var(--esm); }
+  .modal-stock-chip {
+    display: inline-block; font-size: 0.75rem; font-weight: 600;
+    padding: 0.3rem 0.7rem; border-radius: 4px;
+    letter-spacing: 0.05em; margin: 0.5rem 0;
+  }
+  .modal-stock-chip.last { background: var(--esm-bg); color: var(--esm); border: 1px solid var(--esm); }
+  .modal-stock-chip.reserved { background: rgba(148,142,134,0.15); color: var(--text-3); }
+  .modal-cart-add:disabled, .modal-cart-add.reservada {
+    background: var(--text-3) !important; cursor: not-allowed !important; opacity: 0.7;
+  }
 
   .empty {
     text-align: center; padding: 3rem 1.5rem;
@@ -1091,7 +1110,7 @@
           <button class="mine-tab" data-mine="coscuez" onclick="showMine('coscuez')" role="tab">Coscuez</button>
         </div>
         <div class="mine-panel" id="mine-panel" role="tabpanel"></div>
-        <p class="edu-note">Colombia concentra buena parte de la producción mundial de esmeraldas y es reconocida internacionalmente como fuente de las piedras de mayor calidad cromática.</p>
+        <p class="edu-note" data-i18n="mines.note">Colombia concentra buena parte de la producción mundial de esmeraldas y es reconocida internacionalmente como fuente de las piedras de mayor calidad cromática.</p>
       </div>
     </details>
   </div>
@@ -1134,24 +1153,24 @@
       <div class="accordion-body">
         <div class="faq-list">
           <details class="faq-item">
-            <summary>¿Las esmeraldas vienen con certificado?</summary>
-            <div class="faq-answer">Las piezas marcadas con el sello de certificado incluyen documento gemológico con número de referencia. Para las demás entregamos ficha técnica propia con descripción del origen y características observables.</div>
+            <summary data-i18n="faq.q1">¿Las esmeraldas vienen con certificado?</summary>
+            <div class="faq-answer" data-i18n="faq.a1">Las piezas marcadas con el sello de certificado incluyen documento gemológico con número de referencia. Para las demás entregamos ficha técnica propia con descripción del origen y características observables.</div>
           </details>
           <details class="faq-item">
-            <summary>¿Hacen envíos a todo el país?</summary>
-            <div class="faq-answer">Sí. Enviamos a toda Colombia con guía asegurada. Las piezas de catálogo se entregan <b>normalmente entre 2 y 5 días hábiles</b>, con un compromiso máximo de <b>8 días hábiles</b> desde que se confirma el pago. Las piezas mandadas a hacer llevan su propia fecha, que acordamos por escrito antes de pagar. El costo del envío depende del destino y del valor de la pieza, y lo confirmamos antes de cerrar la compra.</div>
+            <summary data-i18n="faq.q2">¿Hacen envíos a todo el país?</summary>
+            <div class="faq-answer" data-i18n-html="faq.a2">Sí. Enviamos a toda Colombia con guía asegurada. Las piezas de catálogo se entregan <b>normalmente entre 2 y 5 días hábiles</b>, con un compromiso máximo de <b>8 días hábiles</b> desde que se confirma el pago. Las piezas mandadas a hacer llevan su propia fecha, que acordamos por escrito antes de pagar. El costo del envío depende del destino y del valor de la pieza, y lo confirmamos antes de cerrar la compra.</div>
           </details>
           <details class="faq-item">
-            <summary>¿Qué medios de pago aceptan?</summary>
-            <div class="faq-answer">Transferencia bancaria, Nequi, Daviplata y efectivo para entregas en persona. Coordinamos el método por WhatsApp una vez confirmes la pieza.</div>
+            <summary data-i18n="faq.q3">¿Qué medios de pago aceptan?</summary>
+            <div class="faq-answer" data-i18n="faq.a3">Transferencia bancaria, Nequi, Daviplata y efectivo para entregas en persona. Coordinamos el método por WhatsApp una vez confirmes la pieza.</div>
           </details>
           <details class="faq-item">
-            <summary>¿Puedo pedir una pieza personalizada?</summary>
-            <div class="faq-answer">Sí. Trabajamos con talleres de confianza para mandar a hacer piezas únicas — anillos de compromiso, aretes, dijes con diseño propio. Escríbenos con tu idea o referencia y te enviamos cotización.</div>
+            <summary data-i18n="faq.q4">¿Puedo pedir una pieza personalizada?</summary>
+            <div class="faq-answer" data-i18n="faq.a4">Sí. Trabajamos con talleres de confianza para mandar a hacer piezas únicas — anillos de compromiso, aretes, dijes con diseño propio. Escríbenos con tu idea o referencia y te enviamos cotización.</div>
           </details>
           <details class="faq-item">
-            <summary>¿Aceptan devoluciones?</summary>
-            <div class="faq-answer">Las piezas de catálogo se pueden devolver dentro de los 5 días hábiles siguientes a la entrega, siempre que se devuelvan en el mismo estado en que se recibieron, con su empaque y su certificado. El transporte de la devolución corre por cuenta del cliente. Piezas mandadas a hacer no admiten devolución.</div>
+            <summary data-i18n="faq.q5">¿Aceptan devoluciones?</summary>
+            <div class="faq-answer" data-i18n="faq.a5">Las piezas de catálogo se pueden devolver dentro de los 5 días hábiles siguientes a la entrega, siempre que se devuelvan en el mismo estado en que se recibieron, con su empaque y su certificado. El transporte de la devolución corre por cuenta del cliente. Piezas mandadas a hacer no admiten devolución.</div>
           </details>
         </div>
       </div>
@@ -1166,9 +1185,10 @@
     +57 318 093 5276<br>
     <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a></p>
   <p class="legal-links">
-    <a href="#" onclick="abrirLegal('terminos', event)">Términos y condiciones</a> ·
-    <a href="#" onclick="abrirLegal('datos', event)">Tratamiento de datos personales</a> ·
-    <a href="#" onclick="abrirLegal('retracto', event)">Derecho de retracto y garantía</a>
+    <a href="#" onclick="abrirLegal('terminos', event)" data-i18n="legal.link.terminos">Términos y condiciones</a> ·
+    <a href="#" onclick="abrirLegal('datos', event)" data-i18n="legal.link.datos">Tratamiento de datos personales</a> ·
+    <a href="#" onclick="abrirLegal('retracto', event)" data-i18n="legal.link.retracto">Derecho de retracto y garantía</a> ·
+    <a href="#" onclick="abrirLegal('cookies', event)" data-i18n="legal.link.cookies">Cookies</a>
   </p>
   <p class="copy">© 2026 · Todos los derechos reservados</p>
 </footer>
@@ -1226,6 +1246,13 @@
           <label for="co-ciudad" data-i18n="checkout.ciudad">Ciudad</label>
           <input id="co-ciudad" required autocomplete="address-level2">
         </div>
+        <p id="checkout-aviso-datos" style="font-size:0.72rem;color:var(--text-3);margin:0.6rem 0 0;line-height:1.45;">
+          Al continuar aceptas nuestros
+          <a href="#" onclick="abrirLegal('terminos', event)" style="color:var(--esm);text-decoration:underline;">términos y condiciones</a>
+          y nuestra
+          <a href="#" onclick="abrirLegal('datos', event)" style="color:var(--esm);text-decoration:underline;">política de datos</a>.
+          Solo usamos tus datos para coordinar el envío y la posventa.
+        </p>
         <button class="btn btn-esm" type="submit" id="checkout-submit" style="margin-top:0.4rem" data-i18n="checkout.continuar">Continuar al pago</button>
       </form>
     </div>
@@ -1289,6 +1316,10 @@
           <label for="enc-telefono" data-i18n="encargo.tel">WhatsApp de contacto</label>
           <input id="enc-telefono" required autocomplete="tel" inputmode="tel" placeholder="Ej: +57 300 123 4567">
         </div>
+        <p style="font-size:0.72rem;color:var(--text-3);margin:0.6rem 0 0;line-height:1.45;">
+          Al enviar aceptas que usemos tus datos para responder tu solicitud, conforme a nuestra
+          <a href="#" onclick="abrirLegal('datos', event)" style="color:var(--esm);text-decoration:underline;">política de datos</a>.
+        </p>
         <button class="btn btn-esm" type="submit" style="margin-top:0.4rem" data-i18n="encargo.enviar">Enviar por WhatsApp</button>
       </form>
     </div>
@@ -1384,6 +1415,25 @@ var I18N = {
     'checkout.ciudad': 'Ciudad',
     'checkout.continuar': 'Continuar al pago',
     'checkout.procesando': 'Procesando…',
+    'checkout.aviso.datos': 'Al continuar aceptas nuestros {tyc} y nuestra {datos}. Solo usamos tus datos para coordinar el envío y la posventa.',
+    'encargo.aviso.datos': 'Al enviar aceptas que usemos tus datos para responder tu solicitud, conforme a nuestra {datos}.',
+    'legal.link.terminos': 'Términos y condiciones',
+    'legal.link.datos': 'Tratamiento de datos personales',
+    'legal.link.retracto': 'Derecho de retracto y garantía',
+    'legal.link.cookies': 'Cookies',
+    'legal.tyc.short': 'términos y condiciones',
+    'legal.datos.short': 'política de datos',
+    'mines.note': 'Colombia concentra buena parte de la producción mundial de esmeraldas y es reconocida internacionalmente como fuente de las piedras de mayor calidad cromática.',
+    'faq.q1': '¿Las esmeraldas vienen con certificado?',
+    'faq.a1': 'Las piezas marcadas con el sello de certificado incluyen documento gemológico con número de referencia. Para las demás entregamos ficha técnica propia con descripción del origen y características observables.',
+    'faq.q2': '¿Hacen envíos a todo el país?',
+    'faq.a2': 'Sí. Enviamos a toda Colombia con guía asegurada. Las piezas de catálogo se entregan <b>normalmente entre 2 y 5 días hábiles</b>, con un compromiso máximo de <b>8 días hábiles</b> desde que se confirma el pago. Las piezas mandadas a hacer llevan su propia fecha, que acordamos por escrito antes de pagar. El costo del envío depende del destino y del valor de la pieza, y lo confirmamos antes de cerrar la compra.',
+    'faq.q3': '¿Qué medios de pago aceptan?',
+    'faq.a3': 'Transferencia bancaria, Nequi, Daviplata y efectivo para entregas en persona. Coordinamos el método por WhatsApp una vez confirmes la pieza.',
+    'faq.q4': '¿Puedo pedir una pieza personalizada?',
+    'faq.a4': 'Sí. Trabajamos con talleres de confianza para mandar a hacer piezas únicas — anillos de compromiso, aretes, dijes con diseño propio. Escríbenos con tu idea o referencia y te enviamos cotización.',
+    'faq.q5': '¿Aceptan devoluciones?',
+    'faq.a5': 'Las piezas de catálogo se pueden devolver dentro de los 5 días hábiles siguientes a la entrega, siempre que se devuelvan en el mismo estado en que se recibieron, con su empaque y su certificado. El transporte de la devolución corre por cuenta del cliente. Piezas mandadas a hacer no admiten devolución.',
     'encargo.title': 'Encargo personalizado',
     'encargo.subtitle': 'Cuéntanos qué pieza tienes en mente. Enviamos tu solicitud a nuestros joyeros por WhatsApp con toda la información.',
     'encargo.tipo': 'Tipo de pieza',
@@ -1397,6 +1447,10 @@ var I18N = {
     'encargo.enviar': 'Enviar por WhatsApp',
     'modal.add': 'Agregar a mi selección',
     'modal.add.more': 'Sumar otra ({n} en carrito)',
+    'modal.add.reserved': 'Reservada por otro cliente',
+    'stock.last': 'Última pieza disponible',
+    'stock.reserved': 'Reservada',
+    'stock.some': '{n} disponibles',
     'modal.wa': 'Preguntar por WhatsApp',
     'modal.share': 'Compartir',
     'modal.ficha': 'Ficha PDF',
@@ -1473,6 +1527,25 @@ var I18N = {
     'checkout.ciudad': 'City',
     'checkout.continuar': 'Continue to payment',
     'checkout.procesando': 'Processing…',
+    'checkout.aviso.datos': 'By continuing you accept our {tyc} and our {datos}. We only use your data to coordinate shipping and after-sales support.',
+    'encargo.aviso.datos': 'By submitting you agree to our use of your data to answer your request, according to our {datos}.',
+    'legal.link.terminos': 'Terms and conditions',
+    'legal.link.datos': 'Personal data policy',
+    'legal.link.retracto': 'Refund and warranty',
+    'legal.link.cookies': 'Cookies',
+    'legal.tyc.short': 'terms and conditions',
+    'legal.datos.short': 'data policy',
+    'mines.note': 'Colombia produces a large share of the world\'s emeralds and is internationally recognized as the source of the stones with the highest color quality.',
+    'faq.q1': 'Do the emeralds come with a certificate?',
+    'faq.a1': 'Pieces marked with the certificate seal include a gemological document with a reference number. For the rest we deliver our own technical sheet describing origin and observable characteristics.',
+    'faq.q2': 'Do you ship nationwide?',
+    'faq.a2': 'Yes. We ship throughout Colombia with insured tracking. Catalog pieces are usually delivered <b>within 2 to 5 business days</b>, with a maximum commitment of <b>8 business days</b> after payment is confirmed. Custom-made pieces have their own delivery date agreed in writing before payment. Shipping cost depends on destination and piece value, and we confirm it before closing the purchase.',
+    'faq.q3': 'What payment methods do you accept?',
+    'faq.a3': 'Bank transfer, Nequi, Daviplata, and cash for in-person deliveries. We coordinate the method by WhatsApp once you confirm the piece.',
+    'faq.q4': 'Can I order a custom piece?',
+    'faq.a4': 'Yes. We work with trusted workshops to make unique pieces — engagement rings, earrings, custom-designed pendants. Write to us with your idea or reference and we\'ll send a quote.',
+    'faq.q5': 'Do you accept returns?',
+    'faq.a5': 'Catalog pieces can be returned within 5 business days of delivery, provided they are returned in the same condition they were received, with their packaging and certificate. Return shipping is at the customer\'s expense. Custom-made pieces cannot be returned.',
     'encargo.title': 'Custom order',
     'encargo.subtitle': 'Tell us what piece you have in mind. We send your request to our jewelers by WhatsApp with all the details.',
     'encargo.tipo': 'Type of piece',
@@ -1486,6 +1559,10 @@ var I18N = {
     'encargo.enviar': 'Send via WhatsApp',
     'modal.add': 'Add to my selection',
     'modal.add.more': 'Add another ({n} in cart)',
+    'modal.add.reserved': 'Reserved by another customer',
+    'stock.last': 'Last one available',
+    'stock.reserved': 'Reserved',
+    'stock.some': '{n} available',
     'modal.wa': 'Ask on WhatsApp',
     'modal.share': 'Share',
     'modal.ficha': 'PDF sheet',
@@ -1532,6 +1609,11 @@ function aplicarIdioma() {
   document.querySelectorAll('[data-i18n]').forEach(function(el) {
     el.textContent = t(el.getAttribute('data-i18n'));
   });
+  // Elementos con data-i18n-html = clave -> reemplaza innerHTML (para textos
+  // con etiquetas como <b>, <a>, etc; las traducciones deben ser confiables).
+  document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
+    el.innerHTML = t(el.getAttribute('data-i18n-html'));
+  });
   // Elementos con data-i18n-attr = "attr:key" -> setAttribute
   document.querySelectorAll('[data-i18n-attr]').forEach(function(el) {
     var pares = el.getAttribute('data-i18n-attr').split(',');
@@ -1547,6 +1629,11 @@ function aplicarIdioma() {
   if (typeof applyFilters === 'function') { try { applyFilters(); } catch (_) {} }
   if (typeof renderCarrito === 'function' && document.getElementById('cart-modal') && document.getElementById('cart-modal').classList.contains('open')) {
     try { renderCarrito(); } catch (_) {}
+  }
+  // Mines: re-render el panel activo si esta visible
+  var mineActive = document.querySelector('.mine-tab.active');
+  if (mineActive && typeof renderMine === 'function' && document.getElementById('mine-panel')) {
+    try { renderMine(mineActive.dataset.mine); } catch (_) {}
   }
 }
 function toggleLocale() {
@@ -1737,6 +1824,12 @@ function sbCheckRateLimit(endpoint) {
 }
 
 function sbToItem(r) {
+  var stockRaw = r.stock;
+  var stock = stockRaw == null ? null : Number(stockRaw);
+  var dispRaw = r.disponibles;
+  // Fallback: si el fetch pega directo a productos (sin la view), disponibles
+  // no viene. Usamos stock como aproximacion optimista para no ocultar piezas.
+  var disponibles = dispRaw == null ? (stock == null ? null : stock) : Number(dispRaw);
   return {
     id: r.id, estado: r.estado || 'publicado', categoria: r.categoria, estilo: r.estilo,
     metal: r.metal, ley: r.ley, color: r.color, genero: r.genero,
@@ -1747,15 +1840,18 @@ function sbToItem(r) {
     fotos: (r.fotos && Array.isArray(r.fotos) && r.fotos.length > 0) ? r.fotos : (r.foto_url ? [r.foto_url] : []),
     proveedor: r.proveedor || '', costo: Number(r.costo) || 0,
     margen: Number(r.margen) || 100, notas: r.notas || '',
+    stock: stock, disponibles: disponibles,
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
     updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
   };
 }
-/* Columnas PÚBLICAS: nunca incluir cert_num, proveedor, costo, margen, notas — son admin. */
-var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,fotos,created_at';
+/* Columnas PÚBLICAS: nunca incluir cert_num, proveedor, costo, margen, notas — son admin.
+   Leemos de la view productos_publicos que ya filtra a estado='publicado' y añade
+   el campo calculado disponibles = stock - ocupadas (pendientes + confirmadas). */
+var SB_PUBLIC_COLS = 'id,estado,categoria,estilo,metal,ley,color,genero,piedras,descripcion,medida,medida_u,certificado,precio,precio_oferta,foto_url,fotos,created_at,stock,disponibles';
 function sbFetchPublic(cb) {
-  if (!sbCheckRateLimit('GET /productos')) { if (cb) cb(_sbCache); return; }
-  sbPedir('/rest/v1/productos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', { publico: true })
+  if (!sbCheckRateLimit('GET /productos_publicos')) { if (cb) cb(_sbCache); return; }
+  sbPedir('/rest/v1/productos_publicos?select=' + SB_PUBLIC_COLS + '&order=created_at.desc', { publico: true })
     .then(function(rows) { _sbCache = (rows || []).map(sbToItem).filter(function(it){ return it.id !== 'VA-__auth_probe__'; }); if (cb) cb(_sbCache); })
     .catch(function(e) { console.error('Error cargando:', e); if (cb) cb(_sbCache); });
 }
@@ -1882,16 +1978,55 @@ function mineHeroArt(m) {
   '</div>';
 }
 
-function renderMine(key) {
+// Traducciones EN de las tres minas. La estructura ES sigue en MINES para
+// no reescribir el objeto principal (que tiene fotos base64 pesadas).
+var MINES_EN = {
+  muzo: {
+    region: 'Boyacá · Western Range of the Eastern Cordillera',
+    facts: [
+      ['Color', 'Deep green with subtle warm yellow undertones. Internationally recognized as the reference "emerald color" for its saturation and brilliance.'],
+      ['History', 'Mined since pre-Columbian times by the Muzo indigenous people, who gave their name to the region. Systematic mining began in the 16th century under Spanish colonial rule.'],
+      ['Formation', 'Crystals formed in hydrothermal veins within black shales and limestones — a unique geological context combining sedimentary rocks and low-temperature hydrothermal activity.'],
+      ['Today', 'Historical source of some of the most renowned emeralds in the world, including pieces of the Spanish Crown jewels. Still active through both industrial and small-scale operations.']
+    ]
+  },
+  chivor: {
+    region: 'Boyacá · Eastern Range of the Eastern Cordillera',
+    facts: [
+      ['Color', 'Green with bluish undertones. Stones generally show higher transparency and fewer visible inclusions than Muzo, prized for their crystalline clarity.'],
+      ['History', 'Worked by the Muisca people before the Spanish conquest. Abandoned for centuries after the colonial era and rediscovered in the late 19th century by geologist Francisco Restrepo.'],
+      ['Formation', 'Different geological context from the Western belt: the mineralizing fluid interacts with different rocks, producing crystals with a distinct chemical signature.'],
+      ['Today', 'Preferred by gemologists and collectors who value transparency and bluish hue over pure color saturation.']
+    ]
+  },
+  coscuez: {
+    region: 'Boyacá · Municipality of San Pablo de Borbur',
+    facts: [
+      ['Color', 'Vibrant green, sometimes with yellow reflections. Stones with good character and stable color, highly appreciated commercially.'],
+      ['History', 'One of the oldest mines in the Western belt. Continuous activity since colonial times, with steady production over the centuries.'],
+      ['Formation', 'Shares the Western geological setting with Muzo, but with its own chemical signature that gives its crystals distinctive characteristics.'],
+      ['Today', 'Reliable source of commercial-quality stones. Its steady production makes it a pillar of national supply.']
+    ]
+  }
+};
+function mineTranslated(key) {
   var m = MINES[key];
-  if (!m) return;
-  var facts = m.facts.map(function(f) {
+  if (!m) return null;
+  if (activeLocale === 'en' && MINES_EN[key]) {
+    return { name: m.name, region: MINES_EN[key].region, facts: MINES_EN[key].facts, hero: m };
+  }
+  return { name: m.name, region: m.region, facts: m.facts, hero: m };
+}
+function renderMine(key) {
+  var t = mineTranslated(key);
+  if (!t) return;
+  var facts = t.facts.map(function(f) {
     return '<div><div class="mine-fact-label">' + esc(f[0]) + '</div><div class="mine-fact-body">' + esc(f[1]) + '</div></div>';
   }).join('');
   document.getElementById('mine-panel').innerHTML =
-    mineHeroArt(m) +
-    '<div class="mine-name">' + esc(m.name) + '</div>' +
-    '<div class="mine-region">' + esc(m.region) + '</div>' +
+    mineHeroArt(t.hero) +
+    '<div class="mine-name">' + esc(t.name) + '</div>' +
+    '<div class="mine-region">' + esc(t.region) + '</div>' +
     '<div class="mine-facts">' + facts + '</div>';
 }
 function showMine(key) {
@@ -2099,6 +2234,23 @@ function applyFilters() {
   document.querySelector('.collection-tools').style.display = items.length === 0 ? 'none' : 'flex';
 }
 
+// Chip de stock para la tarjeta del catalogo. Solo aparece en casos de
+// urgencia (1 disponible) o cuando esta reservada. Con stock alto/normal
+// no ensucia el diseno.
+function _stockChipCard(it) {
+  var d = it.disponibles;
+  if (d == null) return '';
+  if (d <= 0) return '<div class="stock-chip reserved">' + esc(t('stock.reserved')) + '</div>';
+  if (d === 1) return '<div class="stock-chip last">' + esc(t('stock.last')) + '</div>';
+  return '';
+}
+function _stockChipModal(it) {
+  var d = it.disponibles;
+  if (d == null) return '';
+  if (d <= 0) return '<div class="modal-stock-chip reserved">' + esc(t('stock.reserved')) + '</div>';
+  if (d === 1) return '<div class="modal-stock-chip last">' + esc(t('stock.last')) + '</div>';
+  return '';
+}
 function renderGrid(items, totalPublic) {
   var g = document.getElementById('grid');
   if (!items.length && totalPublic > 0) {
@@ -2115,6 +2267,7 @@ function renderGrid(items, totalPublic) {
     var demoBadge = it._demo ? '<span class="card-demo-badge">Muestra</span>' : '';
     var esFav = wishlistTiene(it.id);
     var favBtn = '<button type="button" class="fav-btn card-fav' + (esFav ? ' on' : '') + '" data-fav-id="' + jsEsc(it.id) + '" onclick="wishlistToggleDesdeCard(event, \'' + jsEsc(it.id) + '\')" aria-pressed="' + (esFav ? 'true' : 'false') + '" title="' + (esFav ? 'Quitar de favoritos' : 'Guardar en favoritos') + '" aria-label="Favorito">' + (esFav ? '♥' : '♡') + '</button>';
+    var stockChip = _stockChipCard(it);
     h += '<div class="card" onclick="openModal(\'' + jsEsc(it.id) + '\')">' +
       favBtn +
       img +
@@ -2122,6 +2275,7 @@ function renderGrid(items, totalPublic) {
         '<div class="card-cat">' + esc(it.categoria) + (it.estilo ? ' · ' + esc(it.estilo) : '') + demoBadge + '</div>' +
         '<div class="card-desc">' + esc(it.descripcion) + '</div>' +
         '<div class="card-meta">' + esc(meta) + '</div>' +
+        stockChip +
         (it.precioOferta ? (function() {
           var desc = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
           var label = promoLabel(desc);
@@ -2202,6 +2356,7 @@ function openModal(id) {
       '<div class="modal-desc">' + esc(it.descripcion) + '</div>' +
       '<div class="modal-details">' + details + '</div>' +
       cert +
+      _stockChipModal(it) +
       (it.precioOferta ? (function() {
         var desc = Math.round(((it.precio - it.precioOferta) / it.precio) * 100);
         var label = promoLabel(desc);
@@ -2212,7 +2367,13 @@ function openModal(id) {
           '</div>';
       })() : '<div class="modal-price">' + fmtPrecio(it.precio) + '</div>') +
       '<div class="modal-actions" style="align-items:center">' +
-        '<button class="modal-cart-add' + (carritoTiene(it.id) ? ' en-carrito' : '') + '" id="modal-cart-btn" onclick="carritoAgregarDesdeModal(\'' + jsEsc(it.id) + '\')">' + esc(carritoTiene(it.id) ? t('modal.add.more', { n: carritoCantidad(it.id) }) : t('modal.add')) + '</button>' +
+        (function() {
+          var reservada = it.disponibles != null && it.disponibles <= 0;
+          if (reservada) {
+            return '<button class="modal-cart-add reservada" id="modal-cart-btn" disabled title="' + esc(t('modal.add.reserved')) + '">' + esc(t('modal.add.reserved')) + '</button>';
+          }
+          return '<button class="modal-cart-add' + (carritoTiene(it.id) ? ' en-carrito' : '') + '" id="modal-cart-btn" onclick="carritoAgregarDesdeModal(\'' + jsEsc(it.id) + '\')">' + esc(carritoTiene(it.id) ? t('modal.add.more', { n: carritoCantidad(it.id) }) : t('modal.add')) + '</button>';
+        })() +
         '<button type="button" class="fav-btn modal-fav" id="modal-fav-btn" onclick="wishlistToggleDesdeModal(\'' + jsEsc(it.id) + '\')" aria-pressed="' + (wishlistTiene(it.id) ? 'true' : 'false') + '" title="' + (wishlistTiene(it.id) ? 'Quitar de favoritos' : 'Guardar en favoritos') + '" aria-label="Favorito">' + (wishlistTiene(it.id) ? '♥' : '♡') + '</button>' +
       '</div>' +
       '<div class="modal-actions">' +
@@ -2389,6 +2550,21 @@ var LEGAL_TEXTOS = {
       '<p><b>Cuánto tiempo se conservan.</b> Los datos de una venta se conservan el tiempo que exija la normativa contable y tributaria. Los datos de una consulta que no termina en compra se eliminan cuando dejan de ser necesarios.</p>' +
       '<p><b>Derechos del titular.</b> Conocer, actualizar, rectificar y suprimir sus datos, solicitar prueba de la autorización, ser informado sobre el uso dado a sus datos, presentar quejas ante la Superintendencia de Industria y Comercio y revocar la autorización.</p>' +
       '<p><b>Cómo ejercerlos.</b> Escribiendo a <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a> con el asunto "Protección de datos". Las consultas se responden en máximo 10 días hábiles y los reclamos en máximo 15 días hábiles, prorrogables conforme a la ley.</p>'
+  },
+  cookies: {
+    titulo: 'Política de cookies y tecnologías similares',
+    html: '<p>Este sitio busca respetar tu privacidad y hacer el mínimo uso posible de datos de navegación.</p>' +
+      '<p><b>Analítica anónima.</b> Usamos <b>Cloudflare Web Analytics</b>, un servicio de medición <b>sin cookies</b> y sin identificadores persistentes. No rastrea usuarios individuales entre sesiones ni entre sitios. Registra únicamente pageviews agregados (páginas visitadas, país aproximado, dispositivo, tiempo de carga) para saber cómo llegan las personas al catálogo y qué piezas ven más. No comparte datos con redes publicitarias.</p>' +
+      '<p><b>Almacenamiento local del navegador.</b> Guardamos algunas preferencias en tu propio navegador (<code>localStorage</code>) para mejorar tu experiencia:</p>' +
+      '<ul>' +
+        '<li>Piezas que agregaste al carrito, para que no se pierdan si recargas la página.</li>' +
+        '<li>Piezas marcadas como favoritas.</li>' +
+        '<li>Tu idioma preferido (español o inglés).</li>' +
+      '</ul>' +
+      '<p>Estos datos <b>viven solo en tu equipo</b> y no se envían a nuestros servidores. Puedes borrarlos en cualquier momento desde la configuración de tu navegador.</p>' +
+      '<p><b>Pasarela de pago Bold.</b> Cuando decides pagar, el widget de Bold puede instalar cookies propias para procesar la transacción de forma segura. Esas cookies son responsabilidad de Bold y se rigen por su <a href="https://bold.co/politicas" target="_blank" rel="noopener">política de privacidad</a>.</p>' +
+      '<p><b>Sin publicidad ni tracking cross-site.</b> No usamos Meta Pixel, Google Ads pixels, ni ninguna cookie con fines publicitarios. No compartimos tu comportamiento en el sitio con redes sociales ni con plataformas de anuncios.</p>' +
+      '<p>Si tienes preguntas sobre nuestro tratamiento de datos, escríbenos a <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a>.</p>'
   },
   retracto: {
     titulo: 'Derecho de retracto, reversión del pago y garantía',

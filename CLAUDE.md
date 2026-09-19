@@ -92,6 +92,14 @@ columna `stock integer NOT NULL DEFAULT 1 CHECK (stock >= 0)`. Fuente
 - Panel: subir `stock` en el editor de producto cuando hay múltiples
   unidades (por ejemplo 3 aretes idénticos).
 
+**View `productos_publicos` (Sprint 3, 19/09/2026)**: vista pública que
+expone el catálogo con el campo calculado `disponibles = stock -
+ocupadas`. La vitrina lee de esta view (no del `productos` crudo). En
+`renderGrid` y `openModal`, `_stockChipCard`/`_stockChipModal` muestran
+"Última pieza disponible" cuando `disponibles == 1` y "Reservada"
+cuando `disponibles == 0`. El botón "Agregar a mi selección" del modal
+se deshabilita cuando la pieza está reservada por otro cliente.
+
 **Reembolsos (Sprint 3, 19/09/2026)**: el webhook Bold ahora maneja
 `VOID_APPROVED` invocando la RPC `reembolsar_pago_web(p_referencia)`:
 - Ventas con `estado IN ('pagado','enviado','entregado')` pasan a
