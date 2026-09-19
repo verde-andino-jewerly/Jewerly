@@ -129,7 +129,20 @@ async function forceLocaleES(page) {
   }, LOCALE_KEY);
 }
 
+/**
+ * Espera a que el fetch mockeado de productos haya llenado _sbCache.
+ * Da un mensaje claro si el mock nunca se disparó (timeout).
+ */
+async function waitForCatalog(page, timeout = 10_000) {
+  await page.waitForFunction(
+    () => Array.isArray(window._sbCache) && window._sbCache.length > 0,
+    null,
+    { timeout }
+  );
+}
+
 module.exports = {
   PRODUCTOS, PIX, mockSupabase,
-  forceLocaleES, LOCALE_KEY, CART_KEY, WISHLIST_KEY,
+  forceLocaleES, waitForCatalog,
+  LOCALE_KEY, CART_KEY, WISHLIST_KEY,
 };
