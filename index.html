@@ -1185,9 +1185,10 @@
     +57 318 093 5276<br>
     <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a></p>
   <p class="legal-links">
-    <a href="#" onclick="abrirLegal('terminos', event)">Términos y condiciones</a> ·
-    <a href="#" onclick="abrirLegal('datos', event)">Tratamiento de datos personales</a> ·
-    <a href="#" onclick="abrirLegal('retracto', event)">Derecho de retracto y garantía</a>
+    <a href="#" onclick="abrirLegal('terminos', event)" data-i18n="legal.link.terminos">Términos y condiciones</a> ·
+    <a href="#" onclick="abrirLegal('datos', event)" data-i18n="legal.link.datos">Tratamiento de datos personales</a> ·
+    <a href="#" onclick="abrirLegal('retracto', event)" data-i18n="legal.link.retracto">Derecho de retracto y garantía</a> ·
+    <a href="#" onclick="abrirLegal('cookies', event)" data-i18n="legal.link.cookies">Cookies</a>
   </p>
   <p class="copy">© 2026 · Todos los derechos reservados</p>
 </footer>
@@ -1245,6 +1246,13 @@
           <label for="co-ciudad" data-i18n="checkout.ciudad">Ciudad</label>
           <input id="co-ciudad" required autocomplete="address-level2">
         </div>
+        <p id="checkout-aviso-datos" style="font-size:0.72rem;color:var(--text-3);margin:0.6rem 0 0;line-height:1.45;">
+          Al continuar aceptas nuestros
+          <a href="#" onclick="abrirLegal('terminos', event)" style="color:var(--esm);text-decoration:underline;">términos y condiciones</a>
+          y nuestra
+          <a href="#" onclick="abrirLegal('datos', event)" style="color:var(--esm);text-decoration:underline;">política de datos</a>.
+          Solo usamos tus datos para coordinar el envío y la posventa.
+        </p>
         <button class="btn btn-esm" type="submit" id="checkout-submit" style="margin-top:0.4rem" data-i18n="checkout.continuar">Continuar al pago</button>
       </form>
     </div>
@@ -1308,6 +1316,10 @@
           <label for="enc-telefono" data-i18n="encargo.tel">WhatsApp de contacto</label>
           <input id="enc-telefono" required autocomplete="tel" inputmode="tel" placeholder="Ej: +57 300 123 4567">
         </div>
+        <p style="font-size:0.72rem;color:var(--text-3);margin:0.6rem 0 0;line-height:1.45;">
+          Al enviar aceptas que usemos tus datos para responder tu solicitud, conforme a nuestra
+          <a href="#" onclick="abrirLegal('datos', event)" style="color:var(--esm);text-decoration:underline;">política de datos</a>.
+        </p>
         <button class="btn btn-esm" type="submit" style="margin-top:0.4rem" data-i18n="encargo.enviar">Enviar por WhatsApp</button>
       </form>
     </div>
@@ -1403,6 +1415,14 @@ var I18N = {
     'checkout.ciudad': 'Ciudad',
     'checkout.continuar': 'Continuar al pago',
     'checkout.procesando': 'Procesando…',
+    'checkout.aviso.datos': 'Al continuar aceptas nuestros {tyc} y nuestra {datos}. Solo usamos tus datos para coordinar el envío y la posventa.',
+    'encargo.aviso.datos': 'Al enviar aceptas que usemos tus datos para responder tu solicitud, conforme a nuestra {datos}.',
+    'legal.link.terminos': 'Términos y condiciones',
+    'legal.link.datos': 'Tratamiento de datos personales',
+    'legal.link.retracto': 'Derecho de retracto y garantía',
+    'legal.link.cookies': 'Cookies',
+    'legal.tyc.short': 'términos y condiciones',
+    'legal.datos.short': 'política de datos',
     'encargo.title': 'Encargo personalizado',
     'encargo.subtitle': 'Cuéntanos qué pieza tienes en mente. Enviamos tu solicitud a nuestros joyeros por WhatsApp con toda la información.',
     'encargo.tipo': 'Tipo de pieza',
@@ -1496,6 +1516,14 @@ var I18N = {
     'checkout.ciudad': 'City',
     'checkout.continuar': 'Continue to payment',
     'checkout.procesando': 'Processing…',
+    'checkout.aviso.datos': 'By continuing you accept our {tyc} and our {datos}. We only use your data to coordinate shipping and after-sales support.',
+    'encargo.aviso.datos': 'By submitting you agree to our use of your data to answer your request, according to our {datos}.',
+    'legal.link.terminos': 'Terms and conditions',
+    'legal.link.datos': 'Personal data policy',
+    'legal.link.retracto': 'Refund and warranty',
+    'legal.link.cookies': 'Cookies',
+    'legal.tyc.short': 'terms and conditions',
+    'legal.datos.short': 'data policy',
     'encargo.title': 'Custom order',
     'encargo.subtitle': 'Tell us what piece you have in mind. We send your request to our jewelers by WhatsApp with all the details.',
     'encargo.tipo': 'Type of piece',
@@ -2451,6 +2479,21 @@ var LEGAL_TEXTOS = {
       '<p><b>Cuánto tiempo se conservan.</b> Los datos de una venta se conservan el tiempo que exija la normativa contable y tributaria. Los datos de una consulta que no termina en compra se eliminan cuando dejan de ser necesarios.</p>' +
       '<p><b>Derechos del titular.</b> Conocer, actualizar, rectificar y suprimir sus datos, solicitar prueba de la autorización, ser informado sobre el uso dado a sus datos, presentar quejas ante la Superintendencia de Industria y Comercio y revocar la autorización.</p>' +
       '<p><b>Cómo ejercerlos.</b> Escribiendo a <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a> con el asunto "Protección de datos". Las consultas se responden en máximo 10 días hábiles y los reclamos en máximo 15 días hábiles, prorrogables conforme a la ley.</p>'
+  },
+  cookies: {
+    titulo: 'Política de cookies y tecnologías similares',
+    html: '<p>Este sitio busca respetar tu privacidad y hacer el mínimo uso posible de datos de navegación.</p>' +
+      '<p><b>Analítica anónima.</b> Usamos <b>Cloudflare Web Analytics</b>, un servicio de medición <b>sin cookies</b> y sin identificadores persistentes. No rastrea usuarios individuales entre sesiones ni entre sitios. Registra únicamente pageviews agregados (páginas visitadas, país aproximado, dispositivo, tiempo de carga) para saber cómo llegan las personas al catálogo y qué piezas ven más. No comparte datos con redes publicitarias.</p>' +
+      '<p><b>Almacenamiento local del navegador.</b> Guardamos algunas preferencias en tu propio navegador (<code>localStorage</code>) para mejorar tu experiencia:</p>' +
+      '<ul>' +
+        '<li>Piezas que agregaste al carrito, para que no se pierdan si recargas la página.</li>' +
+        '<li>Piezas marcadas como favoritas.</li>' +
+        '<li>Tu idioma preferido (español o inglés).</li>' +
+      '</ul>' +
+      '<p>Estos datos <b>viven solo en tu equipo</b> y no se envían a nuestros servidores. Puedes borrarlos en cualquier momento desde la configuración de tu navegador.</p>' +
+      '<p><b>Pasarela de pago Bold.</b> Cuando decides pagar, el widget de Bold puede instalar cookies propias para procesar la transacción de forma segura. Esas cookies son responsabilidad de Bold y se rigen por su <a href="https://bold.co/politicas" target="_blank" rel="noopener">política de privacidad</a>.</p>' +
+      '<p><b>Sin publicidad ni tracking cross-site.</b> No usamos Meta Pixel, Google Ads pixels, ni ninguna cookie con fines publicitarios. No compartimos tu comportamiento en el sitio con redes sociales ni con plataformas de anuncios.</p>' +
+      '<p>Si tienes preguntas sobre nuestro tratamiento de datos, escríbenos a <a href="mailto:contacto@verdeandino.app">contacto@verdeandino.app</a>.</p>'
   },
   retracto: {
     titulo: 'Derecho de retracto, reversión del pago y garantía',
