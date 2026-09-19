@@ -197,7 +197,8 @@ Sprint del 18–19/09/2026. Todo en un solo PR draft
 ## Pendientes / ideas a futuro
 
 Los marcados con **[documentado]** eran vacíos confirmados en operación real
-(novena vuelta, 18/09/2026). Los que ya están cerrados llevan **[hecho v3]**.
+(novena vuelta, 18/09/2026). Los que ya están cerrados llevan **[hecho v3]**
+o **[hecho v4]** (Sprint 2 backend, 19/09/2026).
 
 ### Vacíos documentados
 
@@ -222,8 +223,14 @@ Los marcados con **[documentado]** eran vacíos confirmados en operación real
 
 - **Prerender por producto** para OG estático de WhatsApp/Facebook —
   GitHub Action que lea Supabase y genere un HTML por pieza.
-- **Stock / reserva en Supabase** — requiere migración (`stock` en
-  `productos`, RPC `reservar_pieza`/`liberar_pieza`).
+- **[hecho v4] Stock / reserva en Supabase.** Cerrado con la migración
+  `stock_column_and_web_rpcs` (Sprint 2, 19/09/2026): columna
+  `productos.stock integer NOT NULL DEFAULT 1`. `crear_pedido_web` bloquea
+  al segundo comprador concurrente cuando `(pendientes + confirmadas) >=
+  stock`. `confirmar_pago_web` oculta la pieza cuando confirmadas llegan
+  a stock. `cancelar_pago_web` libera slots sin cambio (la venta
+  cancelada no cuenta). Backfill inicial desde `gastos` (Joyas para
+  reventa); piezas únicas en 1.
 - **Facturación electrónica DIAN** — integración con Alegra o Factus
   desde `confirmar_pago_web`.
 - **Envíos automatizados** — API Servientrega/Coordinadora/Interrapidísimo,

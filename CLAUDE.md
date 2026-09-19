@@ -75,6 +75,23 @@ antes del merge para que empiece a registrar tráfico.
 `[{id, cantidad}, ...]` (antes era `[id, id, ...]`). `carritoLeer` migra
 al vuelo entradas del formato viejo, deduplica y descarta malformadas.
 
+**Stock en Supabase (Sprint 2, 19/09/2026)**: la tabla `productos` tiene
+columna `stock integer NOT NULL DEFAULT 1 CHECK (stock >= 0)`. Fuente
+única de verdad para el inventario:
+- `crear_pedido_web` bloquea si `(pendientes + pagadas + enviadas +
+  entregadas) >= stock` para la pieza. Corta la doble reserva
+  concurrente que existía antes (dos personas pagando al mismo tiempo
+  la misma pieza única).
+- `confirmar_pago_web` (Bold webhook) oculta la pieza (`estado='oculto'`)
+  cuando las confirmadas alcanzan `stock`.
+- `cancelar_pago_web` libera el slot al pasar la venta a `'cancelada'`
+  (no se cuenta en las ocupadas).
+- Backfill inicial: piezas con entradas en `gastos` categoría "Joyas
+  para reventa" reciben `stock = entradas - confirmadas`. Piezas únicas
+  (sin `gastos`) mantienen `stock=1`.
+- Panel: subir `stock` en el editor de producto cuando hay múltiples
+  unidades (por ejemplo 3 aretes idénticos).
+
 **Git:** el correo debe ser la dirección privada de GitHub, porque la cuenta
 tiene la privacidad de correo activada:
 
