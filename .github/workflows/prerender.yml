@@ -1,0 +1,61 @@
+name: Prerender por pieza (OG social)
+
+# Genera un HTML estatico por cada pieza publicada en Supabase con OG
+# completo, para que WhatsApp/Facebook/Twitter muestren preview correcto
+# al compartir. Actualiza sitemap.xml. GitHub Pages sirve todo tras merge.
+
+on:
+  # Cada 6 horas asegura que las piezas cargadas desde el panel Vercel
+  # se reflejen sin depender de un push manual a este repo.
+  schedule:
+    - cron: '0 */6 * * *'
+  # Disparo manual desde la pestaña Actions cuando el admin acaba de
+  # cargar/editar piezas y quiere refrescar el prerender de inmediato.
+  workflow_dispatch: {}
+  # Cuando cambia index.html en main (por ej. edicion del layout de la
+  # ficha o cambio de anon key) tambien regeneramos por si el HTML de
+  # producto necesita mantenerse en sincronia.
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'scripts/generar-prerender.mjs'
+      - '.github/workflows/prerender.yml'
+
+# Un solo run a la vez para no pisar commits concurrentes
+concurrency:
+  group: prerender
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  generar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Necesario para poder pushear cambios como el propio workflow
+          persist-credentials: true
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generar prerender
+        run: node scripts/generar-prerender.mjs
+
+      - name: Commit y push si hay cambios
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          if [ -z "$(git status --porcelain p sitemap.xml)" ]; then
+            echo "Sin cambios en el prerender."
+            exit 0
+          fi
+          git add p sitemap.xml
+          git commit -m "chore(prerender): regenerar OG por pieza y sitemap [skip ci]"
+          git push
