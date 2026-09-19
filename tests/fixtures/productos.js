@@ -115,4 +115,21 @@ async function mockSupabase(page, productos = PRODUCTOS) {
   await page.route('**/cloudflareinsights.com/**', (route) => route.abort());
 }
 
-module.exports = { PRODUCTOS, PIX, mockSupabase };
+const LOCALE_KEY   = 'va_locale_v1';
+const CART_KEY     = 'va_cart_v1';
+const WISHLIST_KEY = 'va_wishlist_v1';
+
+/**
+ * Fuerza el locale a español ANTES de que la vitrina auto-detecte el
+ * navigator.language. Debe llamarse antes de page.goto().
+ */
+async function forceLocaleES(page) {
+  await page.addInitScript((key) => {
+    try { localStorage.setItem(key, 'es'); } catch (_) {}
+  }, LOCALE_KEY);
+}
+
+module.exports = {
+  PRODUCTOS, PIX, mockSupabase,
+  forceLocaleES, LOCALE_KEY, CART_KEY, WISHLIST_KEY,
+};

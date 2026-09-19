@@ -1,10 +1,11 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { mockSupabase } = require('./fixtures/productos');
+const { mockSupabase, forceLocaleES, CART_KEY } = require('./fixtures/productos');
 
 test.describe('Carrito v2 (con cantidades)', () => {
   test.beforeEach(async ({ page }) => {
     await mockSupabase(page);
+    await forceLocaleES(page);
   });
 
   test('agregar una pieza al carrito actualiza el badge', async ({ page }) => {
@@ -44,7 +45,7 @@ test.describe('Carrito v2 (con cantidades)', () => {
       window.carritoAgregar('VA-001');
       window.carritoAgregar('VA-004');
     });
-    const raw = await page.evaluate(() => localStorage.getItem('va_cart_v1'));
+    const raw = await page.evaluate((k) => localStorage.getItem(k), CART_KEY);
     const parsed = JSON.parse(raw);
     expect(Array.isArray(parsed)).toBe(true);
     expect(parsed.every((x) => typeof x === 'object' && 'id' in x && 'cantidad' in x)).toBe(true);
@@ -55,13 +56,20 @@ test.describe('Carrito v2 (con cantidades)', () => {
   test('migración v1 → v2: [id, id, id] se rehidrata a v2', async ({ page }) => {
     await page.goto('/');
     // Inyecta formato viejo antes de leer
-    await page.evaluate(() => {
-      localStorage.setItem('va_cart_v1', JSON.stringify(['VA-001', 'VA-001', 'VA-002']));
-    });
+    await page.evaluate((k) => {
+      localStorage.setItem(k, JSON.stringify(['VA-001', 'VA-001', 'VA-002']));
+    }, CART_KEY);
+    // carritoTotalUnidades usa carritoLeer, que aplica la migración al vuelo.
     const total = await page.evaluate(() => window.carritoTotalUnidades && window.carritoTotalUnidades());
     expect(total).toBe(3);
-    const raw = await page.evaluate(() => localStorage.getItem('va_cart_v1'));
+    // Cualquier operación que llame a carritoGuardar (agregar+quitar de un id
+    // efímero) persiste el resto en el formato v2 sin cambiar el total real.
+    await page.evaluate(() => {
+      window.carritoAgregar('VA-tmp'); window.carritoQuitar('VA-tmp');
+    });
+    const raw = await page.evaluate((k) => localStorage.getItem(k), CART_KEY);
     const parsed = JSON.parse(raw);
     expect(parsed.some((x) => x.id === 'VA-001' && x.cantidad === 2)).toBe(true);
+    expect(parsed.some((x) => x.id === 'VA-002' && x.cantidad === 1)).toBe(true);
   });
 });

@@ -1,19 +1,21 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { mockSupabase } = require('./fixtures/productos');
+const { mockSupabase, forceLocaleES } = require('./fixtures/productos');
 
 test.describe('Encargo personalizado', () => {
   test.beforeEach(async ({ page }) => {
     await mockSupabase(page);
+    await forceLocaleES(page);
   });
 
   test('el modal se abre desde el CTA "Solicitar encargo personalizado"', async ({ page }) => {
     await page.goto('/');
-    const cta = page.getByText(/encargo personalizado/i).first();
+    // Selector inequívoco del CTA en la sección "custom" (no matchea el
+    // título del propio modal, que también contiene "Encargo personalizado").
+    const cta = page.locator('a[data-i18n="section.custom.cta"]').first();
     await cta.scrollIntoViewIfNeeded();
     await cta.click();
-    // Modal presente (buscar por role dialog o clase modal visible)
-    const modal = page.locator('.modal:visible, [role="dialog"]:visible').first();
+    const modal = page.locator('#encargo-modal');
     await expect(modal).toBeVisible({ timeout: 5_000 });
   });
 
