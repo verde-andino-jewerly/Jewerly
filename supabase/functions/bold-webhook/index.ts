@@ -63,10 +63,16 @@ serve(async (req) => {
     } else if (tipo === 'SALE_REJECTED') {
       const { error } = await supabase.rpc('cancelar_pago_web', { p_referencia: referencia })
       if (error) throw error
+    } else if (tipo === 'VOID_APPROVED') {
+      // Reembolso confirmado por Bold: la venta ya estaba pagada y Bold
+      // aprobo la anulacion. Marca ventas como 'reembolsado' y libera el
+      // stock (republica el producto si estaba oculto).
+      const { error } = await supabase.rpc('reembolsar_pago_web', { p_referencia: referencia })
+      if (error) throw error
     }
-    // VOID_APPROVED / VOID_REJECTED: anulaciones sobre un pago ya resuelto
-    // (reembolsos). Fuera de alcance de la fase 1, no hay flujo de
-    // reembolsos todavia; no se tocan esos pedidos.
+    // VOID_REJECTED: Bold rechazo la solicitud de anulacion (por ejemplo
+    // fuera de plazo). No hay que revertir nada en la base, el pago sigue
+    // en pie. Solo se loguea el evento para auditoria.
   } catch (error) {
     console.error('bold-webhook: error al aplicar el pago', referencia, error)
     // 200 igual: Bold reintenta un error 5xx hasta 5 veces y el pedido queda

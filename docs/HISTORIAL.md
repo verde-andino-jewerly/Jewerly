@@ -244,5 +244,14 @@ o **[hecho v4]** (Sprint 2 backend, 19/09/2026).
   por `cert_num`.
 - **Auth real con Supabase Auth** — reemplazar `x-admin-token` por JWT.
 - **Storage bucket** para fotos grandes en vez de base64 embebido.
+- **[hecho v5] Reembolsos (VOID de Bold).** Cerrado con la migración
+  `reembolsar_pago_web_rpc` (Sprint 3, 19/09/2026). El webhook Bold
+  ahora maneja `VOID_APPROVED` invocando la RPC nueva: las ventas
+  pagadas/enviadas/entregadas pasan a `'reembolsado'` (valor añadido
+  al check constraint), y si el producto estaba `'oculto'` por stock
+  lleno vuelve a `'publicado'` automáticamente. La vista
+  `productos_publicos` no cuenta reembolsadas. `VOID_REJECTED` solo
+  loguea. Los reembolsos se disparan desde el dashboard de Bold; el
+  panel admin no tiene UI propia todavía.
 - **Video en productos** — soporte para videos de demostración.
 - **Generador de publicaciones para redes** desde el panel privado.
