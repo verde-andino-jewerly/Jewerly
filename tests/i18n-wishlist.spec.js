@@ -58,15 +58,13 @@ test.describe('Wishlist (favoritos)', () => {
     await page.goto('/');
     await waitForCatalog(page);
     await expect(page.locator('#grid > *').first()).toBeVisible({ timeout: 10_000 });
-    // Marca VA-002 como favorito y activa el filtro llamando al helper con el
-    // elemento real (su firma es toggleWishlistFilter(btn) y hace
-    // btn.classList.toggle). Click directo falla si el panel está colapsado.
     await page.evaluate(() => {
       window.wishlistToggle('VA-002');
       const btn = document.getElementById('filter-wishlist-chip');
       if (btn) window.toggleWishlistFilter(btn);
     });
-    await expect(page.locator('#grid')).toContainText('VA-002');
-    await expect(page.locator('#grid')).not.toContainText('VA-001');
+    // VA-002 es el arete (Chivor). VA-001 es el anillo (Muzo).
+    await expect(page.locator('#grid')).toContainText(/chivor/i);
+    await expect(page.locator('#grid')).not.toContainText(/muzo/i);
   });
 });
