@@ -1972,6 +1972,7 @@ function openModal(id) {
       '<div class="modal-actions">' +
         '<a class="modal-wa" href="' + waLink + '" target="_blank" rel="noopener" onclick="trackEvent(\'whatsapp_click\', { origen: \'ficha\', id_producto: \'' + jsEsc(it.id) + '\' })">Preguntar por WhatsApp</a>' +
         '<button class="modal-share" onclick="sharePiece(\'' + jsEsc(it.id) + '\')" title="Compartir">Compartir</button>' +
+        '<button class="modal-share" onclick="descargarFichaPDF(\'' + jsEsc(it.id) + '\')" title="Descargar ficha técnica en PDF">Ficha PDF</button>' +
       '</div>' +
     '</div>';
 
@@ -2354,6 +2355,129 @@ function cerrarCheckout(evento) {
   if (qp.has('pedido')) {
     try { history.replaceState({}, '', location.origin + location.pathname); } catch (_) {}
   }
+}
+function cargarJsPdf(cb) {
+  if (window.__jspdfListo && window.jspdf) { cb(); return; }
+  var script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  script.onload = function() { window.__jspdfListo = true; cb(); };
+  script.onerror = function() { toast('No se pudo cargar el generador de PDF. Intenta de nuevo.'); };
+  document.body.appendChild(script);
+}
+function descargarFichaPDF(id) {
+  var it = findItem(id);
+  if (!it) return;
+  trackEvent('ficha_pdf_descarga', { id_producto: id });
+  toast('Generando ficha…');
+  cargarJsPdf(function() {
+    try {
+      var jsPDF = window.jspdf && window.jspdf.jsPDF;
+      if (!jsPDF) { toast('El generador de PDF no cargó correctamente.'); return; }
+      var doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      var W = doc.internal.pageSize.getWidth();
+      var margen = 40;
+      var y = margen;
+      // Encabezado
+      doc.setTextColor(31, 111, 74);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
+      doc.text('Verde Andino Jewelry', margen, y); y += 18;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+      doc.setTextColor(90, 90, 90);
+      doc.text('Esmeraldas de Colombia · Ficha técnica de la pieza', margen, y); y += 20;
+      doc.setDrawColor(31, 111, 74); doc.setLineWidth(1.2);
+      doc.line(margen, y, W - margen, y); y += 18;
+      // Foto principal (si existe)
+      var foto = (it.fotos && it.fotos[0]) || it.foto || '';
+      var tipoImg = /^data:image\/png/i.test(foto) ? 'PNG' : 'JPEG';
+      if (foto && /^(data:image|https?:)/.test(foto)) {
+        try {
+          var fotoW = 240, fotoH = 240;
+          doc.addImage(foto, tipoImg, margen, y, fotoW, fotoH, undefined, 'FAST');
+          // Datos al lado derecho de la foto
+          var textoX = margen + fotoW + 20;
+          var textoY = y + 12;
+          doc.setTextColor(20, 20, 20);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+          doc.text(it.id || '', textoX, textoY); textoY += 16;
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+          doc.setTextColor(90, 90, 90);
+          var cat = (it.categoria || '') + (it.estilo ? ' · ' + it.estilo : '');
+          doc.text(cat, textoX, textoY); textoY += 18;
+          doc.setTextColor(30, 30, 30);
+          if (it.descripcion) {
+            var lineas = doc.splitTextToSize(it.descripcion, W - textoX - margen);
+            doc.text(lineas, textoX, textoY);
+            textoY += lineas.length * 12 + 6;
+          }
+          y += fotoH + 20;
+        } catch (err) {
+          console.error('PDF imagen error:', err);
+          y += 4;
+        }
+      } else {
+        doc.setTextColor(20, 20, 20);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+        doc.text(it.id || '', margen, y); y += 18;
+      }
+      // Detalles
+      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.5);
+      doc.line(margen, y, W - margen, y); y += 16;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.setTextColor(31, 111, 74);
+      doc.text('Detalles', margen, y); y += 16;
+      var filas = [];
+      if (it.metal) filas.push(['Metal', metalConLey(it)]);
+      if (it.color) filas.push(['Color', it.color]);
+      var st = stonesText(it.piedras);
+      if (st) filas.push(['Piedras', st]);
+      var med = medidaText(it.medida, it.medidaU);
+      if (med) filas.push(['Medida', med]);
+      if (it.genero) filas.push(['Género', it.genero]);
+      if (it.certificado === 'Sí') filas.push(['Certificado', 'Incluye certificado gemológico']);
+      doc.setFontSize(10);
+      filas.forEach(function(par) {
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(90, 90, 90);
+        doc.text(par[0], margen, y);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
+        var val = doc.splitTextToSize(String(par[1]), W - margen - 100);
+        doc.text(val, margen + 80, y);
+        y += Math.max(14, val.length * 12);
+      });
+      y += 8;
+      // Precio
+      doc.setDrawColor(220, 220, 220); doc.line(margen, y, W - margen, y); y += 18;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.setTextColor(31, 111, 74);
+      doc.text('Precio', margen, y); y += 16;
+      doc.setFontSize(14);
+      if (it.precioOferta && it.precio) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+        doc.setTextColor(140, 140, 140);
+        doc.text('Precio regular: ' + fmtPrecio(it.precio), margen, y); y += 14;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+        doc.setTextColor(31, 111, 74);
+        doc.text('En oferta: ' + fmtPrecio(it.precioOferta), margen, y); y += 18;
+      } else if (it.precio) {
+        doc.setTextColor(31, 111, 74);
+        doc.text(fmtPrecio(it.precio), margen, y); y += 18;
+      }
+      // Footer
+      var pageH = doc.internal.pageSize.getHeight();
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+      doc.setTextColor(140, 140, 140);
+      var url = location.origin + location.pathname + '?p=' + encodeURIComponent(it.id);
+      doc.text(url, margen, pageH - 40);
+      var hoy = new Date();
+      doc.text('Ficha generada el ' + hoy.toLocaleDateString('es-CO'), margen, pageH - 26);
+      doc.text('WhatsApp +57 318 093 5276  ·  verdeandino.app', margen, pageH - 12);
+      // Guardar
+      var slug = String(it.id || 'pieza').replace(/[^A-Za-z0-9\-]/g, '-');
+      doc.save('verde-andino-' + slug + '.pdf');
+    } catch (err) {
+      console.error('Error generando PDF:', err);
+      toast('No se pudo generar el PDF.');
+    }
+  });
 }
 function cargarBoldWidget(cb) {
   if (window.__boldWidgetListo) { cb(); return; }
