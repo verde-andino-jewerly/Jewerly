@@ -90,29 +90,29 @@ const PRODUCTOS = [
  * Debe llamarse ANTES de page.goto('/').
  */
 async function mockSupabase(page, productos = PRODUCTOS) {
-  await page.route('**/rest/v1/productos**', (route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      headers: { 'access-control-allow-origin': '*' },
-      body: JSON.stringify(productos),
-    });
-  });
-  // RPCs varios (crear_pedido_web, estado_pedido_web, etc.): responder vacio
-  await page.route('**/rest/v1/rpc/**', (route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: 'null',
-    });
-  });
-  // Edge functions: idem
-  await page.route('**/functions/v1/**', (route) => {
-    route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  // Un solo router basado en URL parseada (más robusto que los globs
+  // de Playwright, que a veces no matchean cross-origin como esperamos).
+  await page.route((url) => url.hostname.endsWith('supabase.co'), (route) => {
+    const u = new URL(route.request().url());
+    if (u.pathname.startsWith('/rest/v1/rpc/')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
+    }
+    if (u.pathname.startsWith('/rest/v1/productos')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify(productos),
+      });
+    }
+    if (u.pathname.startsWith('/functions/v1/')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    }
+    // Cualquier otra ruta de supabase.co: 200 vacío para no dejar pending
+    return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
   });
   // Bloquea el beacon de Cloudflare (no queremos ruido en la red durante tests)
-  await page.route('**/static.cloudflareinsights.com/**', (route) => route.abort());
-  await page.route('**/cloudflareinsights.com/**', (route) => route.abort());
+  await page.route((url) => url.hostname.endsWith('cloudflareinsights.com'), (route) => route.abort());
 }
 
 const LOCALE_KEY   = 'va_locale_v1';

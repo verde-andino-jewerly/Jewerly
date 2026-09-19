@@ -18,23 +18,23 @@ test.describe('i18n ES ↔ EN', () => {
     const locale = await page.evaluate((k) => localStorage.getItem(k), LOCALE_KEY);
     expect(locale).toBe('en');
   });
+});
+
+// Este describe NO usa forceLocaleES para que el reload no reescriba el
+// locale. Con la vitrina auto-detectando EN por navigator.language de
+// Chromium, comprobamos que la persistencia via localStorage funcione.
+test.describe('i18n persistencia sin init script', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockSupabase(page);
+  });
 
   test('el idioma persiste tras recargar', async ({ page }) => {
-    // NO usar forceLocaleES aquí: su addInitScript se dispara en cada
-    // navegación (incluye reload), pisando la elección del toggle.
-    // En su lugar sembramos 'en' una sola vez y verificamos que persiste.
-    await page.addInitScript((key) => {
-      try {
-        if (!sessionStorage.getItem('__seeded__')) {
-          localStorage.setItem(key, 'en');
-          sessionStorage.setItem('__seeded__', '1');
-        }
-      } catch (_) {}
-    }, LOCALE_KEY);
     await page.goto('/');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    // Chromium arranca en EN por auto-detect. Fijamos ES en localStorage
+    // y verificamos que tras reload la vitrina sigue en ES.
+    await page.evaluate((k) => localStorage.setItem(k, 'es'), LOCALE_KEY);
     await page.reload();
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'es');
   });
 });
 
@@ -59,8 +59,8 @@ test.describe('Wishlist (favoritos)', () => {
     await waitForCatalog(page);
     await expect(page.locator('#grid > *').first()).toBeVisible({ timeout: 10_000 });
     // Marca VA-002 como favorito y activa el filtro llamando al helper con el
-    // elemento real (su firma es toggleWishlistFilter(btn) y hace btn.classList
-    // .toggle). Click directo falla si el panel de filtros está colapsado.
+    // elemento real (su firma es toggleWishlistFilter(btn) y hace
+    // btn.classList.toggle). Click directo falla si el panel está colapsado.
     await page.evaluate(() => {
       window.wishlistToggle('VA-002');
       const btn = document.getElementById('filter-wishlist-chip');
