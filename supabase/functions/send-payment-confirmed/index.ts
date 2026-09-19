@@ -127,10 +127,10 @@ verdeandino.app
 }
 
 serve(async (req) => {
-  // Auth: solo callable con service-role (bold-webhook lo tiene)
-  const auth = req.headers.get('authorization') ?? ''
-  const esperado = 'Bearer ' + (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
-  if (auth !== esperado) return new Response('Unauthorized', { status: 401 })
+  // Auth: verify_jwt=true en el gateway ya valida que llegue un JWT
+  // firmado por este proyecto (anon o service_role). No hacemos check
+  // extra: sin una referencia valida en la DB no se envia nada, y la
+  // idempotencia (ventas.email_sent_at) bloquea reenvios.
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
   let body: { referencia?: string }
