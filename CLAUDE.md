@@ -100,6 +100,22 @@ ocupadas`. La vitrina lee de esta view (no del `productos` crudo). En
 cuando `disponibles == 0`. El botón "Agregar a mi selección" del modal
 se deshabilita cuando la pieza está reservada por otro cliente.
 
+**Reembolsos (Sprint 3, 19/09/2026)**: el webhook Bold ahora maneja
+`VOID_APPROVED` invocando la RPC `reembolsar_pago_web(p_referencia)`:
+- Ventas con `estado IN ('pagado','enviado','entregado')` pasan a
+  `'reembolsado'` (nuevo valor permitido en `ventas_estado_check`).
+- Si el producto estaba `'oculto'` por stock lleno, vuelve a
+  `'publicado'` automáticamente (el slot liberado permite nuevas
+  ventas).
+- La vista `productos_publicos` no cuenta las reembolsadas al calcular
+  `disponibles` (solo pendiente/pagado/enviado/entregado).
+- `VOID_REJECTED` (Bold rechaza la anulación): no toca la base, solo
+  loguea. El pago sigue firme.
+- Idempotente: llamar `reembolsar_pago_web` sobre una referencia ya
+  reembolsada no rompe (el UPDATE no matchea).
+- Actualmente no hay panel admin para disparar reembolsos manualmente:
+  se opera desde el dashboard de Bold, que notifica al webhook.
+
 **Git:** el correo debe ser la dirección privada de GitHub, porque la cuenta
 tiene la privacidad de correo activada:
 
