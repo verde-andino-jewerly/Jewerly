@@ -847,6 +847,13 @@
   .cart-qty-btn { width: 26px; height: 26px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; font-size: 1rem; line-height: 1; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; }
   .cart-qty-btn:hover { border-color: var(--esm); color: var(--esm); }
   .cart-qty-val { min-width: 1.5rem; text-align: center; font-variant-numeric: tabular-nums; font-size: 0.9rem; color: var(--text); }
+  /* Accesibilidad + UX ligero */
+  .skip-link { position: absolute; left: -9999px; top: 0.5rem; padding: 0.55rem 0.9rem; background: var(--esm); color: #fff; font-size: 0.85rem; border-radius: 4px; z-index: 100; text-decoration: none; }
+  .skip-link:focus { left: 0.5rem; outline: 2px solid var(--gold); outline-offset: 2px; }
+  .scroll-top { position: fixed; bottom: 1rem; left: 1rem; z-index: 80; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: var(--shadow); font-size: 1.1rem; }
+  .scroll-top.visible { display: flex; }
+  .scroll-top:hover { border-color: var(--esm); color: var(--esm); }
+  :focus-visible { outline: 2px solid var(--esm); outline-offset: 2px; }
   .cart-total { display: flex; justify-content: space-between; align-items: baseline; padding: 1rem 0; margin-top: 0.3rem; border-top: 1px solid var(--border); font-family: Georgia, serif; font-size: 1.15rem; }
   .cart-total b { color: var(--gold); font-weight: 400; }
   .checkout-form { display: flex; flex-direction: column; gap: 0.7rem; }
@@ -883,6 +890,8 @@
 </style>
 </head>
 <body>
+
+<a class="skip-link" href="#coleccion">Saltar al catálogo</a>
 
 <button class="theme-btn" onclick="toggleTheme()" title="Cambiar tema">◑</button>
 <button class="cart-btn" onclick="abrirCarrito()" title="Carrito" aria-label="Ver carrito">🛍<span class="cart-badge" id="cart-badge"></span></button>
@@ -1133,7 +1142,7 @@
   <p class="copy">© 2026 · Todos los derechos reservados</p>
 </footer>
 
-<div class="modal-overlay" id="legal-modal" onclick="cerrarLegal(event)">
+<div class="modal-overlay" id="legal-modal" role="dialog" aria-modal="true" aria-labelledby="legal-title" onclick="cerrarLegal(event)">
   <div class="modal legal-modal" onclick="event.stopPropagation()">
     <div class="legal-head">
       <h3 id="legal-titulo"></h3>
@@ -1143,7 +1152,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="cart-modal" onclick="cerrarCarrito(event)">
+<div class="modal-overlay" id="cart-modal" role="dialog" aria-modal="true" aria-label="Tu selección" onclick="cerrarCarrito(event)">
   <div class="modal cart-modal" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="cerrarCarrito()" aria-label="Cerrar">×</button>
     <div class="cart-body">
@@ -1159,7 +1168,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="checkout-modal" onclick="cerrarCheckout(event)">
+<div class="modal-overlay" id="checkout-modal" role="dialog" aria-modal="true" aria-label="Checkout" onclick="cerrarCheckout(event)">
   <div class="modal cart-modal" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="cerrarCheckout()" aria-label="Cerrar">×</button>
     <div class="cart-body" id="checkout-body">
@@ -1192,7 +1201,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="encargo-modal" onclick="cerrarEncargo(event)">
+<div class="modal-overlay" id="encargo-modal" role="dialog" aria-modal="true" aria-label="Encargo personalizado" onclick="cerrarEncargo(event)">
   <div class="modal cart-modal" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="cerrarEncargo()" aria-label="Cerrar">×</button>
     <div class="cart-body">
@@ -1255,13 +1264,15 @@
   </div>
 </div>
 
+<button type="button" class="scroll-top" id="scroll-top-btn" onclick="_scrollTop()" title="Volver arriba" aria-label="Volver arriba">↑</button>
+
 <a href="#" onclick="waGeneral(event)" class="float-wa" title="WhatsApp" aria-label="Contactar por WhatsApp">
   <svg width="30" height="30" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
     <path fill="#ffffff" fill-rule="evenodd" clip-rule="evenodd" d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.86 9.86 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24a8.2 8.2 0 0 1 5.83 2.42 8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.69 8.23-8.24 8.23Zm4.52-6.16c-.25-.13-1.47-.72-1.69-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.79.97-.14.16-.29.19-.54.06-.25-.12-1.05-.38-1.99-1.23-.74-.65-1.23-1.46-1.38-1.71-.14-.25-.01-.38.11-.51.11-.11.25-.29.37-.44.13-.15.17-.25.25-.42.09-.16.04-.31-.02-.44-.06-.12-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.43h-.47c-.16 0-.42.06-.64.31-.22.25-.84.82-.84 2s.86 2.32.98 2.48c.12.17 1.69 2.58 4.1 3.62.57.25 1.02.39 1.37.5.57.19 1.1.16 1.51.1.46-.07 1.42-.58 1.62-1.15.2-.56.2-1.05.14-1.15-.06-.1-.22-.16-.47-.29Z"/>
   </svg>
 </a>
 
-<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+<div class="modal-overlay" id="modal" role="dialog" aria-modal="true" aria-label="Detalle de la pieza" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-img-wrap">
       <button class="modal-close" onclick="closeModal()" aria-label="Cerrar">×</button>
@@ -2208,7 +2219,7 @@ function renderCarrito() {
     var precio = pieza.precioOferta || pieza.precio;
     var subtotal = precio * linea.cantidad;
     total += subtotal;
-    var img = pieza.foto ? '<img src="' + pieza.foto + '" alt="">' : '<div class="cart-item-ph"></div>';
+    var img = pieza.foto ? '<img src="' + pieza.foto + '" alt="" loading="lazy">' : '<div class="cart-item-ph"></div>';
     var idJs = jsEsc(linea.id);
     html += '<div class="cart-item">' + img +
       '<div class="cart-item-info">' +
@@ -2493,7 +2504,7 @@ function _crossSellHtml() {
   var cards = picks.map(function(p) {
     var precio = p.precioOferta || p.precio || 0;
     var foto = (p.fotos && p.fotos[0]) || p.foto;
-    var img = foto ? '<img src="' + foto + '" alt="">' : '<div class="ph"></div>';
+    var img = foto ? '<img src="' + foto + '" alt="" loading="lazy">' : '<div class="ph"></div>';
     return '<button type="button" class="cross-sell-card" onclick="_verProductoDesdeCrossSell(\'' + jsEsc(p.id) + '\')">' +
       img +
       '<div class="desc">' + esc(p.descripcion || p.id) + '</div>' +
@@ -2592,6 +2603,56 @@ function manejarRegresoDePago() {
   }
   revisar();
 }
+
+// Escape cierra el modal top-most abierto. Orden: los que se pueden apilar
+// sobre otros primero (checkout puede abrirse desde carrito).
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  var overlays = [
+    { id: 'checkout-modal', cerrar: cerrarCheckout },
+    { id: 'encargo-modal', cerrar: cerrarEncargo },
+    { id: 'cart-modal', cerrar: cerrarCarrito },
+    { id: 'modal', cerrar: closeModal },
+    { id: 'legal-modal', cerrar: cerrarLegal }
+  ];
+  for (var i = 0; i < overlays.length; i++) {
+    var el = document.getElementById(overlays[i].id);
+    if (el && el.classList.contains('open')) { overlays[i].cerrar(); break; }
+  }
+});
+// Cuando cualquier modal abre, mueve el foco al boton cerrar para atajos y
+// screen readers. Usa MutationObserver para no tocar cada abrir* individual.
+(function() {
+  var modales = ['checkout-modal', 'encargo-modal', 'cart-modal', 'modal', 'legal-modal'];
+  var estado = {};
+  var mo = new MutationObserver(function(muts) {
+    muts.forEach(function(m) {
+      if (m.type !== 'attributes' || m.attributeName !== 'class') return;
+      var el = m.target;
+      var id = el.id;
+      if (modales.indexOf(id) < 0) return;
+      var abierto = el.classList.contains('open');
+      if (abierto && !estado[id]) {
+        estado[id] = true;
+        var btn = el.querySelector('.modal-close');
+        if (btn) setTimeout(function() { btn.focus(); }, 30);
+      } else if (!abierto) {
+        estado[id] = false;
+      }
+    });
+  });
+  modales.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+})();
+// Boton scroll-to-top: aparece pasados 400px de scroll.
+function _scrollTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+window.addEventListener('scroll', function() {
+  var btn = document.getElementById('scroll-top-btn');
+  if (!btn) return;
+  btn.classList.toggle('visible', window.scrollY > 400);
+}, { passive: true });
 
 applyFilters();
 sbFetchAll(function() { applyFilters(); abrirProductoDesdeUrl(); });
