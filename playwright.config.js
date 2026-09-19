@@ -2,9 +2,9 @@
 const { defineConfig, devices } = require('@playwright/test');
 
 /**
- * Sirve el repo con Python (no requiere dependencias extra) en el puerto 4173
- * y corre los tests contra esa URL local. Si el puerto ya está ocupado,
- * Playwright reutiliza el server existente (reuseExistingServer).
+ * Sirve el repo con un mini-servidor Node (scripts/serve.mjs) en 127.0.0.1:4173
+ * y corre los tests contra esa URL. Si el puerto ya está ocupado, Playwright
+ * reutiliza el server existente (reuseExistingServer).
  */
 module.exports = defineConfig({
   testDir: './tests',
@@ -29,7 +29,7 @@ module.exports = defineConfig({
   ],
 
   webServer: {
-    command: 'python3 -m http.server 4173 --bind 127.0.0.1',
+    command: 'node scripts/serve.mjs',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 15_000,
