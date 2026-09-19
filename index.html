@@ -335,8 +335,22 @@
     border-radius: 4px; overflow: hidden;
     cursor: pointer;
     transition: all 0.25s;
+    position: relative;
   }
   .card:hover { box-shadow: var(--shadow-h); border-color: var(--gold-l); }
+  .fav-btn {
+    background: rgba(255,255,255,0.9); border: 1px solid rgba(0,0,0,0.06);
+    color: var(--text-3); cursor: pointer;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; line-height: 1; padding: 0;
+    transition: color 0.15s, transform 0.15s, background 0.15s;
+  }
+  .fav-btn:hover { color: #c0392b; transform: scale(1.08); }
+  .fav-btn.on { color: #c0392b; }
+  :root[data-theme="dark"] .fav-btn { background: rgba(30,28,25,0.85); border-color: rgba(255,255,255,0.08); color: var(--text-3); }
+  .card-fav { position: absolute; top: 0.55rem; right: 0.55rem; z-index: 2; width: 32px; height: 32px; backdrop-filter: blur(6px); }
+  .modal-fav { width: 36px; height: 36px; margin-left: 0.5rem; }
   .card-img {
     width: 100%; aspect-ratio: 1; object-fit: cover;
     background: var(--bg-alt); display: block;
@@ -990,6 +1004,12 @@
             <button type="button" class="filter-chip" data-oferta="1" onclick="toggleOfertaFilter(this)">Solo en oferta</button>
           </div>
         </div>
+        <div>
+          <span class="filter-section-label">Favoritos</span>
+          <div class="filter-chips" id="filter-wishlist-chips">
+            <button type="button" class="filter-chip" id="filter-wishlist-chip" onclick="toggleWishlistFilter(this)">♥ Solo mis favoritos</button>
+          </div>
+        </div>
       </div>
       <button type="button" class="filter-clear" onclick="clearFilters()">Limpiar filtros</button>
     </div>
@@ -1296,7 +1316,57 @@ var activePiedra = '';       // '' | 'esmeralda' | 'sin'
 var activePrecioMin = null;  // number | null
 var activePrecioMax = null;  // number | null
 var activeOferta = false;
+var activeWishlistOnly = false;
 var _precioTimer = null;
+var WISHLIST_KEY = 'va_wishlist_v1';
+function wishlistLeer() {
+  try {
+    var raw = JSON.parse(localStorage.getItem(WISHLIST_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter(function(x) { return typeof x === 'string'; }) : [];
+  } catch (_) { return []; }
+}
+function wishlistGuardar(ids) {
+  localStorage.setItem(WISHLIST_KEY, JSON.stringify(ids));
+}
+function wishlistTiene(id) { return wishlistLeer().indexOf(id) >= 0; }
+function wishlistToggle(id) {
+  var lista = wishlistLeer();
+  var i = lista.indexOf(id);
+  var estaba = i >= 0;
+  if (estaba) lista.splice(i, 1); else lista.push(id);
+  wishlistGuardar(lista);
+  trackEvent(estaba ? 'wishlist_quitar' : 'wishlist_agregar', { id_producto: id });
+  return !estaba;
+}
+function wishlistToggleDesdeCard(evento, id) {
+  if (evento) { evento.stopPropagation(); evento.preventDefault(); }
+  var ahora = wishlistToggle(id);
+  var btn = evento && evento.currentTarget;
+  if (btn) {
+    btn.classList.toggle('on', ahora);
+    btn.setAttribute('aria-pressed', ahora ? 'true' : 'false');
+    btn.setAttribute('title', ahora ? 'Quitar de favoritos' : 'Guardar en favoritos');
+  }
+  // Si el filtro "solo favoritos" esta activo, la card puede desaparecer.
+  if (activeWishlistOnly) applyFilters();
+}
+function wishlistToggleDesdeModal(id) {
+  var ahora = wishlistToggle(id);
+  var btn = document.getElementById('modal-fav-btn');
+  if (btn) {
+    btn.classList.toggle('on', ahora);
+    btn.setAttribute('aria-pressed', ahora ? 'true' : 'false');
+    btn.setAttribute('title', ahora ? 'Quitar de favoritos' : 'Guardar en favoritos');
+    btn.textContent = ahora ? '♥' : '♡';
+  }
+  // Sincronizar la card en el grid si esta visible
+  var cardBtn = document.querySelector('.card-fav[data-fav-id="' + id + '"]');
+  if (cardBtn) {
+    cardBtn.classList.toggle('on', ahora);
+    cardBtn.textContent = ahora ? '♥' : '♡';
+  }
+  if (activeWishlistOnly) applyFilters();
+}
 
 /* Carrusel del modal de producto */
 var admCurrentCarouselIndex = 0;
@@ -1684,6 +1754,11 @@ function toggleOfertaFilter(btn) {
   btn.classList.toggle('activo', activeOferta);
   applyFilters();
 }
+function toggleWishlistFilter(btn) {
+  activeWishlistOnly = !activeWishlistOnly;
+  btn.classList.toggle('activo', activeWishlistOnly);
+  applyFilters();
+}
 function onPrecioInput() {
   clearTimeout(_precioTimer);
   _precioTimer = setTimeout(function() {
@@ -1700,6 +1775,7 @@ function clearFilters() {
   activePrecioMin = null;
   activePrecioMax = null;
   activeOferta = false;
+  activeWishlistOnly = false;
   document.getElementById('precio-min').value = '';
   document.getElementById('precio-max').value = '';
   document.querySelectorAll('#filter-panel .filter-chip').forEach(function(c) { c.classList.remove('activo'); });
@@ -1711,6 +1787,7 @@ function _contarFiltrosActivos() {
   if (activePiedra) n += 1;
   if (activePrecioMin !== null || activePrecioMax !== null) n += 1;
   if (activeOferta) n += 1;
+  if (activeWishlistOnly) n += 1;
   return n;
 }
 
@@ -1746,6 +1823,7 @@ function applyFilters() {
       if (it.piedras && it.piedras.length) return false;
     }
     if (activeOferta && !it.precioOferta) return false;
+    if (activeWishlistOnly && !wishlistTiene(it.id)) return false;
     return true;
   });
 
@@ -1789,7 +1867,10 @@ function renderGrid(items, totalPublic) {
       : '<div class="card-img-placeholder"><svg width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="50,15 82,42 74,82 26,82 18,42" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></div>';
     var meta = [metalConLey(it), it.color, stonesText(it.piedras)].filter(Boolean).join(' · ');
     var demoBadge = it._demo ? '<span class="card-demo-badge">Muestra</span>' : '';
+    var esFav = wishlistTiene(it.id);
+    var favBtn = '<button type="button" class="fav-btn card-fav' + (esFav ? ' on' : '') + '" data-fav-id="' + jsEsc(it.id) + '" onclick="wishlistToggleDesdeCard(event, \'' + jsEsc(it.id) + '\')" aria-pressed="' + (esFav ? 'true' : 'false') + '" title="' + (esFav ? 'Quitar de favoritos' : 'Guardar en favoritos') + '" aria-label="Favorito">' + (esFav ? '♥' : '♡') + '</button>';
     h += '<div class="card" onclick="openModal(\'' + jsEsc(it.id) + '\')">' +
+      favBtn +
       img +
       '<div class="card-body">' +
         '<div class="card-cat">' + esc(it.categoria) + (it.estilo ? ' · ' + esc(it.estilo) : '') + demoBadge + '</div>' +
@@ -1884,8 +1965,9 @@ function openModal(id) {
           '<div style="background: var(--esm-bg); padding: 10px 14px; border-radius: 8px; color: var(--esm); font-weight: bold; font-size: 1.05rem;">' + label + ' · Ahorra $' + Math.round(it.precio - it.precioOferta).toLocaleString('es-CO') + '</div>' +
           '</div>';
       })() : '<div class="modal-price">' + fmtPrecio(it.precio) + '</div>') +
-      '<div class="modal-actions">' +
+      '<div class="modal-actions" style="align-items:center">' +
         '<button class="modal-cart-add' + (carritoTiene(it.id) ? ' en-carrito' : '') + '" id="modal-cart-btn" onclick="carritoAgregarDesdeModal(\'' + jsEsc(it.id) + '\')">' + (carritoTiene(it.id) ? 'Sumar otra (' + carritoCantidad(it.id) + ' en carrito)' : 'Agregar a mi selección') + '</button>' +
+        '<button type="button" class="fav-btn modal-fav" id="modal-fav-btn" onclick="wishlistToggleDesdeModal(\'' + jsEsc(it.id) + '\')" aria-pressed="' + (wishlistTiene(it.id) ? 'true' : 'false') + '" title="' + (wishlistTiene(it.id) ? 'Quitar de favoritos' : 'Guardar en favoritos') + '" aria-label="Favorito">' + (wishlistTiene(it.id) ? '♥' : '♡') + '</button>' +
       '</div>' +
       '<div class="modal-actions">' +
         '<a class="modal-wa" href="' + waLink + '" target="_blank" rel="noopener" onclick="trackEvent(\'whatsapp_click\', { origen: \'ficha\', id_producto: \'' + jsEsc(it.id) + '\' })">Preguntar por WhatsApp</a>' +
