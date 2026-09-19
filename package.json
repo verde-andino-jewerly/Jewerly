@@ -1,0 +1,17 @@
+{
+  "name": "verde-andino-vitrina-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pruebas end-to-end de la vitrina con Playwright",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report",
+    "test:vitrina": "playwright test tests/vitrina.spec.js tests/carrito.spec.js tests/i18n-wishlist.spec.js tests/encargo.spec.js",
+    "test:panel": "playwright test tests/panel.spec.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}

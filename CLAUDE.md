@@ -52,6 +52,28 @@ línea se corren, buscar por nombre):
 | Entrada al cargador | `admShowGate`, `admCheckPin`, `admProbeAuth` |
 | Límite de intentos | `admIsLocked`, `admRecordFail`, `admRecordSuccess` |
 | Historial de un producto | `admHistorialProducto` |
+| Deep-link `?p=id` + JSON-LD Product dinámico | `_setUrlProducto`, `_restaurarUrl`, `abrirProductoDesdeUrl`, `_HEAD_ORIG` (snapshot del `<head>`) |
+| Filtros del catálogo | `applyFilters`, `renderPills`, `setCategory`, `toggleFilterPanel`, `toggleMetalFilter`, `setPiedraFilter`, `toggleOfertaFilter`, `onPrecioInput`, `clearFilters`, `_contarFiltrosActivos` |
+| Carrito v2 (con cantidades) | `carritoLeer` (migra v1→v2), `carritoGuardar`, `carritoCantidad`, `carritoTotalUnidades`, `carritoAgregar`, `carritoSetCantidad`, `carritoQuitar`, `carritoAgregarDesdeModal` |
+| Checkout / retorno de pago | `abrirCheckout`, `confirmarCheckout` (expande items a lista plana), `manejarRegresoDePago`, `_renderEstadoPago`, `_crossSellHtml`, `_waConReferencia` |
+| Encargos personalizados | `abrirEncargo`, `cerrarEncargo`, `enviarEncargo` (arma mensaje WhatsApp estructurado) |
+| Analytics (custom events) | `trackEvent(nombre, props)` — dispatcher: CFWA Pro / Plausible / Umami / no-op |
+| UX / A11y | Listener `keydown` global (Escape cierra top-most), `MutationObserver` de focus, `_scrollTop`, skip link |
+
+**Dependencias externas (CSP)**:
+- `rbvqxrkzepthbbqzkbcg.supabase.co` — REST + Edge Functions + RPCs
+- `cdnjs.cloudflare.com` — jsPDF (panel admin)
+- `checkout.bold.co` — widget de pago
+- `static.cloudflareinsights.com` + `cloudflareinsights.com` — beacon de Cloudflare Web Analytics (pageviews SPA-aware + outbound clicks)
+
+**Token de Cloudflare Web Analytics**: el `data-cf-beacon` en el `<head>`
+lleva `TOKEN_CFWA` como placeholder. Reemplazar por el token real
+generado en el dashboard de Cloudflare (Web Analytics → Add Site free)
+antes del merge para que empiece a registrar tráfico.
+
+**Formato del carrito en `localStorage`**: `va_cart_v1` guarda ahora
+`[{id, cantidad}, ...]` (antes era `[id, id, ...]`). `carritoLeer` migra
+al vuelo entradas del formato viejo, deduplica y descarta malformadas.
 
 **Git:** el correo debe ser la dirección privada de GitHub, porque la cuenta
 tiene la privacidad de correo activada:
