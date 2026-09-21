@@ -364,6 +364,19 @@
   }
   .edited-badge:hover { opacity: 0.7; }
   .locked-icon { color: var(--text-3); font-size: 0.72rem; cursor: default; }
+  /* El candado de un gasto fuera de plazo: se ve apagado, pero es un boton
+     de verdad y responde al tocarlo explicando por que esta bloqueado. */
+  .btn-locked { opacity: 0.55; }
+  .btn-locked:hover { opacity: 1; color: var(--text-2); background: var(--bg-alt); }
+  /* Los iconos de accion de la tabla de ventas (ficha, historial, borrar).
+     Se usaban en el HTML sin existir en la hoja de estilos: quedaban del
+     tamano del emoji, demasiado chicos para acertarles con el dedo. */
+  .btn-small {
+    background: none; border: 1px solid transparent; border-radius: 6px;
+    cursor: pointer; font-size: 0.9rem; line-height: 1;
+    padding: 0.3rem 0.4rem; color: var(--text-2);
+  }
+  .btn-small:hover { border-color: var(--border); background: var(--bg-alt); }
   .audit-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55);
     z-index: 200; align-items: center; justify-content: center; padding: 1rem;
@@ -982,8 +995,11 @@
     input[type="password"], select {
       min-height: 44px;
     }
-    /* Las X de borrar y otros iconos sueltos: cuadrados de 44, centrados. */
-    .btn-del, .auth-pin-toggle {
+    /* Las X de borrar y otros iconos sueltos: cuadrados de 44, centrados.
+       .btn-small entra aqui porque son los iconos de la tabla de ventas —
+       entre ellos el de borrar — y sin ancho minimo el dedo caia fuera y
+       abria la edicion de la fila en vez de borrarla. */
+    .btn-del, .auth-pin-toggle, .btn-small {
       min-width: 44px; display: inline-flex;
       align-items: center; justify-content: center;
     }
@@ -2450,7 +2466,14 @@ function pvConfirmar(mensaje, siAcepta, opciones) {
   $('pv-confirm-msg').textContent = mensaje;
   var si = $('pv-confirm-yes'), no = $('pv-confirm-no');
   si.textContent = opciones.textoSi || 'Eliminar';
-  function cerrar() { ov.dataset.abierto = 'no'; si.onclick = null; no.onclick = null; }
+  no.textContent = opciones.textoNo || 'Cancelar';
+  /* Un aviso informa, no pregunta: sobra el boton de cancelar. Se usa para
+     los avisos que antes iban por toast y se perdian a los 2,5 segundos. */
+  no.hidden = !!opciones.soloAviso;
+  function cerrar() {
+    ov.dataset.abierto = 'no'; si.onclick = null; no.onclick = null;
+    no.hidden = false;   /* el siguiente que lo use vuelve a tener los dos */
+  }
   si.onclick = function() { cerrar(); if (siAcepta) siAcepta(); };
   no.onclick = cerrar;
   ov.dataset.abierto = 'si';
@@ -3631,8 +3654,29 @@ function delExpense(id, ev) {
   var target = null;
   for (var i = 0; i < expenses.length; i++) if (expenses[i].id === id) target = expenses[i];
   if (!target) return;
-  if (target.cat === 'Ingresos por Ventas') { toast('Este ingreso está vinculado a una venta. Elimínalo desde Control de Ventas.'); return; }
-  if (isLocked(target)) { toast('Este gasto tiene mas de 30 dias y no se puede eliminar'); return; }
+  /* Estos dos avisos mandan al usuario a otro sitio o le explican un limite.
+     Iban por toast, que se va solo a los 2,5 s y en el telefono queda sobre
+     la barra de abajo: el aviso existia y no se leia, asi que el boton
+     parecia no hacer nada. Un cuadro espera a que lo cierren. */
+  if (target.cat === 'Ingresos por Ventas') {
+    pvConfirmar(
+      'Este ingreso lo creó una venta, y se borra junto con ella. Ve a Control de Ventas, ' +
+      'elimina la venta, y el ingreso desaparece solo de Finanzas.',
+      function () { switchTab('ven'); },
+      { titulo: 'Se elimina desde Ventas', textoSi: 'Ir a Control de Ventas', textoNo: 'Aquí me quedo' }
+    );
+    return;
+  }
+  if (isLocked(target)) {
+    pvConfirmar(
+      'Este gasto es del ' + (target.date || 'hace más de un mes') + ', y ya pasó el plazo de 30 días ' +
+      'para cambiarlo. El límite protege los meses que ya diste por cerrados: si se pudiera editar, ' +
+      'las cuentas de un periodo cerrado cambiarían después de haberlas revisado.',
+      null,
+      { titulo: 'Bloqueado por antigüedad', textoSi: 'Entendido', soloAviso: true }
+    );
+    return;
+  }
   pvConfirmar(
     'Se elimina «' + target.desc + '» por ' + fmt(target.amount) + '. Esta acción no se puede deshacer.',
     function () { delExpenseConfirmado(id, target); },
@@ -3649,7 +3693,13 @@ function delExpenseConfirmado(id, target) {
     if (editingId === id) { cancelEdit(); return; }
     toast('Gasto eliminado');
     renderFin();
-  }).catch(function(e) { toast('Error al eliminar'); console.error(e); });
+  }).catch(function(e) {
+    /* Antes decia siempre «Error al eliminar» y el motivo real se quedaba en
+       la consola: un rechazo del servidor se veia igual que no haber hecho
+       nada. El resto del archivo ya mostraba e.message; esta era la excepcion. */
+    console.error(e);
+    toast(e && e.message ? e.message : 'Error al eliminar');
+  });
 }
 
 function showAudit(id, ev) {
@@ -3770,7 +3820,13 @@ function renderFin() {
     if (isEdited) descCell += ' <span class="edited-badge" onclick="showAudit(' + e.id + ', event)" title="Ver historial de cambios">&#9998; editado</span>';
     var locked = isLocked(e);
     var actionCell = locked
-      ? '<span class="locked-icon" title="Mas de 30 dias - bloqueado">&#128274;</span>'
+      /* El candado era un <span> con la explicacion solo en title=, que en el
+         telefono no existe: tocarlo no hacia nada ni decia nada, y parecia que
+         el boton de borrar estaba roto. Ahora es un boton que llama a
+         delExpense, donde la guarda isLocked ya sabe explicar el bloqueo. */
+      ? '<button class="btn-del btn-locked" onclick="delExpense(' + e.id + ', event)"' +
+        ' title="Mas de 30 dias - bloqueado"' +
+        ' aria-label="Bloqueado por antiguedad. Toca para saber por que">&#128274;</button>'
       : '<button class="btn-del" onclick="delExpense(' + e.id + ', event)" title="Eliminar">&times;</button>';
     var rowClick = locked ? '' : 'onclick="startEdit(' + e.id + ')"';
     html += '<tr class="' + (editingId === e.id ? 'editing' : '') + '" ' + rowClick + '>' +
@@ -4826,8 +4882,9 @@ function delVenta(id, ev) {
 }
 
 function delVentaConfirmada(id, v) {
-  // La venta referencia al gasto via ingreso_id (FK sin ON DELETE CASCADE), asi que hay
-  // que borrar primero la venta y despues el gasto, o la FK rechaza el borrado del gasto.
+  // ventas.ingreso_id -> gastos.id es ON DELETE SET NULL, no una FK rigida: el
+  // orden no es obligatorio, borrar el gasto primero tampoco habria fallado.
+  // Se mantiene este orden porque deja la venta fuera antes de tocar Finanzas.
   sbPedir('/rest/v1/ventas?id=eq.' + id, { method: 'DELETE' })
   .then(() => {
     ventas = ventas.filter(x => x.id !== id);
