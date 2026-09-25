@@ -4538,8 +4538,6 @@ function ventaCalcSugerido() {
     hint.textContent = (margenBajo ? '⚠️ Pierdes plata: con ' + margen + '% no cubres la operación (mínimo ' + Math.round(minReal) + '%, precio ' + fmt(precioSugeridoReal(costo)) + '). ' : '💡 ') +
       'Precio sugerido (margen ' + margen + '%): ' + fmt(sugerido);
     hint.onclick = null;
-    $('f-precio-ven').value = sugerido;
-    ventaCalcGanancia();
   } else {
     hint.style.cursor = 'pointer';
     hint.textContent = (margenBajo ? '⚠️ Pierdes plata: con ' + margen + '% no cubres la operación (mínimo ' + Math.round(minReal) + '%, precio ' + fmt(precioSugeridoReal(costo)) + '). ' : '💡 ') +
@@ -6660,12 +6658,13 @@ function admSaveProductWithPriceCommit(id, desc, precio, costo, margen, precioOf
       admState.items.push(item);
       admSave();
       var wasEdit = isEdit;
+      var estadoGuardado = item.estado;
       admEditingId = null;
       admResetForm();
       admRenderGallery();
       applyFilters();
-      var estadoMsg = admEstado === 'publicado' ? ' · visible en vitrina ✓'
-        : (admEstado === 'oculto' ? ' · oculto al cliente' : ' · guardado como borrador');
+      var estadoMsg = estadoGuardado === 'publicado' ? ' · visible en vitrina ✓'
+        : (estadoGuardado === 'oculto' ? ' · oculto al cliente' : ' · guardado como borrador');
       toast((wasEdit ? 'Producto ' + finalId + ' actualizado' : 'Producto ' + finalId + ' guardado') + estadoMsg);
     });
   }
