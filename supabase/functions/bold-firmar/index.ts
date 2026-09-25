@@ -1,79 +1,81 @@
-// Firma la transaccion antes de mandar al comprador a pagar con Bold.
-// La llave secreta NUNCA puede vivir en el HTML de la vitrina (cualquiera la
-// veria); por eso esta funcion corre en el servidor.
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// Edge Function: bold-firmar
+// Recibe una referencia de pedido, calcula el monto real desde la base,
+// firma con HMAC-SHA256 según la especificación de Bold y devuelve los
+// datos que el frontend necesita para inicializar BoldCheckout.
+//
+// Secrets requeridos en Supabase (Dashboard → Edge Functions → Secrets):
+//   BOLD_API_KEY        — clave pública de Bold (va al frontend via esta respuesta)
+//   BOLD_INTEGRITY_KEY  — clave privada para firmar (nunca sale del servidor)
+//   SUPABASE_URL        — se inyecta automáticamente
+//   SUPABASE_SERVICE_ROLE_KEY — se inyecta automáticamente
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-async function sha256Hex(texto: string): Promise<string> {
-  const datos = new TextEncoder().encode(texto)
-  const hash = await crypto.subtle.digest('SHA-256', datos)
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
+const CURRENCY = 'COP';
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Metodo no permitido' }), {
-      status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'content-type, apikey, authorization',
+      },
+    });
   }
 
   try {
-    const { referencia } = await req.json()
-    if (!referencia || typeof referencia !== 'string') {
-      return new Response(JSON.stringify({ error: 'Falta la referencia del pedido' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const { referencia } = await req.json();
+    if (!referencia) return error('Falta referencia', 400);
 
-    const supabase = createClient(
+    const sb = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
 
-    const { data: filas, error } = await supabase
-      .from('ventas')
-      .select('monto_total, estado')
+    const { data: pedido, error: dbErr } = await sb
+      .from('pedidos')
+      .select('monto, estado')
       .eq('referencia_pago', referencia)
+      .single();
 
-    if (error) throw error
-    if (!filas || filas.length === 0) {
-      return new Response(JSON.stringify({ error: 'Ese pedido no existe' }), {
-        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-    if (filas.some((fila) => fila.estado !== 'pendiente')) {
-      return new Response(JSON.stringify({ error: 'Ese pedido ya no esta pendiente de pago' }), {
-        status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    if (dbErr || !pedido) return error('Pedido no encontrado', 404);
+    if (pedido.estado !== 'pendiente') return error('Pedido ya procesado', 409);
 
-    const total = filas.reduce((acumulado, fila) => acumulado + Number(fila.monto_total), 0)
-    // Bold recibe el monto en pesos enteros, sin decimales (a diferencia de
-    // Wompi, no va multiplicado por 100).
-    const amount = Math.round(total)
-    const currency = 'COP'
-    const secreto = Deno.env.get('BOLD_SECRET_KEY')!
+    const apiKey = Deno.env.get('BOLD_API_KEY');
+    const integrityKey = Deno.env.get('BOLD_SECRET_KEY');
+    if (!apiKey || !integrityKey) return error('Pasarela no configurada', 500);
 
-    // Firma de integridad de Bold: SHA256(identificador + monto + divisa + llave secreta)
-    const signature = await sha256Hex(referencia + amount + currency + secreto)
+    // Firma Bold: SHA256(orderId + amount + currency + integrity_key)
+    const mensaje = referencia + pedido.monto + CURRENCY + integrityKey;
+    const encoder = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(mensaje));
+    const signature = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
 
-    return new Response(JSON.stringify({
-      referencia, amount, currency, signature,
-      apiKey: Deno.env.get('BOLD_API_KEY') || '',
-    }), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({
+        apiKey,
+        referencia,
+        amount: pedido.monto,
+        currency: CURRENCY,
+        signature,
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      },
+    );
   } catch (e) {
-    console.error('bold-firmar:', e)
-    return new Response(JSON.stringify({ error: 'Error al firmar el pedido' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return error(String(e), 500);
   }
-})
+});
+
+function error(msg: string, status: number) {
+  return new Response(JSON.stringify({ error: msg }), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+}

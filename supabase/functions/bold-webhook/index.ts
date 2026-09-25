@@ -1,100 +1,138 @@
-// Recibe el aviso de Bold cuando un pago se resuelve. Esta es la UNICA
-// fuente de verdad de que se pago: la redireccion del navegador de vuelta a
-// la vitrina se puede interrumpir o falsificar, este webhook no.
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// Edge Function: bold-webhook
+// Bold llama a este endpoint cuando el estado de un pago cambia.
+// Verifica la firma del webhook, actualiza el pedido y envía el
+// correo de confirmación al comprador.
+//
+// Secrets requeridos:
+//   BOLD_WEBHOOK_SECRET     — clave para verificar que el llamado viene de Bold
+//   RESEND_API_KEY          — para enviar correos (resend.com, plan gratuito disponible)
+//   RESEND_FROM             — dirección remitente, ej: "Verde Andino <hola@verdeandino.app>"
+//   SUPABASE_URL            — inyectado automáticamente
+//   SUPABASE_SERVICE_ROLE_KEY — inyectado automáticamente
+//
+// URL que se configura en Bold Dashboard → Webhooks:
+//   https://rbvqxrkzepthbbqzkbcg.supabase.co/functions/v1/bold-webhook
 
-async function toBase64(texto: string): Promise<string> {
-  const bytes = new TextEncoder().encode(texto)
-  let binario = ''
-  bytes.forEach((b) => { binario += String.fromCharCode(b) })
-  return btoa(binario)
-}
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-async function hmacSha256Hex(secreto: string, mensaje: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const llave = await crypto.subtle.importKey(
-    'raw', encoder.encode(secreto), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  )
-  const firma = await crypto.subtle.sign('HMAC', llave, encoder.encode(mensaje))
-  return Array.from(new Uint8Array(firma)).map((b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-serve(async (req) => {
-  if (req.method !== 'POST') return new Response('Metodo no permitido', { status: 405 })
-
-  const cuerpoCrudo = await req.text()
-  const firmaRecibida = (req.headers.get('x-bold-signature') || '').toLowerCase()
-  const secreto = Deno.env.get('BOLD_SECRET_KEY') || ''
-  const cuerpoBase64 = await toBase64(cuerpoCrudo)
-  const firmaCalculada = await hmacSha256Hex(secreto, cuerpoBase64)
-
-  if (!firmaRecibida || firmaCalculada !== firmaRecibida) {
-    console.error('bold-webhook: firma invalida, evento ignorado')
-    return new Response('Firma invalida', { status: 401 })
+Deno.serve(async (req: Request) => {
+  if (req.method !== 'POST') {
+    return new Response('Método no permitido', { status: 405 });
   }
 
-  let payload: any
-  try {
-    payload = JSON.parse(cuerpoCrudo)
-  } catch (_error) {
-    return new Response('Cuerpo invalido', { status: 400 })
-  }
+  const body = await req.text();
 
-  const tipo: string | undefined = payload?.type
-  const referencia: string | undefined = payload?.data?.metadata?.reference
-  if (!referencia) return new Response('ok', { status: 200 })
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  )
-
-  try {
-    if (tipo === 'SALE_APPROVED') {
-      const { error } = await supabase.rpc('confirmar_pago_web', { p_referencia: referencia })
-      if (error) throw error
-      // Dispara el email transaccional de confirmacion. Best-effort: si falla
-      // no revertimos el pago ni bloqueamos el webhook, solo se loguea. La
-      // idempotencia esta en ventas.email_sent_at.
-      dispararEmailPagado(referencia).catch((e) => {
-        console.error('bold-webhook: fallo el envio de email', referencia, e)
-      })
-    } else if (tipo === 'SALE_REJECTED') {
-      const { error } = await supabase.rpc('cancelar_pago_web', { p_referencia: referencia })
-      if (error) throw error
-    } else if (tipo === 'VOID_APPROVED') {
-      // Reembolso confirmado por Bold: la venta ya estaba pagada y Bold
-      // aprobo la anulacion. Marca ventas como 'reembolsado' y libera el
-      // stock (republica el producto si estaba oculto).
-      const { error } = await supabase.rpc('reembolsar_pago_web', { p_referencia: referencia })
-      if (error) throw error
+  // Verificar firma Bold (X-Bold-Signature: SHA256(secret + body))
+  const boldSig = req.headers.get('X-Bold-Signature') || '';
+  const webhookSecret = Deno.env.get('BOLD_WEBHOOK_SECRET') || '';
+  if (webhookSecret) {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', encoder.encode(webhookSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+    );
+    const sigBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
+    const sigHex = Array.from(new Uint8Array(sigBuffer))
+      .map((b) => b.toString(16).padStart(2, '0')).join('');
+    if (sigHex !== boldSig) {
+      return new Response('Firma inválida', { status: 401 });
     }
-    // VOID_REJECTED: Bold rechazo la solicitud de anulacion (por ejemplo
-    // fuera de plazo). No hay que revertir nada en la base, el pago sigue
-    // en pie. Solo se loguea el evento para auditoria.
-  } catch (error) {
-    console.error('bold-webhook: error al aplicar el pago', referencia, error)
-    // 200 igual: Bold reintenta un error 5xx hasta 5 veces y el pedido queda
-    // "pendiente" en la base, visible en el panel para revisar a mano.
   }
 
-  return new Response('ok', { status: 200 })
-})
+  let evento: Record<string, unknown>;
+  try { evento = JSON.parse(body); } catch { return new Response('JSON inválido', { status: 400 }); }
 
-async function dispararEmailPagado(referencia: string): Promise<void> {
-  const url = (Deno.env.get('SUPABASE_URL') || '') + '/functions/v1/send-payment-confirmed'
-  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-  const resp = await fetch(url, {
+  const referencia = String(evento.order_id || evento.orderId || '');
+  const estadoBold = String(evento.status || evento.payment_status || '');
+  if (!referencia || !estadoBold) return new Response('Campos faltantes', { status: 400 });
+
+  // Mapear estado Bold → estado interno
+  const nuevoEstado =
+    estadoBold === 'APPROVED' || estadoBold === 'approved' ? 'pagado'
+    : estadoBold === 'REJECTED' || estadoBold === 'rejected' || estadoBold === 'CANCELLED' ? 'cancelada'
+    : null;
+
+  if (!nuevoEstado) return new Response('Estado ignorado: ' + estadoBold, { status: 200 });
+
+  const sb = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  // Actualizar estado del pedido
+  const { data: pedido, error: dbErr } = await sb
+    .from('pedidos')
+    .update({ estado: nuevoEstado })
+    .eq('referencia_pago', referencia)
+    .eq('estado', 'pendiente')  // solo actualizar si sigue pendiente
+    .select('monto, comprador, items')
+    .single();
+
+  if (dbErr || !pedido) {
+    // Puede que ya estuviera actualizado (Bold reintenta); no es error.
+    return new Response('OK (sin cambio)', { status: 200 });
+  }
+
+  // Enviar correo solo si el pago fue aprobado
+  if (nuevoEstado === 'pagado') {
+    await enviarCorreoConfirmacion(pedido, referencia);
+  }
+
+  return new Response('OK', { status: 200 });
+});
+
+async function enviarCorreoConfirmacion(
+  pedido: { monto: number; comprador: Record<string, string>; items: unknown[] },
+  referencia: string,
+) {
+  const resendKey = Deno.env.get('RESEND_API_KEY');
+  const emailFrom = Deno.env.get('RESEND_FROM') || 'Verde Andino Jewelry <hola@verdeandino.app>';
+  if (!resendKey) return;  // Si no hay clave, omitir sin romper el flujo
+
+  const { nombre, email } = pedido.comprador as Record<string, string>;
+  if (!email) return;
+
+  const monto = Number(pedido.monto).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
+  const html = `
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f3f0;font-family:Georgia,serif;">
+  <div style="max-width:540px;margin:32px auto;background:#fff;border-radius:8px;overflow:hidden;">
+    <div style="background:#1F6F4A;padding:28px 32px;text-align:center;">
+      <p style="margin:0;color:#D4AF37;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">Verde Andino Jewelry</p>
+      <h1 style="margin:8px 0 0;color:#fff;font-size:22px;font-weight:400;">Pago confirmado</h1>
+    </div>
+    <div style="padding:32px;">
+      <p style="margin:0 0 16px;color:#333;font-size:15px;">Hola${nombre ? ' ' + nombre : ''},</p>
+      <p style="margin:0 0 24px;color:#333;font-size:15px;">
+        Tu pago de <strong>${monto}</strong> fue aprobado. Jhojan revisará tu pedido y te contactará pronto para coordinar el envío.
+      </p>
+      <div style="background:#f5f3f0;border-radius:6px;padding:16px 20px;margin-bottom:24px;">
+        <p style="margin:0 0 6px;font-size:11px;color:#888;letter-spacing:0.1em;text-transform:uppercase;">Referencia del pedido</p>
+        <p style="margin:0;font-family:monospace;font-size:14px;color:#1F6F4A;">${referencia}</p>
+      </div>
+      <p style="margin:0 0 8px;color:#555;font-size:13px;">¿Tienes alguna pregunta? Escríbenos por WhatsApp:</p>
+      <a href="https://wa.me/573185609592?text=Hola%2C+mi+pedido+es+${encodeURIComponent(referencia)}"
+         style="display:inline-block;background:#25D366;color:#fff;padding:10px 20px;border-radius:4px;text-decoration:none;font-size:13px;font-family:Arial,sans-serif;">
+        WhatsApp
+      </a>
+    </div>
+    <div style="padding:16px 32px;border-top:1px solid #eee;text-align:center;">
+      <p style="margin:0;font-size:11px;color:#aaa;">Verde Andino Jewelry · Esmeraldas de Colombia</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + key,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ referencia }),
-  })
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '')
-    throw new Error('send-payment-confirmed ' + resp.status + ' ' + txt)
-  }
+    headers: { 'Authorization': 'Bearer ' + resendKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: emailFrom,
+      to: [email],
+      subject: 'Pago confirmado – Verde Andino Jewelry',
+      html,
+    }),
+  });
 }
