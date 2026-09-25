@@ -34,8 +34,6 @@ El catálogo se sirve desde **Supabase** (base de datos en la nube), así que to
 - **Seguridad:** Row-Level Security (RLS) en Supabase: lectura pública solo de productos publicados; escrituras protegidas por token administrativo.
 - **Hosting:** GitHub Pages, con auto-deploy en cada `git push` a `main`.
 
-👉 Detalle completo en `REFERENCIA-TECNICA.md`, en la raíz del proyecto (fuera de este repositorio).
-
 ---
 
 ## 🛍️ Qué ve el cliente en la vitrina
@@ -45,8 +43,6 @@ El catálogo se sirve desde **Supabase** (base de datos en la nube), así que to
 - Sección educativa sobre las esmeraldas colombianas (Muzo, Chivor, Coscuez).
 - FAQ, política de "a la medida", cómo comprar, contacto.
 - Modo claro/oscuro automático según el sistema.
-
-**Datos privados (nunca en la vitrina):** costos, márgenes, proveedores, notas internas, números de certificado. Se gestionan aparte y quedan solo en el backend con acceso restringido.
 
 ---
 
