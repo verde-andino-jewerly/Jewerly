@@ -1808,10 +1808,6 @@
   <div class="adm-wrap">
     <div class="adm-header">
       <strong>Cargador de Productos</strong>
-      <div class="adm-header-btns">
-        <button class="adm-icon-btn" onclick="toggleTheme()" title="Cambiar tema" type="button">🌓</button>
-        <button class="adm-icon-btn" onclick="admClosePanel()" title="Cerrar y ver vitrina" type="button">✕</button>
-      </div>
     </div>
 
     <div class="sync-banner">Los productos guardados aquí aparecen automáticamente en la vitrina pública.</div>
@@ -5985,13 +5981,6 @@ function exportInventarioXLSX() {
 
 /* Adaptadores para contexto de panel */
 function admConfirm(msg, onYes, opts) { pvConfirmar(msg, onYes, opts); }
-function admClosePanel() { switchTab('calc'); }
-function toggleTheme() {
-  var root = document.documentElement;
-  var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
-  root.dataset.theme = next;
-  try { localStorage.setItem('va_theme', next); } catch(e) {}
-}
 function applyFilters() {}
 var admProdInited = false;
 function admInitProdOnce() {
