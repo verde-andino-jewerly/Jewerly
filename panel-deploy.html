@@ -654,12 +654,6 @@
     padding: 6px 0 16px; position: sticky; top: 0; background: var(--bg); z-index: 5;
   }
   #admin-panel .adm-header strong { font-size: .95rem; color: var(--gold); }
-  #admin-panel .adm-header-btns { display: flex; gap: 8px; }
-  #admin-panel .adm-icon-btn {
-    background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
-    width: 34px; height: 34px; cursor: pointer; color: var(--text-2); font-size: 1rem;
-    display: flex; align-items: center; justify-content: center;
-  }
   #admin-panel .card {
     background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
     padding: 20px 16px; margin-bottom: 16px; box-shadow: var(--shadow);
@@ -810,7 +804,6 @@
   #admin-panel .estado-badge.publicado { background: var(--esm-bg); color: var(--esm-d); border: 1px solid var(--esm-l); }
   #admin-panel .estado-badge.oculto { background: #FBF3D6; color: #8A7318; border: 1px solid #E8D48A; }
   #admin-panel .estado-badge.borrador { background: var(--bg-alt); color: var(--text-3); border: 1px solid var(--border); }
-  :root[data-theme="dark"] #admin-panel .estado-badge.oculto { background: #2A2410; color: #D4B93A; border-color: #4A3F16; }
   #admin-panel .product-card.is-hidden .product-thumb,
   #admin-panel .product-card.is-hidden .product-desc { opacity: .5; }
   #admin-panel .export-btns { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -7143,7 +7136,6 @@ function admExportPDF() {
 /* ===== ARRANQUE ===== */
 /* Lo unico que se ejecuta solo al cargar la pagina. Va al final y no se mueve:
    a diferencia de las funciones, esto SI depende del orden. */
-try { var _t = localStorage.getItem('va_theme'); if (_t) document.documentElement.dataset.theme = _t; } catch(e) {}
 $('f-amount').addEventListener('input', updateRate);
 $('f-qty').addEventListener('input', updateRate);
 $('f-date').value = fechaHoyLocal();
